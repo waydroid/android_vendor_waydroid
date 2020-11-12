@@ -1,0 +1,893 @@
+From fb3e83c109486d0eb69d70d93abd678b941e6854 Mon Sep 17 00:00:00 2001
+From: Franz-Josef Haider <f_haider@gmx.at>
+Date: Tue, 16 May 2017 22:19:03 +0200
+Subject: [PATCH 1/5] make surfaceflinger a wayland client (initial single
+ window approach)
+
+Change-Id: I7f111ca832f7c372c3066cfd86f72f16c38723a1
+---
+ services/surfaceflinger/Android.bp            |  28 ++++
+ .../CompositionEngine/src/HwcBufferCache.cpp  |   5 +-
+ .../DisplayHardware/FramebufferSurface.cpp    |   4 +-
+ .../DisplayHardware/HWComposer.cpp            |  38 ++++-
+ .../DisplayHardware/HWComposer.h              |   4 +
+ .../DisplayHardware/VirtualDisplaySurface.cpp |  10 +-
+ .../WaylandSingleWindowManager.cpp            | 151 ++++++++++++++++++
+ .../WaylandSingleWindowManager.h              |  73 +++++++++
+ .../DisplayHardware/WaylandWindowManager.cpp  | 120 ++++++++++++++
+ .../DisplayHardware/WaylandWindowManager.h    |  90 +++++++++++
+ services/surfaceflinger/Layer.cpp             |   2 +-
+ services/surfaceflinger/surfaceflinger.rc     |   2 +
+ services/surfaceflinger/wayland-android.xml   | 127 +++++++++++++++
+ 13 files changed, 641 insertions(+), 13 deletions(-)
+ create mode 100644 services/surfaceflinger/DisplayHardware/WaylandSingleWindowManager.cpp
+ create mode 100644 services/surfaceflinger/DisplayHardware/WaylandSingleWindowManager.h
+ create mode 100644 services/surfaceflinger/DisplayHardware/WaylandWindowManager.cpp
+ create mode 100644 services/surfaceflinger/DisplayHardware/WaylandWindowManager.h
+ create mode 100644 services/surfaceflinger/wayland-android.xml
+
+diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
+index 37b11de07..9aa16b797 100644
+--- a/services/surfaceflinger/Android.bp
++++ b/services/surfaceflinger/Android.bp
+@@ -7,6 +7,8 @@ cc_defaults {
+         "-Wthread-safety",
+         "-Wunused",
+         "-Wunreachable-code",
++        "-Wno-unused-parameter",
++        "-Wno-unused-variable",
+     ],
+ }
+ 
+@@ -66,6 +68,9 @@ cc_defaults {
+         "libtrace_proto",
+         "libvr_manager",
+         "libvrflinger",
++        "libffi",
++        "libwayland_client",
++        "libwayland_extension_client_protocols",
+     ],
+     header_libs: [
+         "android.hardware.graphics.composer@2.1-command-buffer",
+@@ -84,6 +89,7 @@ cc_defaults {
+         "libcompositionengine",
+         "librenderengine",
+         "libserviceutils",
++        "libwayland_client",
+     ],
+     export_shared_lib_headers: [
+         "android.hardware.graphics.allocator@2.0",
+@@ -137,6 +143,8 @@ filegroup {
+         "DisplayHardware/HWComposer.cpp",
+         "DisplayHardware/PowerAdvisor.cpp",
+         "DisplayHardware/VirtualDisplaySurface.cpp",
++        "DisplayHardware/WaylandSingleWindowManager.cpp",
++        "DisplayHardware/WaylandWindowManager.cpp",
+         "Effects/Daltonizer.cpp",
+         "EventLog/EventLog.cpp",
+         "FrameTracker.cpp",
+@@ -183,9 +191,28 @@ cc_library_shared {
+         // can be easily replaced.
+         "SurfaceFlingerFactory.cpp",
+     ],
++    generated_sources: ["wayland_android_client_protocol_sources"],
++    generated_headers: ["wayland_android_client_protocol_headers"],
+     logtags: ["EventLog/EventLogTags.logtags"],
+ }
+ 
++// Generate wayland-android protocol source file
++genrule {
++    name: "wayland_android_client_protocol_sources",
++    srcs: ["wayland-android.xml"],
++    tools: ["wayland_scanner"],
++    cmd: "$(location wayland_scanner) code < $(in) > $(out)",
++    out: ["wayland-android-client-protocol.c"],
++}
++// Generate wayland-android protocol header file
++genrule {
++    name: "wayland_android_client_protocol_headers",
++    srcs: ["wayland-android.xml"],
++    tools: ["wayland_scanner"],
++    cmd: "$(location wayland_scanner) client-header < $(in) > $(out)",
++    out: ["wayland-android-client-protocol.h"],
++}
++
+ cc_defaults {
+     name: "libsurfaceflinger_binary",
+     defaults: ["surfaceflinger_defaults"],
+@@ -235,6 +262,7 @@ cc_binary {
+         "libsurfaceflinger",
+         "libSurfaceFlingerProp",
+     ],
++    generated_headers: ["wayland_android_client_protocol_headers"],
+ }
+ 
+ subdirs = [
+diff --git a/services/surfaceflinger/CompositionEngine/src/HwcBufferCache.cpp b/services/surfaceflinger/CompositionEngine/src/HwcBufferCache.cpp
+index f72862be0..1eec55902 100644
+--- a/services/surfaceflinger/CompositionEngine/src/HwcBufferCache.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/HwcBufferCache.cpp
+@@ -36,10 +36,11 @@ void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uin
+ 
+     auto& currentBuffer = mBuffers[*outSlot];
+     wp<GraphicBuffer> weakCopy(buffer);
+-    if (currentBuffer == weakCopy) {
++    /*if (currentBuffer == weakCopy) {
+         // already cached in HWC, skip sending the buffer
+         *outBuffer = nullptr;
+-    } else {
++    } else */{
++        // Anbox: always send buffers
+         *outBuffer = buffer;
+ 
+         // update cache
+diff --git a/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp b/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
+index 7370b0ccb..55fe29bd1 100644
+--- a/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
++++ b/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
+@@ -67,9 +67,7 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, DisplayId displayId,
+ 
+     mName = "FramebufferSurface";
+     mConsumer->setConsumerName(mName);
+-    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_FB |
+-                                       GRALLOC_USAGE_HW_RENDER |
+-                                       GRALLOC_USAGE_HW_COMPOSER);
++    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_RENDER);
+     const auto& activeConfig = mHwc.getActiveConfig(displayId);
+     mConsumer->setDefaultBufferSize(activeConfig->getWidth(),
+             activeConfig->getHeight());
+diff --git a/services/surfaceflinger/DisplayHardware/HWComposer.cpp b/services/surfaceflinger/DisplayHardware/HWComposer.cpp
+index 2021c26b0..444359210 100644
+--- a/services/surfaceflinger/DisplayHardware/HWComposer.cpp
++++ b/services/surfaceflinger/DisplayHardware/HWComposer.cpp
+@@ -32,6 +32,8 @@
+ #include "HWComposer.h"
+ #include "HWC2.h"
+ #include "ComposerHal.h"
++#include "WaylandWindowManager.h"
++#include "WaylandSingleWindowManager.h"
+ 
+ #include "../Layer.h"           // needed only for debugging
+ #include "../SurfaceFlinger.h"
+@@ -72,10 +74,15 @@ HWComposer::~HWComposer() = default;
+ namespace impl {
+ 
+ HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer)
+-      : mHwcDevice(std::make_unique<HWC2::Device>(std::move(composer))) {}
++      : mHwcDevice(std::make_unique<HWC2::Device>(std::move(composer))),
++        wl_window_manager(new WaylandSingleWindowManager())
++{
++    wl_window_manager->initialize();
++}
+ 
+ HWComposer::~HWComposer() {
+     mDisplayData.clear();
++    wl_window_manager->finalize();
+ }
+ 
+ void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
+@@ -395,7 +402,34 @@ status_t HWComposer::setClientTarget(DisplayId displayId, uint32_t slot,
+     ALOGV("%s for display %s", __FUNCTION__, to_string(displayId).c_str());
+     auto& hwcDisplay = mDisplayData[displayId].hwcDisplay;
+     auto error = hwcDisplay->setClientTarget(slot, target, acquireFence, dataspace);
+-    RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
++    /*RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
++
++    const Vector< sp<Layer> >& visibleLayersSortedByZ =
++        mFlinger->getLayerSortedByZForHwcDisplay(0);*/
++
++    std::vector<std::string> layer_names;
++
++    /*DisplayData& disp(mDisplayData[HWC_DISPLAY_PRIMARY]);
++
++    for (size_t i=0 ; i<disp.list->numHwLayers ; i++) {
++        const hwc_layer_1_t&l = disp.list->hwLayers[i];
++        int32_t format = -1;
++        String8 name("unknown");
++
++        if (i < visibleLayersSortedByZ.size()) {
++            const sp<Layer>& layer(visibleLayersSortedByZ[i]);
++            const sp<GraphicBuffer>& buffer(
++                    layer->getActiveBuffer());
++            if (buffer != NULL) {
++                format = buffer->getPixelFormat();
++            }
++
++            layer_names.push_back((std::string)layer->getName());
++        }
++        layer_names.push_back(name);
++    }*/
++
++    wl_window_manager->pushFrame(layer_names, target->handle, target->width, target->height, target->stride, target->format);
+     return NO_ERROR;
+ }
+ 
+diff --git a/services/surfaceflinger/DisplayHardware/HWComposer.h b/services/surfaceflinger/DisplayHardware/HWComposer.h
+index de863b8d6..170dda7d8 100644
+--- a/services/surfaceflinger/DisplayHardware/HWComposer.h
++++ b/services/surfaceflinger/DisplayHardware/HWComposer.h
+@@ -34,6 +34,8 @@
+ #include "DisplayIdentification.h"
+ #include "HWC2.h"
+ 
++class WaylandWindowManager;
++
+ namespace android {
+ 
+ struct DisplayedFrameStats;
+@@ -367,6 +369,8 @@ private:
+     std::unordered_set<DisplayId> mFreeVirtualDisplayIds;
+     uint32_t mNextVirtualDisplayId = 0;
+     uint32_t mRemainingHwcVirtualDisplays{mHwcDevice->getMaxVirtualDisplayCount()};
++
++    WaylandWindowManager *wl_window_manager;
+ };
+ 
+ } // namespace impl
+diff --git a/services/surfaceflinger/DisplayHardware/VirtualDisplaySurface.cpp b/services/surfaceflinger/DisplayHardware/VirtualDisplaySurface.cpp
+index 4e0e4df52..cc49ce0ee 100644
+--- a/services/surfaceflinger/DisplayHardware/VirtualDisplaySurface.cpp
++++ b/services/surfaceflinger/DisplayHardware/VirtualDisplaySurface.cpp
+@@ -65,7 +65,7 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc,
+         mSource{},
+         mDefaultOutputFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),
+         mOutputFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),
+-        mOutputUsage(GRALLOC_USAGE_HW_COMPOSER),
++        mOutputUsage(GRALLOC_USAGE_HW_RENDER),
+         mProducerSlotSource(0),
+         mProducerBuffers(),
+         mQueueBufferOutput(),
+@@ -108,7 +108,7 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc,
+ 
+     ConsumerBase::mName = String8::format("VDS: %s", mDisplayName.c_str());
+     mConsumer->setConsumerName(ConsumerBase::mName);
+-    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_COMPOSER);
++    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_RENDER);
+     mConsumer->setDefaultBufferSize(sinkWidth, sinkHeight);
+     sink->setAsyncMode(true);
+     IGraphicBufferProducer::QueueBufferOutput output;
+@@ -163,7 +163,7 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
+ 
+     if (mCompositionType != COMPOSITION_GLES &&
+             (mOutputFormat != mDefaultOutputFormat ||
+-             mOutputUsage != GRALLOC_USAGE_HW_COMPOSER)) {
++             mOutputUsage != GRALLOC_USAGE_HW_RENDER)) {
+         // We must have just switched from GLES-only to MIXED or HWC
+         // composition. Stop using the format and usage requested by the GLES
+         // driver; they may be suboptimal when HWC is writing to the output
+@@ -175,7 +175,7 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
+         // format/usage and get a new buffer when the GLES driver calls
+         // dequeueBuffer().
+         mOutputFormat = mDefaultOutputFormat;
+-        mOutputUsage = GRALLOC_USAGE_HW_COMPOSER;
++        mOutputUsage = GRALLOC_USAGE_HW_RENDER;
+         refreshOutputBuffer();
+     }
+ 
+@@ -399,7 +399,7 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence, uint
+         // prepare and set, but since we're in GLES-only mode already it
+         // shouldn't matter.
+ 
+-        usage |= GRALLOC_USAGE_HW_COMPOSER;
++        usage |= GRALLOC_USAGE_HW_RENDER;
+         const sp<GraphicBuffer>& buf = mProducerBuffers[mOutputProducerSlot];
+         if ((usage & ~buf->getUsage()) != 0 ||
+                 (format != 0 && format != buf->getPixelFormat()) ||
+diff --git a/services/surfaceflinger/DisplayHardware/WaylandSingleWindowManager.cpp b/services/surfaceflinger/DisplayHardware/WaylandSingleWindowManager.cpp
+new file mode 100644
+index 000000000..a26bbd093
+--- /dev/null
++++ b/services/surfaceflinger/DisplayHardware/WaylandSingleWindowManager.cpp
+@@ -0,0 +1,151 @@
++#include "WaylandSingleWindowManager.h"
++
++#include <hardware/gralloc.h>
++#include <cutils/log.h>
++
++#define QT_SURFACE_EXTENSION_GET_EXTENDED_SURFACE 0
++
++int WaylandSingleWindowManager::initialize()
++{
++    ALOGW("initializing WaylandSingleWindowManager");
++
++    ALOGW("creating surface");
++    w_surface = wl_compositor_create_surface(WaylandWindowManager::compositor);
++
++    ALOGW("getting shell surface");
++    w_shell_surface = wl_shell_get_shell_surface(shell, w_surface);
++
++    ALOGW("getting qt_extended surface");
++    q_extended_surface = (struct qt_extended_surface*)wl_proxy_create((struct wl_proxy *)q_surface_extension, &qt_extended_surface_interface);
++
++    wl_proxy_marshal((struct wl_proxy*)q_surface_extension, QT_SURFACE_EXTENSION_GET_EXTENDED_SURFACE, q_extended_surface, w_surface);
++
++    ALOGW("adding listeners");
++    wl_proxy_add_listener((struct wl_proxy*)q_extended_surface, (void (**)(void))&extended_surface_listener, this);
++    wl_display_roundtrip(dpy);
++
++    wl_shell_surface_add_listener(w_shell_surface, &shell_surface_listener, NULL);
++
++    wl_shell_surface_set_toplevel(w_shell_surface);
++
++    ALOGW("creating wl region");
++    struct wl_region *region;
++    region = wl_compositor_create_region(WaylandWindowManager::compositor);
++    wl_region_add(region, 0, 0,
++                  screen_width,
++                  screen_height);
++    wl_surface_set_opaque_region(w_surface, region);
++    wl_region_destroy(region);
++
++    frame_callback_ptr = 0;
++
++    return 0;
++}
++
++void WaylandSingleWindowManager::pushFrame(std::vector<std::string> layer_names, buffer_handle_t buffer, int width, int height, int stride, int pixel_format)
++{
++    ALOGW("pushing frame");
++    if(buffer_map.find(buffer) == buffer_map.end())
++    {
++        struct wl_buffer *w_buffer;
++        struct wl_array ints;
++        int *the_ints;
++        struct android_wlegl_handle *wlegl_handle;
++
++        wl_array_init(&ints);
++        the_ints = (int*)wl_array_add(&ints, buffer->numInts * sizeof(int));
++        memcpy(the_ints, buffer->data + buffer->numFds, buffer->numInts * sizeof(int));
++        wlegl_handle = android_wlegl_create_handle(a_android_wlegl, buffer->numFds, &ints);
++        wl_array_release(&ints);
++
++        for(int i = 0; i < buffer->numFds; i++)
++        {
++            android_wlegl_handle_add_fd(wlegl_handle, buffer->data[i]);
++        }
++
++        w_buffer = android_wlegl_create_buffer(a_android_wlegl, width, height, stride, pixel_format, GRALLOC_USAGE_HW_RENDER, wlegl_handle);
++        android_wlegl_handle_destroy(wlegl_handle);
++
++        wl_buffer_add_listener(w_buffer, &w_buffer_listener, this);
++
++        buffer_map[buffer] = w_buffer;
++    }
++
++    int ret = 0;
++    while(frame_callback_ptr && ret != -1)
++    {
++        ret = wl_display_dispatch(dpy);
++    }
++
++    frame_callback_ptr = wl_surface_frame(w_surface);
++    wl_callback_add_listener(frame_callback_ptr, &w_frame_listener, this);
++
++    ALOGW("final commit");
++    wl_surface_attach(w_surface, buffer_map[buffer], 0, 0);
++    wl_surface_damage(w_surface, 0, 0, width, height);
++    wl_surface_commit(w_surface);
++}
++
++void WaylandSingleWindowManager::buffer_release(void *data, struct wl_buffer *buffer)
++{
++    ALOGW("buffer release");
++
++    // we're cleaning in finalize()
++}
++
++void WaylandSingleWindowManager::shell_surface_ping(void *data, struct wl_shell_surface *shell_surface, uint32_t serial)
++{
++    ALOGW("shell surface ping");
++    wl_shell_surface_pong(shell_surface, serial);
++}
++
++void WaylandSingleWindowManager::shell_surface_configure(void *data, struct wl_shell_surface *shell_surface, uint32_t edges, int32_t width, int32_t height)
++{
++    ALOGW("shell surface configure");
++}
++
++void WaylandSingleWindowManager::shell_surface_popup_done(void *data, struct wl_shell_surface *shell_surface)
++{
++    ALOGW("shell surface popup done");
++}
++
++void WaylandSingleWindowManager::handle_onscreen_visibility(void *data, struct qt_extended_surface *qt_extended_surface, int32_t visible)
++{
++    WaylandSingleWindowManager *self = (WaylandSingleWindowManager*)data;
++    ALOGW("qt_extended_surface handle onscreen visibility");
++}
++
++void WaylandSingleWindowManager::handle_set_generic_property(void *data, struct qt_extended_surface *qt_extended_surface, const char *name, struct wl_array *value)
++{
++    ALOGW("qt_extended_surface handle set generic property");
++}
++
++void WaylandSingleWindowManager::handle_close(void *data, struct qt_extended_surface *qt_extended_surface)
++{
++    ALOGW("qt_extended_surface handle close");
++
++    //WaylandSingleWindowManager *self = (WaylandSingleWindowManager*)data;
++    //self->handle_close_impl(self->w_surface);
++}
++
++void WaylandSingleWindowManager::frame_callback(void *data, struct wl_callback *callback, uint32_t time)
++{
++    WaylandSingleWindowManager *self = (WaylandSingleWindowManager*)data;
++    self->frame_callback_ptr = 0;
++    wl_callback_destroy(callback);
++}
++
++int WaylandSingleWindowManager::finalize()
++{
++    for(std::map<buffer_handle_t, struct wl_buffer*>::iterator it = buffer_map.begin();it != buffer_map.end();it++)
++    {
++        wl_buffer_destroy(it->second);
++    }
++    buffer_map.clear();
++
++    wl_proxy_destroy((struct wl_proxy *)q_extended_surface);
++    wl_shell_surface_destroy(w_shell_surface);
++    wl_surface_destroy(w_surface);
++    return 0;
++}
++
+diff --git a/services/surfaceflinger/DisplayHardware/WaylandSingleWindowManager.h b/services/surfaceflinger/DisplayHardware/WaylandSingleWindowManager.h
+new file mode 100644
+index 000000000..7ba435a07
+--- /dev/null
++++ b/services/surfaceflinger/DisplayHardware/WaylandSingleWindowManager.h
+@@ -0,0 +1,73 @@
++#ifndef WAYLAND_SINGLE_WINDOW_MANAGER__
++#define WAYLAND_SINGLE_WINDOW_MANAGER__
++
++#include <vector>
++#include <string>
++#include <map>
++
++#include "WaylandWindowManager.h"
++
++#include <wayland-android-client-protocol.h>
++
++struct qt_extended_surface_listener
++{
++    void (*onscreen_visibility)(void *data, struct qt_extended_surface *qt_extended_surface, int32_t visible);
++    void (*set_generic_property)(void *data, struct qt_extended_surface *qt_extended_surface, const char *name, struct wl_array *value);
++    void (*close)(void *data, struct qt_extended_surface *qt_extended_surface);
++};
++
++class WaylandSingleWindowManager : public WaylandWindowManager
++{
++private:
++    struct wl_shell_surface *w_shell_surface;
++    struct wl_surface *w_surface;
++
++    static void shell_surface_ping(void *data, struct wl_shell_surface *shell_surface, uint32_t serial);
++    static void shell_surface_configure(void *data, struct wl_shell_surface *shell_surface, uint32_t edges, int32_t width, int32_t height);
++    static void shell_surface_popup_done(void *data, struct wl_shell_surface *shell_surface);
++
++    struct wl_shell_surface_listener shell_surface_listener = {&shell_surface_ping, &shell_surface_configure, &shell_surface_popup_done};
++
++    static void handle_onscreen_visibility(void *data, struct qt_extended_surface *qt_extended_surface, int32_t visible);
++    static void handle_set_generic_property(void *data, struct qt_extended_surface *qt_extended_surface, const char *name, struct wl_array *value);
++    static void handle_close(void *data, struct qt_extended_surface *qt_extended_surface);
++
++    static void buffer_release(void *data, struct wl_buffer *buffer);
++
++    static void frame_callback(void *data, struct wl_callback *callback, uint32_t time);
++
++    const struct qt_extended_surface_listener extended_surface_listener = { 
++        &handle_onscreen_visibility,
++        &handle_set_generic_property,
++        &handle_close,
++    };
++
++    const struct wl_buffer_listener w_buffer_listener = {
++        buffer_release
++    };
++
++    const struct wl_callback_listener w_frame_listener = {
++        frame_callback
++    };
++
++    struct wl_callback *frame_callback_ptr;
++
++    struct qt_extended_surface *q_extended_surface;
++
++public:
++    int initialize() override;
++    void pushFrame(std::vector<std::string> layer_names, buffer_handle_t buffer, int width, int height, int stride, int pixel_format) override;
++    int finalize() override;
++    std::map<buffer_handle_t, struct wl_buffer*> buffer_map;
++
++    WaylandSingleWindowManager() : WaylandWindowManager()
++    {
++    }
++
++    ~WaylandSingleWindowManager()
++    {
++    }
++};
++
++#endif
++
+diff --git a/services/surfaceflinger/DisplayHardware/WaylandWindowManager.cpp b/services/surfaceflinger/DisplayHardware/WaylandWindowManager.cpp
+new file mode 100644
+index 000000000..7ef986924
+--- /dev/null
++++ b/services/surfaceflinger/DisplayHardware/WaylandWindowManager.cpp
+@@ -0,0 +1,120 @@
++#include <cutils/log.h>
++
++#include <cstring>
++
++#include "WaylandWindowManager.h"
++
++#include "wayland-android-client-protocol.h"
++
++WaylandWindowManager::WaylandWindowManager()
++{
++    dpy = wl_display_connect(NULL);
++    if(!dpy) goto exit_error;
++
++    registry = wl_display_get_registry(dpy);
++    if(!registry) goto exit_error;
++
++    wl_registry_add_listener(registry, &registry_listener, this);
++
++    wl_display_roundtrip(dpy);
++
++    wl_output_add_listener(output, &output_listener, this);
++    wl_seat_add_listener(seat, &w_seat_listener, this);
++
++    wl_display_dispatch(dpy);
++    wl_display_roundtrip(dpy);
++
++    return;
++
++exit_error:
++    if(dpy != NULL)
++    {
++        wl_display_disconnect(dpy);
++    }
++    ALOGE("failed to initialize WaylandWindowManager");
++}
++
++int WaylandWindowManager::initialize()
++{
++    return 0;
++}
++
++void WaylandWindowManager::seat_handle_capabilities(void *data, struct wl_seat *seat, uint32_t caps)
++{
++    WaylandWindowManager *self = reinterpret_cast<WaylandWindowManager*>(data);
++
++}
++
++void WaylandWindowManager::registry_add_object(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
++{
++    WaylandWindowManager *self = reinterpret_cast<WaylandWindowManager*>(data);
++
++    if(strcmp(interface, "wl_compositor") == 0)
++    {
++        self->compositor = (struct wl_compositor*)wl_registry_bind(registry, name, &wl_compositor_interface, 0);
++    }
++    else if(strcmp(interface, "wl_shell") == 0)
++    {
++        self->shell = (struct wl_shell*)wl_registry_bind(registry, name, &wl_shell_interface, 0);
++    }
++    else if(strcmp(interface, "wl_output") == 0)
++    {
++        self->output = (struct wl_output*)wl_registry_bind(registry, name, &wl_output_interface, 0);
++    }
++    else if(strcmp(interface, "wl_seat") == 0)
++    {
++        self->seat = (struct wl_seat*)wl_registry_bind(registry, name, &wl_seat_interface, 0);
++    }
++    else if(strcmp(interface, "qt_surface_extension") == 0)
++    {
++        self->q_surface_extension = (struct qt_surface_extension*)wl_registry_bind(registry, name, &self->qt_surface_extension_interface, 0);
++    }
++    else if(strcmp(interface, "android_wlegl") == 0)
++    {
++        self->a_android_wlegl = static_cast<struct android_wlegl*>(wl_registry_bind(registry, name, &android_wlegl_interface, 1));
++    }
++    else
++    {
++        ALOGE("ignored interface: %s", interface);
++    }
++}
++
++void WaylandWindowManager::registry_remove_object(void *data, struct wl_registry *registry, uint32_t name)
++{
++    ALOGW("registry remove object: %d", name);
++}
++
++void WaylandWindowManager::output_handle_geometry(void *data, struct wl_output *wl_output, int32_t x, int32_t y, int32_t physical_width, int32_t physical_height, int32_t subpixel, const char *make, const char *model, int32_t transform)
++{
++    ALOGW("output handle geometry");
++}
++
++void WaylandWindowManager::output_handle_mode(void *data, struct wl_output *wl_output, uint32_t flags, int32_t width, int32_t height, int32_t refresh)
++{
++    ALOGW("output handle mode");
++    WaylandWindowManager *self = reinterpret_cast<WaylandWindowManager*>(data);
++
++    self->screen_width = width;
++    self->screen_height = height;
++}
++
++void WaylandWindowManager::output_handle_done(void *data, struct wl_output *wl_output)
++{
++    ALOGW("output handle done");
++}
++
++void WaylandWindowManager::output_handle_scale(void *data, struct wl_output *wl_output, int32_t factor)
++{
++    ALOGW("output handle scale");
++}
++
++int WaylandWindowManager::finalize()
++{
++    return 0;
++}
++
++WaylandWindowManager::~WaylandWindowManager()
++{
++    wl_display_disconnect(dpy);
++}
++
+diff --git a/services/surfaceflinger/DisplayHardware/WaylandWindowManager.h b/services/surfaceflinger/DisplayHardware/WaylandWindowManager.h
+new file mode 100644
+index 000000000..56d21dafb
+--- /dev/null
++++ b/services/surfaceflinger/DisplayHardware/WaylandWindowManager.h
+@@ -0,0 +1,90 @@
++#ifndef WAYLAND_WINDOW_MANAGER__
++#define WAYLAND_WINDOW_MANAGER__
++
++#include <wayland-client.h>
++
++#include <string>
++#include <vector>
++
++#include <system/window.h>
++
++class WaylandWindowManager {
++private:
++    static void seat_handle_capabilities(void *data, struct wl_seat *seat, uint32_t caps);
++    static void seat_name(void *data, struct wl_seat *wl_seat, const char *name) { }
++    static void registry_add_object(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version);
++    static void registry_remove_object(void *data, struct wl_registry *registry, uint32_t name);
++
++protected:
++    struct wl_display *dpy;
++    struct wl_registry *registry;
++    struct wl_compositor *compositor;
++    struct wl_shell *shell;
++    struct wl_seat *seat;
++    const struct wl_registry_listener registry_listener {
++        registry_add_object,
++        registry_remove_object
++    };
++    const struct wl_seat_listener w_seat_listener = {
++        seat_handle_capabilities,
++        seat_name
++    };
++    struct wl_output *output;
++
++    static void output_handle_geometry(void *data, struct wl_output *wl_output, int32_t x, int32_t y, int32_t physical_width, int32_t physical_height, int32_t subpixel, const char *make, const char *model, int32_t transform);
++    static void output_handle_mode(void *data, struct wl_output *wl_output, uint32_t flags, int32_t width, int32_t height, int32_t refresh);
++    static void output_handle_done(void *data, struct wl_output *wl_output);
++    static void output_handle_scale(void *data, struct wl_output *wl_output, int32_t factor);
++    const struct wl_output_listener output_listener = {&output_handle_geometry, &output_handle_mode, &output_handle_done, &output_handle_scale};
++    struct android_wlegl *a_android_wlegl;
++
++    const struct wl_message qt_extended_surface_requests[3] = {
++        { "update_generic_property", "sa", qt_surface_extension_types + 0 },
++        { "set_content_orientation", "i", qt_surface_extension_types + 0 },
++        { "set_window_flags", "i", qt_surface_extension_types + 0 },
++    };
++
++    const struct wl_message qt_extended_surface_events[3] = {
++        { "onscreen_visibility", "i", qt_surface_extension_types + 0 },
++        { "set_generic_property", "sa", qt_surface_extension_types + 0 },
++        { "close", "", qt_surface_extension_types + 0 },
++    };
++
++    WL_EXPORT const struct wl_interface qt_extended_surface_interface = {
++        "qt_extended_surface", 1,
++        3, qt_extended_surface_requests,
++        3, qt_extended_surface_events,
++    };
++    const struct wl_interface *qt_surface_extension_types[4] = {
++        NULL,
++        NULL,
++        &qt_extended_surface_interface,
++        &wl_surface_interface,
++    };
++
++    const struct wl_message qt_surface_extension_requests[1] = {
++        { "get_extended_surface", "no", qt_surface_extension_types + 2 },
++    };
++
++    WL_EXPORT const struct wl_interface qt_surface_extension_interface = {
++        "qt_surface_extension", 1,
++        1, qt_surface_extension_requests,
++        0, NULL,
++    };
++
++    struct qt_surface_extension *q_surface_extension;
++
++    int screen_width;
++    int screen_height;
++
++public:
++    virtual int initialize();
++    virtual void pushFrame(std::vector<std::string> layer_names, buffer_handle_t buffer, int width, int height, int stride, int pixel_format) = 0;
++    virtual int finalize();
++
++    WaylandWindowManager();
++    virtual ~WaylandWindowManager();
++};
++
++#endif
++
+diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.cpp
+index 3ee4ef129..9da2b87f5 100644
+--- a/services/surfaceflinger/Layer.cpp
++++ b/services/surfaceflinger/Layer.cpp
+@@ -1251,7 +1251,7 @@ uint32_t Layer::getEffectiveUsage(uint32_t usage) const {
+     if (mPotentialCursor) {
+         usage |= GraphicBuffer::USAGE_CURSOR;
+     }
+-    usage |= GraphicBuffer::USAGE_HW_COMPOSER;
++    usage |= GraphicBuffer::USAGE_HW_RENDER;
+     return usage;
+ }
+ 
+diff --git a/services/surfaceflinger/surfaceflinger.rc b/services/surfaceflinger/surfaceflinger.rc
+index aea602bba..43b7b7cb1 100644
+--- a/services/surfaceflinger/surfaceflinger.rc
++++ b/services/surfaceflinger/surfaceflinger.rc
+@@ -1,4 +1,6 @@
+ service surfaceflinger /system/bin/surfaceflinger
++    setenv XDG_RUNTIME_DIR /run/user/32011
++    setenv WAYLAND_DISPLAY wayland-0
+     class core animation
+     user system
+     group graphics drmrpc readproc
+diff --git a/services/surfaceflinger/wayland-android.xml b/services/surfaceflinger/wayland-android.xml
+new file mode 100644
+index 000000000..24ef7805a
+--- /dev/null
++++ b/services/surfaceflinger/wayland-android.xml
+@@ -0,0 +1,127 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="android">
++
++  <copyright>
++    Copyright © 2012 Collabora, Ltd.
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <interface name="android_wlegl" version="2">
++    <description summary="Android EGL graphics buffer support">
++      Interface used in the Android wrapper libEGL to share
++      graphics buffers between the server and the client.
++    </description>
++
++    <enum name="error">
++      <entry name="bad_handle" value="0" />
++      <entry name="bad_value" value="1" />
++    </enum>
++
++    <request name="create_handle">
++      <description summary="Create an Android native_handle_t object">
++        This creator method initialises the native_handle_t object
++        with everything except the file descriptors, which have to be
++        submitted separately.
++      </description>
++
++      <arg name="id" type="new_id" interface="android_wlegl_handle" />
++      <arg name="num_fds" type="int" />
++      <arg name="ints" type="array" summary="an array of int32_t" />
++    </request>
++
++    <request name="create_buffer">
++      <description summary="Create a wl_buffer from the native handle">
++        Pass the Android native_handle_t to the server and attach it
++        to the new wl_buffer object.
++
++        The android_wlegl_handle object must be destroyed immediately
++        after this request.
++      </description>
++
++      <arg name="id" type="new_id" interface="wl_buffer" />
++      <arg name="width" type="int" />
++      <arg name="height" type="int" />
++      <arg name="stride" type="int" />
++      <arg name="format" type="int" />
++      <arg name="usage" type="int" />
++      <arg name="native_handle" type="object" interface="android_wlegl_handle" />
++    </request>
++
++
++    <request name="get_server_buffer_handle" since="2">
++        <arg name="id" type="new_id" interface="android_wlegl_server_buffer_handle"/>
++        <arg name="width" type="int"/>
++        <arg name="height" type="int"/>
++        <arg name="format" type="int"/>
++        <arg name="usage" type="int"/>
++    </request>
++
++  </interface>
++
++  <interface name="android_wlegl_handle" version="1">
++    <description summary="An Android native_handle_t object">
++      The Android native_handle_t is a semi-opaque object, that
++      contains an EGL implementation specific number of int32
++      values and file descriptors.
++
++      We cannot send a variable size array of file descriptors
++      over the Wayland protocol, so we send them one by one.
++    </description>
++
++    <enum name="error">
++      <entry name="too_many_fds" value="0" />
++    </enum>
++
++    <request name="add_fd">
++      <arg name="fd" type="fd" />
++    </request>
++
++    <request name="destroy" type="destructor" />
++
++  </interface>
++
++
++  <interface name="android_wlegl_server_buffer_handle" version="1">
++      <description summary="a server allocated buffer">
++          On creation a server_side_buffer object will immediately send
++          the "buffer_fd" and "buffer_ints" events needed by the client to
++          reference the gralloc buffer, followed by the "buffer" event carrying
++          the wl_buffer object.
++      </description>
++      <event name="buffer_fd">
++          <arg name="fd" type="fd"/>
++      </event>
++      <event name="buffer_ints">
++          <arg name="ints" type="array"/>
++      </event>
++      <event name="buffer">
++          <description summary="the wl_buffer">
++              This event will be sent after the ints and all the fds have been sent
++          </description>
++          <arg name="buffer" type="new_id" interface="wl_buffer"/>
++          <arg name="format" type="int"/>
++          <arg name="stride" type="int"/>
++      </event>
++  </interface>
++
++</protocol>
+-- 
+2.28.0
+

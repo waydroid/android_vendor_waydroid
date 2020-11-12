@@ -1,0 +1,330 @@
+From 7967b452fb5d0d883cd459f5e33da841f6148806 Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Sun, 18 Oct 2020 00:31:45 +0700
+Subject: [PATCH 1/4] (anbox) init: start inside LXC container without SELinux
+
+---
+ init/Android.bp           |  2 ++
+ init/first_stage_init.cpp | 31 ++++++++++++++++++++-----------
+ init/init.cpp             | 14 +++++++++-----
+ init/property_service.cpp | 24 +++++++++++++++---------
+ init/service.cpp          | 10 ++++++----
+ init/subcontext.cpp       |  5 +++--
+ init/util.cpp             | 18 +++++++++++-------
+ 7 files changed, 66 insertions(+), 38 deletions(-)
+
+diff --git a/init/Android.bp b/init/Android.bp
+index 377a3740c..9dda6897f 100644
+--- a/init/Android.bp
++++ b/init/Android.bp
+@@ -25,6 +25,7 @@ cc_defaults {
+         "-Wall",
+         "-Wextra",
+         "-Wno-unused-parameter",
++        "-Wno-unused-function",
+         "-Werror",
+         "-DALLOW_LOCAL_PROP_OVERRIDE=0",
+         "-DALLOW_PERMISSIVE_SELINUX=0",
+@@ -239,6 +240,7 @@ cc_binary {
+         "-Wall",
+         "-Wextra",
+         "-Wno-unused-parameter",
++        "-Wno-unused-function",
+         "-Werror",
+     ],
+     static_libs: [
+diff --git a/init/first_stage_init.cpp b/init/first_stage_init.cpp
+index 2b899408a..b148fb231 100644
+--- a/init/first_stage_init.cpp
++++ b/init/first_stage_init.cpp
+@@ -117,19 +117,22 @@ int FirstStageMain(int argc, char** argv) {
+     CHECKCALL(setenv("PATH", _PATH_DEFPATH, 1));
+     // Get the basic filesystem setup we need put together in the initramdisk
+     // on / and then we'll let the rc file figure out the rest.
+-    CHECKCALL(mount("tmpfs", "/dev", "tmpfs", MS_NOSUID, "mode=0755"));
+-    CHECKCALL(mkdir("/dev/pts", 0755));
++
++    // Disabled for Anbox, mounted by host system instead
++    //CHECKCALL(mount("tmpfs", "/dev", "tmpfs", MS_NOSUID, "mode=0755"));
++    //CHECKCALL(mkdir("/dev/pts", 0755));
+     CHECKCALL(mkdir("/dev/socket", 0755));
+-    CHECKCALL(mount("devpts", "/dev/pts", "devpts", 0, NULL));
++    //CHECKCALL(mount("devpts", "/dev/pts", "devpts", 0, NULL));
+ #define MAKE_STR(x) __STRING(x)
+-    CHECKCALL(mount("proc", "/proc", "proc", 0, "hidepid=2,gid=" MAKE_STR(AID_READPROC)));
++    //CHECKCALL(mount("proc", "/proc", "proc", 0, "hidepid=2,gid=" MAKE_STR(AID_READPROC)));
+ #undef MAKE_STR
+     // Don't expose the raw commandline to unprivileged processes.
+     CHECKCALL(chmod("/proc/cmdline", 0440));
+     gid_t groups[] = {AID_READPROC};
+     CHECKCALL(setgroups(arraysize(groups), groups));
+-    CHECKCALL(mount("sysfs", "/sys", "sysfs", 0, NULL));
+-    CHECKCALL(mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL));
++    // Disabled for Anbox
++    //CHECKCALL(mount("sysfs", "/sys", "sysfs", 0, NULL));
++    //CHECKCALL(mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL));
+ 
+     CHECKCALL(mknod("/dev/kmsg", S_IFCHR | 0600, makedev(1, 11)));
+ 
+@@ -141,8 +144,11 @@ int FirstStageMain(int argc, char** argv) {
+     CHECKCALL(mknod("/dev/urandom", S_IFCHR | 0666, makedev(1, 9)));
+ 
+     // This is needed for log wrapper, which gets called before ueventd runs.
+-    CHECKCALL(mknod("/dev/ptmx", S_IFCHR | 0666, makedev(5, 2)));
+-    CHECKCALL(mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3)));
++    // Can be created by LXC on Anbox
++    //CHECKCALL(mknod("/dev/ptmx", S_IFCHR | 0666, makedev(5, 2)));
++    //CHECKCALL(mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3)));
++    mknod("/dev/ptmx", S_IFCHR | 0666, makedev(5, 2));
++    mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3));
+ 
+     // These below mounts are done in first stage init so that first stage mount can mount
+     // subdirectories of /mnt/{vendor,product}/.  Other mounts, not required by first stage mount,
+@@ -215,9 +221,10 @@ int FirstStageMain(int argc, char** argv) {
+         }
+     }
+ 
+-    if (!DoFirstStageMount()) {
++    // Disabled for Anbox
++    /*if (!DoFirstStageMount()) {
+         LOG(FATAL) << "Failed to mount required partitions early ...";
+-    }
++    }*/
+ 
+     struct stat new_root_info;
+     if (stat("/", &new_root_info) != 0) {
+@@ -236,7 +243,9 @@ int FirstStageMain(int argc, char** argv) {
+     setenv("INIT_STARTED_AT", std::to_string(start_ms).c_str(), 1);
+ 
+     const char* path = "/system/bin/init";
+-    const char* args[] = {path, "selinux_setup", nullptr};
++    // Anbox: skip selinux_setup
++    //const char* args[] = {path, "selinux_setup", nullptr};
++    const char* args[] = {path, "second_stage", nullptr};
+     execv(path, const_cast<char**>(args));
+ 
+     // execv() only returns if an error happened, in which case we
+diff --git a/init/init.cpp b/init/init.cpp
+index e026b60b1..3e37bbf7f 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -715,7 +715,9 @@ int SecondStageMain(int argc, char** argv) {
+ 
+     // Make the time that init started available for bootstat to log.
+     property_set("ro.boottime.init", getenv("INIT_STARTED_AT"));
+-    property_set("ro.boottime.init.selinux", getenv("INIT_SELINUX_TOOK"));
++    // Anbox: we skip init SELinux stage
++    // property_set("ro.boottime.init.selinux", getenv("INIT_SELINUX_TOOK"));
++    property_set("ro.boottime.init.selinux", getenv("INIT_STARTED_AT"));
+ 
+     // Set libavb version for Framework-only OTA match in Treble build.
+     const char* avb_version = getenv("INIT_AVB_VERSION");
+@@ -790,9 +792,10 @@ int SecondStageMain(int argc, char** argv) {
+     // Queue an action that waits for coldboot done so we know ueventd has set up all of /dev...
+     am.QueueBuiltinAction(wait_for_coldboot_done_action, "wait_for_coldboot_done");
+     // ... so that we can start queuing up actions that require stuff from /dev.
+-    am.QueueBuiltinAction(MixHwrngIntoLinuxRngAction, "MixHwrngIntoLinuxRng");
+-    am.QueueBuiltinAction(SetMmapRndBitsAction, "SetMmapRndBits");
+-    am.QueueBuiltinAction(SetKptrRestrictAction, "SetKptrRestrict");
++    // Disabled for Anbox
++    //am.QueueBuiltinAction(MixHwrngIntoLinuxRngAction, "MixHwrngIntoLinuxRng");
++    //am.QueueBuiltinAction(SetMmapRndBitsAction, "SetMmapRndBits");
++    //am.QueueBuiltinAction(SetKptrRestrictAction, "SetKptrRestrict");
+     Keychords keychords;
+     am.QueueBuiltinAction(
+         [&epoll, &keychords](const BuiltinArguments& args) -> Result<Success> {
+@@ -813,7 +816,8 @@ int SecondStageMain(int argc, char** argv) {
+ 
+     // Repeat mix_hwrng_into_linux_rng in case /dev/hw_random or /dev/random
+     // wasn't ready immediately after wait_for_coldboot_done
+-    am.QueueBuiltinAction(MixHwrngIntoLinuxRngAction, "MixHwrngIntoLinuxRng");
++    // Disabled for Anbox
++    // am.QueueBuiltinAction(MixHwrngIntoLinuxRngAction, "MixHwrngIntoLinuxRng");
+ 
+     // Initialize binder before bringing up other system services
+     am.QueueBuiltinAction(InitBinder, "InitBinder");
+diff --git a/init/property_service.cpp b/init/property_service.cpp
+index 65e9cda1c..eb7544d70 100644
+--- a/init/property_service.cpp
++++ b/init/property_service.cpp
+@@ -133,7 +133,8 @@ void property_init() {
+ }
+ 
+ bool CanReadProperty(const std::string& source_context, const std::string& name) {
+-    const char* target_context = nullptr;
++    // Disabled for Anbox
++    /*const char* target_context = nullptr;
+     property_info_area->GetPropertyInfo(name.c_str(), &target_context, nullptr);
+ 
+     PropertyAuditData audit_data;
+@@ -144,12 +145,14 @@ bool CanReadProperty(const std::string& source_context, const std::string& name)
+     audit_data.cr = &cr;
+ 
+     return selinux_check_access(source_context.c_str(), target_context, "file", "read",
+-                                &audit_data) == 0;
++                                &audit_data) == 0;*/
++    return true;
+ }
+ 
+ static bool CheckMacPerms(const std::string& name, const char* target_context,
+                           const char* source_context, const ucred& cr) {
+-    if (!target_context || !source_context) {
++    // Disabled for Anbox
++    /*if (!target_context || !source_context) {
+         return false;
+     }
+ 
+@@ -161,7 +164,8 @@ static bool CheckMacPerms(const std::string& name, const char* target_context,
+     bool has_access = (selinux_check_access(source_context, target_context, "property_service",
+                                             "set", &audit_data) == 0);
+ 
+-    return has_access;
++    return has_access;*/
++    return true;
+ }
+ 
+ static void SendPropertyChanged(const std::string& name, const std::string& value) {
+@@ -586,11 +590,12 @@ static void handle_property_set_fd() {
+         prop_name[PROP_NAME_MAX-1] = 0;
+         prop_value[PROP_VALUE_MAX-1] = 0;
+ 
+-        std::string source_context;
+-        if (!socket.GetSourceContext(&source_context)) {
++        std::string source_context = "";
++        // Disabled for Anbox
++        /*if (!socket.GetSourceContext(&source_context)) {
+             PLOG(ERROR) << "Unable to set property '" << prop_name << "': getpeercon() failed";
+             return;
+-        }
++        }*/
+ 
+         const auto& cr = socket.cred();
+         std::string error;
+@@ -616,11 +621,12 @@ static void handle_property_set_fd() {
+         }
+ 
+         std::string source_context;
+-        if (!socket.GetSourceContext(&source_context)) {
++        // Disabled for Anbox
++        /*if (!socket.GetSourceContext(&source_context)) {
+             PLOG(ERROR) << "Unable to set property '" << name << "': getpeercon() failed";
+             socket.SendUint32(PROP_ERROR_PERMISSION_DENIED);
+             return;
+-        }
++        }*/
+ 
+         const auto& cr = socket.cred();
+         std::string error;
+diff --git a/init/service.cpp b/init/service.cpp
+index 664fc9baf..41d259734 100644
+--- a/init/service.cpp
++++ b/init/service.cpp
+@@ -323,9 +323,10 @@ void Service::SetProcessAttributes() {
+         }
+     }
+     if (!seclabel_.empty()) {
+-        if (setexeccon(seclabel_.c_str()) < 0) {
++        // Disabled for Anbox
++        /*if (setexeccon(seclabel_.c_str()) < 0) {
+             PLOG(FATAL) << "cannot setexeccon('" << seclabel_ << "') for " << name_;
+-        }
++        }*/
+     }
+     if (priority_ != 0) {
+         if (setpriority(PRIO_PROCESS, 0, priority_) != 0) {
+@@ -939,7 +940,8 @@ Result<Success> Service::Start() {
+     }
+ 
+     std::string scon;
+-    if (!seclabel_.empty()) {
++    // Disabled for Anbox
++    /*if (!seclabel_.empty()) {
+         scon = seclabel_;
+     } else {
+         auto result = ComputeContextFromExecutable(args_[0]);
+@@ -947,7 +949,7 @@ Result<Success> Service::Start() {
+             return result.error();
+         }
+         scon = *result;
+-    }
++    }*/
+ 
+     if (!IsRuntimeApexReady() && !pre_apexd_) {
+         // If this service is started before the runtime APEX gets available,
+diff --git a/init/subcontext.cpp b/init/subcontext.cpp
+index e13025a55..cea5ba3bf 100644
+--- a/init/subcontext.cpp
++++ b/init/subcontext.cpp
+@@ -211,9 +211,10 @@ void Subcontext::Fork() {
+             PLOG(FATAL) << "Could not dup child_fd";
+         }
+ 
+-        if (setexeccon(context_.c_str()) < 0) {
++        // Disabled for Anbox
++        /*if (setexeccon(context_.c_str()) < 0) {
+             PLOG(FATAL) << "Could not set execcon for '" << context_ << "'";
+-        }
++        }*/
+ 
+         auto init_path = GetExecutablePath();
+         auto child_fd_string = std::to_string(child_fd);
+diff --git a/init/util.cpp b/init/util.cpp
+index 63d2d4442..516221ca4 100644
+--- a/init/util.cpp
++++ b/init/util.cpp
+@@ -83,12 +83,13 @@ Result<uid_t> DecodeUid(const std::string& name) {
+  */
+ int CreateSocket(const char* name, int type, bool passcred, mode_t perm, uid_t uid, gid_t gid,
+                  const char* socketcon) {
+-    if (socketcon) {
++    // Disabled for Anbox
++    /*if (socketcon) {
+         if (setsockcreatecon(socketcon) == -1) {
+             PLOG(ERROR) << "setsockcreatecon(\"" << socketcon << "\") failed";
+             return -1;
+         }
+-    }
++    }*/
+ 
+     android::base::unique_fd fd(socket(PF_UNIX, type, 0));
+     if (fd < 0) {
+@@ -96,7 +97,8 @@ int CreateSocket(const char* name, int type, bool passcred, mode_t perm, uid_t u
+         return -1;
+     }
+ 
+-    if (socketcon) setsockcreatecon(NULL);
++    // Disabled for Anbox
++    /*if (socketcon) setsockcreatecon(NULL);*/
+ 
+     struct sockaddr_un addr;
+     memset(&addr, 0 , sizeof(addr));
+@@ -109,10 +111,11 @@ int CreateSocket(const char* name, int type, bool passcred, mode_t perm, uid_t u
+         return -1;
+     }
+ 
+-    std::string secontext;
++    // Disabled for Anbox
++    /*std::string secontext;
+     if (SelabelLookupFileContext(addr.sun_path, S_IFSOCK, &secontext) && !secontext.empty()) {
+         setfscreatecon(secontext.c_str());
+-    }
++    }*/
+ 
+     if (passcred) {
+         int on = 1;
+@@ -125,9 +128,10 @@ int CreateSocket(const char* name, int type, bool passcred, mode_t perm, uid_t u
+     int ret = bind(fd, (struct sockaddr *) &addr, sizeof (addr));
+     int savederrno = errno;
+ 
+-    if (!secontext.empty()) {
++    // Disabled for Anbox
++    /*if (!secontext.empty()) {
+         setfscreatecon(nullptr);
+-    }
++    }*/
+ 
+     if (ret) {
+         errno = savederrno;
+-- 
+2.28.0
+

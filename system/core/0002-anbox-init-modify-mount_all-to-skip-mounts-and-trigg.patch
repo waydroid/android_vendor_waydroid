@@ -1,0 +1,58 @@
+From bdb2e1ec79c05045473c00853c1108414a64a21f Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Wed, 11 Nov 2020 08:08:51 +0700
+Subject: [PATCH 2/4] (anbox) init: modify mount_all to skip mounts and trigger
+ nonencrypted state
+
+Change-Id: Iae8cffa6aeb2d56f35a51f0e9f52fd92402c43e9
+---
+ init/builtins.cpp | 8 +++++---
+ rootdir/init.rc   | 4 ++++
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/init/builtins.cpp b/init/builtins.cpp
+index 7db851ac6..c1da6c27e 100644
+--- a/init/builtins.cpp
++++ b/init/builtins.cpp
+@@ -646,7 +646,7 @@ static Result<Success> do_mount_all(const BuiltinArguments& args) {
+     bool import_rc = true;
+     bool queue_event = true;
+     int mount_mode = MOUNT_MODE_DEFAULT;
+-    const auto& fstabfile = args[1];
++    /*const auto& fstabfile = args[1];*/
+     std::size_t path_arg_end = args.size();
+     const char* prop_post_fix = "default";
+ 
+@@ -666,10 +666,12 @@ static Result<Success> do_mount_all(const BuiltinArguments& args) {
+ 
+     std::string prop_name = "ro.boottime.init.mount_all."s + prop_post_fix;
+     android::base::Timer t;
+-    auto mount_fstab_return_code = mount_fstab(fstabfile, mount_mode);
++    /*auto mount_fstab_return_code = mount_fstab(fstabfile, mount_mode);
+     if (!mount_fstab_return_code) {
+         return Error() << "mount_fstab() failed " << mount_fstab_return_code.error();
+-    }
++    }*/
++    // Anbox: filesystem mount is handled outside container, always non-encrypted
++    Result<int> mount_fstab_return_code = FS_MGR_MNTALL_DEV_NOT_ENCRYPTED;
+     property_set(prop_name, std::to_string(t.duration().count()));
+ 
+     if (import_rc) {
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index d5afabce8..1fcdb141e 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -355,6 +355,10 @@ on late-init
+     trigger early-boot
+     trigger boot
+ 
++on fs
++    # Do fake mount_all for Anbox
++    mount_all /dev/null
++
+ on early-fs
+     # Once metadata has been mounted, we'll need vold to deal with userdata checkpointing
+     start vold
+-- 
+2.28.0
+
