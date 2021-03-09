@@ -1,0 +1,63 @@
+From c58ab1ca897532d18ca77f6ec6521856ee660dfc Mon Sep 17 00:00:00 2001
+From: TheKit <nekit1000@gmail.com>
+Date: Tue, 7 Mar 2021 17:15:20 +0200
+Subject: [PATCH] (halium) never set FLAT_BINDER_FLAG_TXN_SECURITY_CTX flag
+
+It breaks binder transactions when run on a kernel without
+SELinux support.
+
+Change-Id: Ibff0f58a7867061a9353bf8bf5ab092ed562b65f
+---
+ cmds/servicemanager/binder.c | 3 ++-
+ libs/binder/Parcel.cpp       | 5 +++--
+ libs/binder/ProcessState.cpp | 3 ++-
+ 3 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/cmds/servicemanager/binder.c b/cmds/servicemanager/binder.c
+index cf3b1728b..159174a90 100644
+--- a/cmds/servicemanager/binder.c
++++ b/cmds/servicemanager/binder.c
+@@ -148,7 +148,8 @@ int binder_become_context_manager(struct binder_state *bs)
+ {
+     struct flat_binder_object obj;
+     memset(&obj, 0, sizeof(obj));
+-    obj.flags = FLAT_BINDER_FLAG_TXN_SECURITY_CTX;
++    // Disabled for Halium
++    /*obj.flags = FLAT_BINDER_FLAG_TXN_SECURITY_CTX;*/
+ 
+     int result = ioctl(bs->fd, BINDER_SET_CONTEXT_MGR_EXT, &obj);
+ 
+diff --git a/libs/binder/Parcel.cpp b/libs/binder/Parcel.cpp
+index 56e698ecc..3d0e4ea0e 100644
+--- a/libs/binder/Parcel.cpp
++++ b/libs/binder/Parcel.cpp
+@@ -227,9 +227,10 @@ status_t flatten_binder(const sp<ProcessState>& /*proc*/,
+             obj.handle = handle;
+             obj.cookie = 0;
+         } else {
+-            if (local->isRequestingSid()) {
++            // Disabled for Halium
++            /*if (local->isRequestingSid()) {
+                 obj.flags |= FLAT_BINDER_FLAG_TXN_SECURITY_CTX;
+-            }
++            }*/
+             obj.hdr.type = BINDER_TYPE_BINDER;
+             obj.binder = reinterpret_cast<uintptr_t>(local->getWeakRefs());
+             obj.cookie = reinterpret_cast<uintptr_t>(local);
+diff --git a/libs/binder/ProcessState.cpp b/libs/binder/ProcessState.cpp
+index 63f49ddba..6a23298f1 100644
+--- a/libs/binder/ProcessState.cpp
++++ b/libs/binder/ProcessState.cpp
+@@ -182,7 +182,8 @@ bool ProcessState::becomeContextManager(context_check_func checkFunc, void* user
+         mBinderContextUserData = userData;
+ 
+         flat_binder_object obj {
+-            .flags = FLAT_BINDER_FLAG_TXN_SECURITY_CTX,
++            // Disabled for Halium
++            /*.flags = FLAT_BINDER_FLAG_TXN_SECURITY_CTX,*/
+         };
+ 
+         status_t result = ioctl(mDriverFD, BINDER_SET_CONTEXT_MGR_EXT, &obj);
+-- 
+2.30.1
+
