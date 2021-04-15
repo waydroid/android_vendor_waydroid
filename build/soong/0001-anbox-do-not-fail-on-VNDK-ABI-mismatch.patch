@@ -1,0 +1,26 @@
+From ddf2a90472d8d3dd6e7ed964d1ebf3f456b7aafe Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Thu, 15 Apr 2021 12:12:35 +0700
+Subject: [PATCH] (anbox) do not fail on VNDK ABI mismatch
+
+Change-Id: I22ec9d6aae9e49693fb4e41d13462320adb5dded
+---
+ cc/builder.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cc/builder.go b/cc/builder.go
+index a9ee4e9..0f53cf9 100644
+--- a/cc/builder.go
++++ b/cc/builder.go
+@@ -215,7 +215,7 @@ var (
+ 			commandStr := "($sAbiDiffer ${allowFlags} -lib ${libName} -arch ${arch} -o ${out} -new ${in} -old ${referenceDump})"
+ 			commandStr += "|| (echo 'error: Please update ABI references with: $$ANDROID_BUILD_TOP/development/vndk/tools/header-checker/utils/create_reference_dumps.py ${createReferenceDumpFlags} -l ${libName}'"
+ 			commandStr += " && (mkdir -p $$DIST_DIR/abidiffs && cp ${out} $$DIST_DIR/abidiffs/)"
+-			commandStr += " && exit 1)"
++			commandStr += " && exit 0)"
+ 			return blueprint.RuleParams{
+ 				Command:     commandStr,
+ 				CommandDeps: []string{"$sAbiDiffer"},
+-- 
+2.17.1
+
