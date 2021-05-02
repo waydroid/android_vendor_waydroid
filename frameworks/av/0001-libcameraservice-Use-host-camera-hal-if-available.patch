@@ -1,0 +1,33 @@
+From 6533a81cd210cc505a4bf86346259b55873f17ab Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 3 May 2021 06:09:21 +0800
+Subject: [PATCH] libcameraservice: Use host camera hal if available
+
+Change-Id: I867abb939af716bac17581e8121ddd59ea79ad7b
+---
+ .../libcameraservice/common/CameraProviderManager.cpp    | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/services/camera/libcameraservice/common/CameraProviderManager.cpp b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+index fdb5657500..0bdc24b118 100644
+--- a/services/camera/libcameraservice/common/CameraProviderManager.cpp
++++ b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+@@ -69,6 +69,15 @@ CameraProviderManager::HardwareServiceInteractionProxy::listServices() {
+                     ret = registered;
+                 });
+     }
++    if (ret.size() == 0) {
++        auto host_manager = hardware::defaultServiceManager1_2(true);
++        if (host_manager != nullptr) {
++            host_manager->listManifestByInterface(provider::V2_4::ICameraProvider::descriptor,
++                         [&ret](const hardware::hidl_vec<hardware::hidl_string> &registered) {
++                             ret = registered;
++                         });
++        }
++    }
+     return ret;
+ }
+ 
+-- 
+2.29.2
+

@@ -1,0 +1,26 @@
+From 77339c760eb8f08ae53b94e742fcf3298ad19774 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 3 May 2021 02:50:23 +0430
+Subject: [PATCH] media: xmlparser: Add host dirs to search path
+
+---
+ .../include/media/stagefright/xmlparser/MediaCodecsXmlParser.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/media/libstagefright/xmlparser/include/media/stagefright/xmlparser/MediaCodecsXmlParser.h b/media/libstagefright/xmlparser/include/media/stagefright/xmlparser/MediaCodecsXmlParser.h
+index b666de4956..284973c46b 100644
+--- a/media/libstagefright/xmlparser/include/media/stagefright/xmlparser/MediaCodecsXmlParser.h
++++ b/media/libstagefright/xmlparser/include/media/stagefright/xmlparser/MediaCodecsXmlParser.h
+@@ -35,7 +35,8 @@ public:
+ 
+     // Treblized media codec list will be located in /odm/etc or /vendor/etc.
+     static std::vector<std::string> getDefaultSearchDirs() {
+-            return { "/odm/etc", "/vendor/etc", "/etc" };
++            return { "/odm_extra/etc", "/vendor_extra/etc",
++                "/odm/etc", "/vendor/etc", "/etc" };
+     }
+     static std::vector<std::string> getDefaultXmlNames() {
+             return { "media_codecs.xml", "media_codecs_performance.xml" };
+-- 
+2.29.2
+
