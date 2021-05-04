@@ -1,0 +1,46 @@
+From d0db457153e0d1e3ff83d61ea1731ab1f4f334ba Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sat, 8 May 2021 20:46:36 +0430
+Subject: [PATCH] =?UTF-8?q?libcameraservice:=20Don=E2=80=99t=20use=20listS?=
+ =?UTF-8?q?ervices?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Change-Id: I867abb939af716bac17581e8121ddd59ea79ad7b
+---
+ .../libcameraservice/common/CameraProviderManager.cpp | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/services/camera/libcameraservice/common/CameraProviderManager.cpp b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+index fdb5657500..d6cc072922 100644
+--- a/services/camera/libcameraservice/common/CameraProviderManager.cpp
++++ b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+@@ -49,6 +49,9 @@ using std::literals::chrono_literals::operator""s;
+ 
+ namespace {
+ const bool kEnableLazyHal(property_get_bool("ro.camera.enableLazyHal", false));
++const std::string kLegacyProviderName("legacy/0");
++const std::string kExternalProviderName("external/0");
++const std::string kInternalProviderName("internal/0");
+ } // anonymous namespace
+ 
+ const float CameraProviderManager::kDepthARTolerance = .1f;
+@@ -94,10 +97,10 @@ status_t CameraProviderManager::initialize(wp<CameraProviderManager::StatusListe
+         return INVALID_OPERATION;
+     }
+ 
+-
+-    for (const auto& instance : mServiceProxy->listServices()) {
+-        this->addProviderLocked(instance);
+-    }
++    // See if there's a passthrough HAL, but let's not complain if there's not
++    addProviderLocked(kLegacyProviderName);
++    addProviderLocked(kExternalProviderName);
++    addProviderLocked(kInternalProviderName);
+ 
+     IPCThreadState::self()->flushCommands();
+ 
+-- 
+2.29.2
+
