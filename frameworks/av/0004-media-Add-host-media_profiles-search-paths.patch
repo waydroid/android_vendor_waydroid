@@ -1,4 +1,4 @@
-From 50ed5002a80bb10845ea2cb1f0c314881fa5d7d4 Mon Sep 17 00:00:00 2001
+From d0d5b152c7ec8ddd267fe8f02b12bac820f8e32b Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Fri, 21 May 2021 00:59:04 +0430
 Subject: [PATCH] media: Add host media_profiles search paths

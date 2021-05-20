@@ -1,0 +1,80 @@
+From 8180a45df38f43ca2904c894820056993d84ba68 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Thu, 20 May 2021 22:39:05 +0430
+Subject: [PATCH] drm: Fix drm on older vendors
+
+---
+ drm/libmediadrm/DrmHal.cpp | 41 ++++++++++++++++++++++++++++++++++----
+ 1 file changed, 37 insertions(+), 4 deletions(-)
+
+diff --git a/drm/libmediadrm/DrmHal.cpp b/drm/libmediadrm/DrmHal.cpp
+index 919f4ee1df..6a6c6bb890 100644
+--- a/drm/libmediadrm/DrmHal.cpp
++++ b/drm/libmediadrm/DrmHal.cpp
+@@ -24,7 +24,7 @@
+ #include <binder/IServiceManager.h>
+ 
+ #include <android/hardware/drm/1.2/types.h>
+-#include <android/hidl/manager/1.2/IServiceManager.h>
++#include <android/hidl/manager/1.1/IServiceManager.h>
+ #include <hidl/ServiceManagement.h>
+ 
+ #include <media/EventMetric.h>
+@@ -371,10 +371,43 @@ void DrmHal::cleanup() {
+ Vector<sp<IDrmFactory>> DrmHal::makeDrmFactories() {
+     Vector<sp<IDrmFactory>> factories;
+ 
+-    auto manager = hardware::defaultServiceManager1_2();
++    auto manager = hardware::defaultServiceManager1_1();
++    auto manager_host = hardware::defaultServiceManager1_1(true);
+ 
++    if (manager_host != NULL) {
++        manager_host->listByInterface(drm::V1_0::IDrmFactory::descriptor,
++                [&factories](const hidl_vec<hidl_string> &registered) {
++                    for (const auto &instance : registered) {
++                        auto factory = drm::V1_0::IDrmFactory::getService(instance);
++                        if (factory != NULL) {
++                            factories.push_back(factory);
++                        }
++                    }
++                }
++            );
++        manager_host->listByInterface(drm::V1_1::IDrmFactory::descriptor,
++                [&factories](const hidl_vec<hidl_string> &registered) {
++                    for (const auto &instance : registered) {
++                        auto factory = drm::V1_1::IDrmFactory::getService(instance);
++                        if (factory != NULL) {
++                            factories.push_back(factory);
++                        }
++                    }
++                }
++            );
++        manager_host->listByInterface(drm::V1_2::IDrmFactory::descriptor,
++                [&factories](const hidl_vec<hidl_string> &registered) {
++                    for (const auto &instance : registered) {
++                        auto factory = drm::V1_2::IDrmFactory::getService(instance);
++                        if (factory != NULL) {
++                            factories.push_back(factory);
++                        }
++                    }
++                }
++            );
++    }
+     if (manager != NULL) {
+-        manager->listManifestByInterface(drm::V1_0::IDrmFactory::descriptor,
++        manager->listByInterface(drm::V1_0::IDrmFactory::descriptor,
+                 [&factories](const hidl_vec<hidl_string> &registered) {
+                     for (const auto &instance : registered) {
+                         auto factory = drm::V1_0::IDrmFactory::getService(instance);
+@@ -384,7 +417,7 @@ Vector<sp<IDrmFactory>> DrmHal::makeDrmFactories() {
+                     }
+                 }
+             );
+-        manager->listManifestByInterface(drm::V1_1::IDrmFactory::descriptor,
++        manager->listByInterface(drm::V1_1::IDrmFactory::descriptor,
+                 [&factories](const hidl_vec<hidl_string> &registered) {
+                     for (const auto &instance : registered) {
+                         auto factory = drm::V1_1::IDrmFactory::getService(instance);
+-- 
+2.29.2
+

@@ -1,4 +1,4 @@
-From 7e8e82b68b1c4763a83b1bb68265d01f820984ed Mon Sep 17 00:00:00 2001
+From fe5d16cf2e1ddf5a0c63c569451601bf74a0239e Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Mon, 3 May 2021 02:50:23 +0430
 Subject: [PATCH] media: xmlparser: Add host dirs to search path

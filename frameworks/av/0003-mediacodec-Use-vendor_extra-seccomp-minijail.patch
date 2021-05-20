@@ -1,4 +1,4 @@
-From 91aa2b74cce39199ab8a4ca54eaec3b84a7ef282 Mon Sep 17 00:00:00 2001
+From e37700342d1e3a30a40037a01ca70f1e4fa284ba Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Mon, 3 May 2021 06:24:52 +0430
 Subject: [PATCH] mediacodec: Use vendor_extra seccomp minijail
