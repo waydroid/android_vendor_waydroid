@@ -1,0 +1,29 @@
+From cc4dc135c8d72e8ff9fd3d1552e0336c1bf6d856 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sat, 29 May 2021 10:21:50 +0800
+Subject: [PATCH] EGL: Add vendor_extra to search paths
+
+Change-Id: I650d8b092f530ac6ff8bd56e8ef7845c1d4d85c2
+---
+ opengl/libs/EGL/Loader.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/opengl/libs/EGL/Loader.cpp b/opengl/libs/EGL/Loader.cpp
+index 038a43233..93bd54a15 100644
+--- a/opengl/libs/EGL/Loader.cpp
++++ b/opengl/libs/EGL/Loader.cpp
+@@ -438,9 +438,11 @@ static void* load_system_driver(const char* kind, const char* suffix, const bool
+         static std::string find(const char* libraryName, const bool exact) {
+             const char* const searchPaths[] = {
+ #if defined(__LP64__)
++                    "/vendor_extra/lib64/egl",
+                     "/vendor/lib64/egl",
+                     "/system/lib64/egl"
+ #else
++                    "/vendor_extra/lib/egl",
+                     "/vendor/lib/egl",
+                     "/system/lib/egl"
+ #endif
+-- 
+2.25.1
+
