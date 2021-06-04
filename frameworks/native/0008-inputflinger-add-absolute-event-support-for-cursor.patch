@@ -1,0 +1,137 @@
+From 06ac3c11664614e0847c6cba8e50de2575368d37 Mon Sep 17 00:00:00 2001
+From: Simon Fels <morphis@gravedo.de>
+Date: Mon, 22 Aug 2016 21:59:22 +0200
+Subject: [PATCH] inputflinger: add absolute event support for cursor
+
+Don't log event codes for cursor position changes
+
+Disable moving the pointer via relative move events which we don't have
+
+Revert changing pointer presentation
+---
+ services/inputflinger/InputReader.cpp | 39 +++++++++++++++++++++++++++
+ services/inputflinger/InputReader.h   | 20 ++++++++++++++
+ 2 files changed, 59 insertions(+)
+
+diff --git a/services/inputflinger/InputReader.cpp b/services/inputflinger/InputReader.cpp
+index f6f297051..21428e60f 100644
+--- a/services/inputflinger/InputReader.cpp
++++ b/services/inputflinger/InputReader.cpp
+@@ -1407,6 +1407,38 @@ void CursorMotionAccumulator::finishSync() {
+     clearRelativeAxes();
+ }
+ 
++// --- CursorPositionAccumulator ---
++
++CursorPositionAccumulator::CursorPositionAccumulator() {
++    clearPosition();
++}
++
++void CursorPositionAccumulator::reset(InputDevice* device) {
++    clearPosition();
++}
++
++void CursorPositionAccumulator::clearPosition() {
++    mX = 0;
++    mY = 0;
++}
++
++void CursorPositionAccumulator::process(const RawEvent* rawEvent) {
++    if (rawEvent->type == EV_ABS) {
++        switch (rawEvent->code) {
++        case ABS_X:
++            mX = rawEvent->value;
++            break;
++        case ABS_Y:
++            mY = rawEvent->value;
++            break;
++        }
++    }
++}
++
++void CursorPositionAccumulator::finishSync() {
++    clearPosition();
++}
++
+ 
+ // --- CursorScrollAccumulator ---
+ 
+@@ -2734,6 +2766,7 @@ void CursorInputMapper::reset(nsecs_t when) {
+ 
+     mCursorButtonAccumulator.reset(getDevice());
+     mCursorMotionAccumulator.reset(getDevice());
++    mCursorPositionAccumulator.reset(getDevice());
+     mCursorScrollAccumulator.reset(getDevice());
+ 
+     InputMapper::reset(when);
+@@ -2742,6 +2775,7 @@ void CursorInputMapper::reset(nsecs_t when) {
+ void CursorInputMapper::process(const RawEvent* rawEvent) {
+     mCursorButtonAccumulator.process(rawEvent);
+     mCursorMotionAccumulator.process(rawEvent);
++    mCursorPositionAccumulator.process(rawEvent);
+     mCursorScrollAccumulator.process(rawEvent);
+ 
+     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
+@@ -2804,9 +2838,11 @@ void CursorInputMapper::sync(nsecs_t when) {
+             mPointerController->setPresentation(
+                     PointerControllerInterface::PRESENTATION_POINTER);
+ 
++#if 0
+             if (moved) {
+                 mPointerController->move(deltaX, deltaY);
+             }
++#endif
+ 
+             if (buttonsChanged) {
+                 mPointerController->setButtonState(currentButtonState);
+@@ -2815,6 +2851,9 @@ void CursorInputMapper::sync(nsecs_t when) {
+             mPointerController->unfade(PointerControllerInterface::TRANSITION_IMMEDIATE);
+         }
+ 
++        mPointerController->setPosition(mCursorPositionAccumulator.getX(),
++                                        mCursorPositionAccumulator.getY());
++
+         float x, y;
+         mPointerController->getPosition(&x, &y);
+         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
+diff --git a/services/inputflinger/InputReader.h b/services/inputflinger/InputReader.h
+index 0dcd333ea..8188ca8d1 100644
+--- a/services/inputflinger/InputReader.h
++++ b/services/inputflinger/InputReader.h
+@@ -390,6 +390,25 @@ private:
+     void clearRelativeAxes();
+ };
+ 
++/* Keeps track of cursor position. */
++
++class CursorPositionAccumulator {
++public:
++    CursorPositionAccumulator();
++    void reset(InputDevice* device);
++
++    void process(const RawEvent* rawEvent);
++    void finishSync();
++
++    inline int32_t getX() const { return mX; }
++    inline int32_t getY() const { return mY; }
++
++private:
++    int32_t mX;
++    int32_t mY;
++
++    void clearPosition();
++};
+ 
+ /* Keeps track of cursor scrolling motions. */
+ 
+@@ -958,6 +977,7 @@ private:
+ 
+     CursorButtonAccumulator mCursorButtonAccumulator;
+     CursorMotionAccumulator mCursorMotionAccumulator;
++    CursorPositionAccumulator mCursorPositionAccumulator;
+     CursorScrollAccumulator mCursorScrollAccumulator;
+ 
+     int32_t mSource;
+-- 
+2.29.2
+
