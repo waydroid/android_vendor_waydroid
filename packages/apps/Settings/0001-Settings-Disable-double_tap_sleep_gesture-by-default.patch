@@ -1,0 +1,27 @@
+From 841798f8fb9b29a62605ea0a93c024399b98d220 Mon Sep 17 00:00:00 2001
+From: wh0dat <whodat@remainsilent.net>
+Date: Thu, 30 Apr 2020 17:43:09 +0000
+Subject: [PATCH] Settings: Disable double_tap_sleep_gesture by default
+
+Signed-off-by: wh0dat <whodat@remainsilent.net>
+Change-Id: I87f905ac24abdf94a4aa3f726bbc5487a2b44c98
+---
+ res/xml/display_settings.xml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/res/xml/display_settings.xml b/res/xml/display_settings.xml
+index 1f4048ec65..2a52cda4fc 100644
+--- a/res/xml/display_settings.xml
++++ b/res/xml/display_settings.xml
+@@ -160,7 +160,7 @@
+         android:key="double_tap_sleep_gesture"
+         android:title="@string/status_bar_double_tap_to_sleep_title"
+         android:summary="@string/status_bar_double_tap_to_sleep_summary"
+-        android:defaultValue="true" />
++        android:defaultValue="false" />
+ 
+     <lineageos.preference.LineageGlobalSettingSwitchPreference
+         android:key="wake_when_plugged_or_unplugged"
+-- 
+2.25.1
+
