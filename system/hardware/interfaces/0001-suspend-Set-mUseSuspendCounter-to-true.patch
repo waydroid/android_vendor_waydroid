@@ -1,0 +1,26 @@
+From a7131bfc2164a3ee30dfee81cc00af54b6f35cab Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 14 Jun 2021 21:57:20 +0800
+Subject: [PATCH] suspend: Set mUseSuspendCounter to true
+
+Change-Id: I4e522728c81329165964e907b84b040d8bc4d724
+---
+ suspend/1.0/default/main.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/suspend/1.0/default/main.cpp b/suspend/1.0/default/main.cpp
+index 7f2dead..25ef047 100644
+--- a/suspend/1.0/default/main.cpp
++++ b/suspend/1.0/default/main.cpp
+@@ -81,7 +81,7 @@ int main() {
+ 
+     sp<SystemSuspend> suspend =
+         new SystemSuspend(std::move(wakeupCountFd), std::move(stateFd), 100 /* maxStatsEntries */,
+-                          100ms /* baseSleepTime */, suspendControl, false /* mUseSuspendCounter*/);
++                          100ms /* baseSleepTime */, suspendControl, true /* mUseSuspendCounter*/);
+     status_t status = suspend->registerAsService();
+     if (android::OK != status) {
+         LOG(FATAL) << "Unable to register system-suspend service: " << status;
+-- 
+2.25.1
+
