@@ -1,0 +1,238 @@
+From db745a4b563e07051b810f120eed666ad3be1090 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 25 Jun 2021 03:34:50 +0430
+Subject: [PATCH] surfaceflinger: Provide layer names and stuffs
+
+---
+ libs/vr/libvrflinger/Android.bp               |  1 +
+ services/surfaceflinger/Android.bp            |  2 ++
+ .../CompositionEngine/Android.bp              |  1 +
+ .../CompositionEngine/src/OutputLayer.cpp     |  6 ++++++
+ .../DisplayHardware/ComposerHal.cpp           | 21 +++++++++++++++++++
+ .../DisplayHardware/ComposerHal.h             | 12 +++++++++++
+ .../surfaceflinger/DisplayHardware/HWC2.cpp   |  6 ++++++
+ .../surfaceflinger/DisplayHardware/HWC2.h     |  6 ++++++
+ 8 files changed, 55 insertions(+)
+
+diff --git a/libs/vr/libvrflinger/Android.bp b/libs/vr/libvrflinger/Android.bp
+index 282935307..efe4717c4 100644
+--- a/libs/vr/libvrflinger/Android.bp
++++ b/libs/vr/libvrflinger/Android.bp
+@@ -60,6 +60,7 @@ sharedLibraries = [
+     "libhidltransport",
+     "libfmq",
+     "libpdx_default_transport",
++    "vendor.anbox.display@1.0",
+ ]
+ 
+ headerLibraries = [
+diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
+index 37b11de07..358fbe05c 100644
+--- a/services/surfaceflinger/Android.bp
++++ b/services/surfaceflinger/Android.bp
+@@ -58,6 +58,7 @@ cc_defaults {
+         "libinput",
+         "libutils",
+         "libSurfaceFlingerProp",
++        "vendor.anbox.display@1.0",
+     ],
+     static_libs: [
+         "libcompositionengine",
+@@ -96,6 +97,7 @@ cc_defaults {
+         "libhidlbase",
+         "libhidltransport",
+         "libhwbinder",
++        "vendor.anbox.display@1.0",
+     ],
+ }
+ 
+diff --git a/services/surfaceflinger/CompositionEngine/Android.bp b/services/surfaceflinger/CompositionEngine/Android.bp
+index fd1c369d8..3e57ecfa8 100644
+--- a/services/surfaceflinger/CompositionEngine/Android.bp
++++ b/services/surfaceflinger/CompositionEngine/Android.bp
+@@ -22,6 +22,7 @@ cc_defaults {
+         "libtimestats_proto",
+         "libui",
+         "libutils",
++        "vendor.anbox.display@1.0",
+     ],
+     static_libs: [
+         "libmath",
+diff --git a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+index 985b598f1..c69a64cc4 100644
+--- a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+@@ -348,6 +348,12 @@ void OutputLayer::writeStateToHWC(bool includeGeometry) const {
+                   to_string(error).c_str(), static_cast<int32_t>(error));
+         }
+ 
++        if (auto error = hwcLayer->setLayerName(mLayerFE->getDebugName());
++            error != HWC2::Error::None) {
++            ALOGE("[%s] Failed to set layer name: %s (%d)", mLayerFE->getDebugName(),
++                  to_string(error).c_str(), static_cast<int32_t>(error));
++        }
++
+         if (auto error =
+                     hwcLayer->setTransform(static_cast<HWC2::Transform>(mState.bufferTransform));
+             error != HWC2::Error::None) {
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
+index 7f47a2ecd..d832d7f94 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
+@@ -204,6 +204,8 @@ Composer::Composer(const std::string& serviceName)
+             LOG_ALWAYS_FATAL("failed to create vr composer client");
+         }
+     }
++
++    mAnboxDisplay = IAnboxDisplay::getService();
+ }
+ 
+ Composer::~Composer() = default;
+@@ -324,6 +326,7 @@ Error Composer::createLayer(Display display, Layer* outLayer)
+ 
+ Error Composer::destroyLayer(Display display, Layer layer)
+ {
++    mLayersZMap.erase(layer);
+     auto ret = mClient->destroyLayer(display, layer);
+     return unwrapRet(ret);
+ }
+@@ -579,6 +582,8 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
+ 
+     const native_handle_t* handle = nullptr;
+     if (target.get()) {
++        if (mAnboxDisplay)
++            mAnboxDisplay->setTargetLayerHandleInfo(target->getPixelFormat(), target->getStride());
+         handle = target->getNativeBuffer()->handle;
+     }
+ 
+@@ -709,6 +714,10 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
+ 
+     const native_handle_t* handle = nullptr;
+     if (buffer.get()) {
++        if (mAnboxDisplay)
++            mAnboxDisplay->setLayerHandleInfo(mLayersZMap[layer], buffer->getPixelFormat(),
++                                              buffer->getStride());
++        ALOGE("layer %d stride: %d", mLayersZMap[layer], (int)buffer->getStride());
+         handle = buffer->getNativeBuffer()->handle;
+     }
+ 
+@@ -820,6 +829,7 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
+     mWriter.selectDisplay(display);
+     mWriter.selectLayer(layer);
+     mWriter.setLayerZOrder(z);
++    mLayersZMap[layer] = z;
+     return Error::NONE;
+ }
+ 
+@@ -1167,6 +1177,17 @@ Error Composer::setDisplayBrightness(Display display, float brightness) {
+     return mClient_2_3->setDisplayBrightness(display, brightness);
+ }
+ 
++Error Composer::setLayerName(Display, Layer layer, std::string name) {
++    if (!mAnboxDisplay) {
++        return Error::UNSUPPORTED;
++    }
++    if (mLayersNameMap[mLayersZMap[layer]] != name) {
++        mLayersNameMap[mLayersZMap[layer]] = name;
++        return mAnboxDisplay->setLayerName(mLayersZMap[layer], name);
++    } else
++        return Error::NONE;
++}
++
+ CommandReader::~CommandReader()
+ {
+     resetData();
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.h b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+index c4e952b8d..c54ee8d03 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.h
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+@@ -27,6 +27,7 @@
+ #include <android/hardware/graphics/common/1.1/types.h>
+ #include <android/hardware/graphics/composer/2.3/IComposer.h>
+ #include <android/hardware/graphics/composer/2.3/IComposerClient.h>
++#include <vendor/anbox/display/1.0/IAnboxDisplay.h>
+ #include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
+ #include <gui/HdrMetadata.h>
+ #include <math/mat4.h>
+@@ -38,6 +39,7 @@ namespace android {
+ 
+ namespace Hwc2 {
+ 
++using ::vendor::anbox::display::V1_0::IAnboxDisplay;
+ using frameworks::vr::composer::V1_0::IVrComposerClient;
+ 
+ namespace types = hardware::graphics::common;
+@@ -204,6 +206,9 @@ public:
+     virtual Error setLayerPerFrameMetadataBlobs(
+             Display display, Layer layer, const std::vector<PerFrameMetadataBlob>& metadata) = 0;
+     virtual Error setDisplayBrightness(Display display, float brightness) = 0;
++
++    // AnboxDisplay HAL 1.0
++    virtual Error setLayerName(Display display, Layer layer, std::string name) = 0;
+ };
+ 
+ namespace impl {
+@@ -417,6 +422,9 @@ public:
+             const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
+     Error setDisplayBrightness(Display display, float brightness) override;
+ 
++    // AnboxDisplay HAL 1.0
++    Error setLayerName(Display display, Layer layer, std::string name) override;
++
+ private:
+     class CommandWriter : public CommandWriterBase {
+     public:
+@@ -454,6 +462,10 @@ private:
+     // When true, the we attach to the vr_hwcomposer service instead of the
+     // hwcomposer. This allows us to redirect surfaces to 3d surfaces in vr.
+     const bool mIsUsingVrComposer;
++
++    sp<IAnboxDisplay> mAnboxDisplay;
++    std::map<Layer, int32_t> mLayersZMap;
++    std::map<int32_t, std::string> mLayersNameMap;
+ };
+ 
+ } // namespace impl
+diff --git a/services/surfaceflinger/DisplayHardware/HWC2.cpp b/services/surfaceflinger/DisplayHardware/HWC2.cpp
+index c463c4e40..f1c272507 100644
+--- a/services/surfaceflinger/DisplayHardware/HWC2.cpp
++++ b/services/surfaceflinger/DisplayHardware/HWC2.cpp
+@@ -1045,5 +1045,11 @@ Error Layer::setColorTransform(const android::mat4& matrix) {
+     return error;
+ }
+ 
++Error Layer::setLayerName(std::string name)
++{
++    auto intError = mComposer.setLayerName(mDisplayId, mId, name);
++    return static_cast<Error>(intError);
++}
++
+ } // namespace impl
+ } // namespace HWC2
+diff --git a/services/surfaceflinger/DisplayHardware/HWC2.h b/services/surfaceflinger/DisplayHardware/HWC2.h
+index b7cdf7f6c..b3cb63fd2 100644
+--- a/services/surfaceflinger/DisplayHardware/HWC2.h
++++ b/services/surfaceflinger/DisplayHardware/HWC2.h
+@@ -391,6 +391,9 @@ public:
+ 
+     // Composer HAL 2.3
+     [[clang::warn_unused_result]] virtual Error setColorTransform(const android::mat4& matrix) = 0;
++
++    // AnboxDisplay HAL 1.0
++    [[clang::warn_unused_result]] virtual Error setLayerName(std::string name) = 0;
+ };
+ 
+ namespace impl {
+@@ -429,6 +432,9 @@ public:
+     // Composer HAL 2.3
+     Error setColorTransform(const android::mat4& matrix) override;
+ 
++    // AnboxDisplay HAL 1.0
++    Error setLayerName(std::string name) override;
++
+ private:
+     // These are references to data owned by HWC2::Device, which will outlive
+     // this HWC2::Layer, so these references are guaranteed to be valid for
+-- 
+2.29.2
+
