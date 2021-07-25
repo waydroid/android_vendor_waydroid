@@ -1,0 +1,25 @@
+From 830eb1a3b1f96202d35e360f23cb92fcb5e79d30 Mon Sep 17 00:00:00 2001
+From: Ziyang Zhou <ziyang.zhou@outlook.com>
+Date: Mon, 26 Apr 2021 23:09:01 +0800
+Subject: [PATCH] netd: Fix networking
+
+Change-Id: Ia750206a3f1498627f3e34986808b23577cad1c9
+---
+ server/IptablesRestoreController.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/server/IptablesRestoreController.cpp b/server/IptablesRestoreController.cpp
+index 83391776..54c495f0 100644
+--- a/server/IptablesRestoreController.cpp
++++ b/server/IptablesRestoreController.cpp
+@@ -347,6 +347,7 @@ bool IptablesRestoreController::drainAndWaitForAck(const std::unique_ptr<Iptable
+ 
+ int IptablesRestoreController::execute(const IptablesTarget target, const std::string& command,
+                                        std::string *output) {
++    if (1) return 0; // HACKED?
+     std::lock_guard lock(mLock);
+ 
+     std::string buffer;
+-- 
+2.25.1
+
