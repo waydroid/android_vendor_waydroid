@@ -1,0 +1,93 @@
+From 3d9350d4c04d63869f240c8810a45e1b1fd4434f Mon Sep 17 00:00:00 2001
+From: Simon Fels <morphis@gravedo.de>
+Date: Sun, 15 Jan 2017 12:35:43 +0100
+Subject: [PATCH] clipboard: Talk with waydroid host service to get clipboard
+ synchronized
+
+Change-Id: Ia038dae3393dc4887ac9477aff642541ffc230a3
+---
+ .../server/clipboard/ClipboardService.java    | 33 +++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/services/core/java/com/android/server/clipboard/ClipboardService.java b/services/core/java/com/android/server/clipboard/ClipboardService.java
+index b279b370c61..899c9728b38 100644
+--- a/services/core/java/com/android/server/clipboard/ClipboardService.java
++++ b/services/core/java/com/android/server/clipboard/ClipboardService.java
+@@ -68,6 +68,8 @@ import java.io.RandomAccessFile;
+ import java.util.HashSet;
+ import java.util.List;
+ 
++import lineageos.waydroid.Clipboard;
++
+ // The following class is Android Emulator specific. It is used to read and
+ // write contents of the host system's clipboard.
+ class HostClipboardMonitor implements Runnable {
+@@ -172,6 +174,7 @@ public class ClipboardService extends SystemService {
+     private final IBinder mPermissionOwner;
+     private HostClipboardMonitor mHostClipboardMonitor = null;
+     private Thread mHostMonitorThread = null;
++    private Clipboard mWaydroidClipboard = null;
+ 
+     private final SparseArray<PerUserClipboard> mClipboards = new SparseArray<>();
+ 
+@@ -210,6 +213,9 @@ public class ClipboardService extends SystemService {
+             mHostMonitorThread = new Thread(mHostClipboardMonitor);
+             mHostMonitorThread.start();
+         }
++
++        if (Clipboard.getService() != null)
++            mWaydroidClipboard = Clipboard.getInstance(context);
+     }
+ 
+     @Override
+@@ -362,6 +368,11 @@ public class ClipboardService extends SystemService {
+                 }
+                 checkDataOwnerLocked(clip, intendingUid);
+                 setPrimaryClipInternal(clip, intendingUid);
++                if (mWaydroidClipboard != null) {
++                    ClipData.Item firstItem = clip.getItemAt(0);
++                    String text = firstItem.getText().toString();
++                    mWaydroidClipboard.sendClipboardData(text);
++                }
+             }
+         }
+ 
+@@ -389,6 +400,17 @@ public class ClipboardService extends SystemService {
+                     return null;
+                 }
+                 addActiveOwnerLocked(intendingUid, pkg);
++                if (mWaydroidClipboard != null) {
++                    String waydroidPaste = mWaydroidClipboard.getClipboardData();
++                    if (getClipboard(intendingUserId).primaryClip != null && getClipboard(intendingUserId).primaryClip.getItemCount() > 0) {
++                        ClipData.Item item = getClipboard(intendingUserId).primaryClip.getItemAt(0);
++                        String itemText = item.getText().toString();
++                        if (itemText != waydroidPaste) {
++                            ClipData data = ClipData.newPlainText("", waydroidPaste);
++                            setPrimaryClipInternal(getClipboard(intendingUserId), data, intendingUserId);
++                        }
++                    }
++                }
+                 return getClipboard(intendingUserId).primaryClip;
+             }
+         }
+@@ -420,6 +442,17 @@ public class ClipboardService extends SystemService {
+                         || isDeviceLocked(intendingUserId)) {
+                     return false;
+                 }
++                if (mWaydroidClipboard != null) {
++                    String waydroidPaste = mWaydroidClipboard.getClipboardData();
++                    if (getClipboard(intendingUserId).primaryClip != null && getClipboard(intendingUserId).primaryClip.getItemCount() > 0) {
++                        ClipData.Item item = getClipboard(intendingUserId).primaryClip.getItemAt(0);
++                        String itemText = item.getText().toString();
++                        if (itemText != waydroidPaste) {
++                            ClipData data = ClipData.newPlainText("", waydroidPaste);
++                            setPrimaryClipInternal(getClipboard(intendingUserId), data, intendingUserId);
++                        }
++                    }
++                }
+                 return getClipboard(intendingUserId).primaryClip != null;
+             }
+         }
+-- 
+2.25.1
+
