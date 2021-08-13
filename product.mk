@@ -14,6 +14,10 @@
 # limitations under the License.
 #
 
+# HIDL
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/hosthals.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/hosthals.xml
+
 # Init
 PRODUCT_PACKAGES += \
     init.anbox.rc
