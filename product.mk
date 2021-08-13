@@ -21,3 +21,7 @@ PRODUCT_COPY_FILES += \
 # Init
 PRODUCT_PACKAGES += \
     init.anbox.rc
+
+# Properties
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/waydroid.prop:$(TARGET_COPY_OUT_VENDOR)/waydroid.prop
