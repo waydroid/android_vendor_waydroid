@@ -1,0 +1,409 @@
+From b5f1e0f5890b028d472fd9382ef349483c2e6a8f Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Mon, 22 Mar 2021 10:21:49 +0700
+Subject: [PATCH] (anbox) add /vendor_extra path as a clone of /vendor entries
+
+Change-Id: Idbc768b7a2877f0cc82ae99d3802d3a1bbf45b7b
+---
+ rootdir/etc/ld.config.legacy.txt    |  4 +++
+ rootdir/etc/ld.config.txt           | 47 +++++++++++++++++++++++++++++
+ rootdir/etc/ld.config.vndk_lite.txt | 41 +++++++++++++++++++++++++
+ 3 files changed, 92 insertions(+)
+
+diff --git a/rootdir/etc/ld.config.legacy.txt b/rootdir/etc/ld.config.legacy.txt
+index 5aac61bb9..6f383b226 100644
+--- a/rootdir/etc/ld.config.legacy.txt
++++ b/rootdir/etc/ld.config.legacy.txt
+@@ -8,6 +8,7 @@
+ dir.legacy = /system
+ dir.legacy = /product
+ dir.legacy = /vendor
++dir.legacy = /vendor_extra
+ dir.legacy = /odm
+ dir.legacy = /sbin
+ 
+@@ -24,6 +25,7 @@ namespace.default.isolated = false
+ namespace.default.search.paths  = /system/${LIB}
+ namespace.default.search.paths += /product/${LIB}
+ namespace.default.search.paths += /vendor/${LIB}
++namespace.default.search.paths += /vendor_extra/${LIB}
+ namespace.default.search.paths += /odm/${LIB}
+ 
+ namespace.default.asan.search.paths  = /data/asan/system/${LIB}
+@@ -32,6 +34,8 @@ namespace.default.asan.search.paths += /data/asan/product/${LIB}
+ namespace.default.asan.search.paths +=           /product/${LIB}
+ namespace.default.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.default.asan.search.paths +=           /vendor/${LIB}
++namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.default.asan.search.paths +=           /vendor_extra/${LIB}
+ namespace.default.asan.search.paths += /data/asan/odm/${LIB}
+ namespace.default.asan.search.paths +=           /odm/${LIB}
+ 
+diff --git a/rootdir/etc/ld.config.txt b/rootdir/etc/ld.config.txt
+index c95f60fb0..85b0e623f 100644
+--- a/rootdir/etc/ld.config.txt
++++ b/rootdir/etc/ld.config.txt
+@@ -11,6 +11,7 @@ dir.system = /%PRODUCT%/bin/
+ 
+ dir.vendor = /odm/bin/
+ dir.vendor = /vendor/bin/
++dir.vendor = /vendor_extra/bin/
+ dir.vendor = /data/nativetest/odm
+ dir.vendor = /data/nativetest64/odm
+ dir.vendor = /data/benchmarktest/odm
+@@ -243,20 +244,27 @@ namespace.sphal.visible = true
+ namespace.sphal.search.paths  = /odm/${LIB}
+ namespace.sphal.search.paths += /vendor/${LIB}
+ namespace.sphal.search.paths += /vendor/${LIB}/hw
++namespace.sphal.search.paths += /vendor_extra/${LIB}
++namespace.sphal.search.paths += /vendor_extra/${LIB}/hw
+ 
+ namespace.sphal.permitted.paths  = /odm/${LIB}
+ namespace.sphal.permitted.paths += /vendor/${LIB}
++namespace.sphal.permitted.paths += /vendor_extra/${LIB}
+ namespace.sphal.permitted.paths += /system/vendor/${LIB}
+ 
+ namespace.sphal.asan.search.paths  = /data/asan/odm/${LIB}
+ namespace.sphal.asan.search.paths +=           /odm/${LIB}
+ namespace.sphal.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.sphal.asan.search.paths +=           /vendor/${LIB}
++namespace.sphal.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.sphal.asan.search.paths +=           /vendor_extra/${LIB}
+ 
+ namespace.sphal.asan.permitted.paths  = /data/asan/odm/${LIB}
+ namespace.sphal.asan.permitted.paths +=           /odm/${LIB}
+ namespace.sphal.asan.permitted.paths += /data/asan/vendor/${LIB}
+ namespace.sphal.asan.permitted.paths +=           /vendor/${LIB}
++namespace.sphal.asan.permitted.paths += /data/asan/vendor_extra/${LIB}
++namespace.sphal.asan.permitted.paths +=           /vendor_extra/${LIB}
+ 
+ # Once in this namespace, access to libraries in /system/lib is restricted. Only
+ # libs listed here can be used. Order is important here as the namespaces are
+@@ -285,12 +293,15 @@ namespace.rs.visible = true
+ 
+ namespace.rs.search.paths  = /odm/${LIB}/vndk-sp
+ namespace.rs.search.paths += /vendor/${LIB}/vndk-sp
++namespace.rs.search.paths += /vendor_extra/${LIB}/vndk-sp
+ namespace.rs.search.paths += /system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.rs.search.paths += /odm/${LIB}
+ namespace.rs.search.paths += /vendor/${LIB}
++namespace.rs.search.paths += /vendor_extra/${LIB}
+ 
+ namespace.rs.permitted.paths  = /odm/${LIB}
+ namespace.rs.permitted.paths += /vendor/${LIB}
++namespace.rs.permitted.paths += /vendor_extra/${LIB}
+ namespace.rs.permitted.paths += /system/vendor/${LIB}
+ namespace.rs.permitted.paths += /data
+ 
+@@ -298,17 +309,23 @@ namespace.rs.asan.search.paths  = /data/asan/odm/${LIB}/vndk-sp
+ namespace.rs.asan.search.paths +=           /odm/${LIB}/vndk-sp
+ namespace.rs.asan.search.paths += /data/asan/vendor/${LIB}/vndk-sp
+ namespace.rs.asan.search.paths +=           /vendor/${LIB}/vndk-sp
++namespace.rs.asan.search.paths += /data/asan/vendor_extra/${LIB}/vndk-sp
++namespace.rs.asan.search.paths +=           /vendor_extra/${LIB}/vndk-sp
+ namespace.rs.asan.search.paths += /data/asan/system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.rs.asan.search.paths +=           /system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.rs.asan.search.paths += /data/asan/odm/${LIB}
+ namespace.rs.asan.search.paths +=           /odm/${LIB}
+ namespace.rs.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.rs.asan.search.paths +=           /vendor/${LIB}
++namespace.rs.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.rs.asan.search.paths +=           /vendor_extra/${LIB}
+ 
+ namespace.rs.asan.permitted.paths  = /data/asan/odm/${LIB}
+ namespace.rs.asan.permitted.paths +=           /odm/${LIB}
+ namespace.rs.asan.permitted.paths += /data/asan/vendor/${LIB}
+ namespace.rs.asan.permitted.paths +=           /vendor/${LIB}
++namespace.rs.asan.permitted.paths += /data/asan/vendor_extra/${LIB}
++namespace.rs.asan.permitted.paths +=           /vendor_extra/${LIB}
+ namespace.rs.asan.permitted.paths += /data
+ 
+ namespace.rs.links = default,vndk
+@@ -331,12 +348,15 @@ namespace.vndk.visible = true
+ 
+ namespace.vndk.search.paths  = /odm/${LIB}/vndk-sp
+ namespace.vndk.search.paths += /vendor/${LIB}/vndk-sp
++namespace.vndk.search.paths += /vendor_extra/${LIB}/vndk-sp
+ namespace.vndk.search.paths += /system/${LIB}/vndk-sp%VNDK_VER%
+ 
+ namespace.vndk.permitted.paths  = /odm/${LIB}/hw
+ namespace.vndk.permitted.paths += /odm/${LIB}/egl
+ namespace.vndk.permitted.paths += /vendor/${LIB}/hw
+ namespace.vndk.permitted.paths += /vendor/${LIB}/egl
++namespace.vndk.permitted.paths += /vendor_extra/${LIB}/hw
++namespace.vndk.permitted.paths += /vendor_extra/${LIB}/egl
+ namespace.vndk.permitted.paths += /system/vendor/${LIB}/hw
+ namespace.vndk.permitted.paths += /system/vendor/${LIB}/egl
+ # This is exceptionally required since android.hidl.memory@1.0-impl.so is here
+@@ -346,6 +366,8 @@ namespace.vndk.asan.search.paths  = /data/asan/odm/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths +=           /odm/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths += /data/asan/vendor/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths +=           /vendor/${LIB}/vndk-sp
++namespace.vndk.asan.search.paths += /data/asan/vendor_extra/${LIB}/vndk-sp
++namespace.vndk.asan.search.paths +=           /vendor_extra/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths += /data/asan/system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.vndk.asan.search.paths +=           /system/${LIB}/vndk-sp%VNDK_VER%
+ 
+@@ -357,6 +379,10 @@ namespace.vndk.asan.permitted.paths += /data/asan/vendor/${LIB}/hw
+ namespace.vndk.asan.permitted.paths +=           /vendor/${LIB}/hw
+ namespace.vndk.asan.permitted.paths += /data/asan/vendor/${LIB}/egl
+ namespace.vndk.asan.permitted.paths +=           /vendor/${LIB}/egl
++namespace.vndk.asan.permitted.paths += /data/asan/vendor_extra/${LIB}/hw
++namespace.vndk.asan.permitted.paths +=           /vendor_extra/${LIB}/hw
++namespace.vndk.asan.permitted.paths += /data/asan/vendor_extra/${LIB}/egl
++namespace.vndk.asan.permitted.paths +=           /vendor_extra/${LIB}/egl
+ 
+ namespace.vndk.asan.permitted.paths += /data/asan/system/${LIB}/vndk-sp%VNDK_VER%/hw
+ namespace.vndk.asan.permitted.paths +=           /system/${LIB}/vndk-sp%VNDK_VER%/hw
+@@ -405,26 +431,38 @@ namespace.default.visible = true
+ 
+ namespace.default.search.paths  = /odm/${LIB}
+ namespace.default.search.paths += /vendor/${LIB}
++namespace.default.search.paths += /vendor_extra/${LIB}
+ 
+ namespace.default.permitted.paths  = /odm
+ namespace.default.permitted.paths += /vendor
++namespace.default.permitted.paths += /vendor_extra
+ namespace.default.permitted.paths += /system/vendor
+ #VNDK27#namespace.default.search.paths += /vendor/${LIB}/hw
+ #VNDK27#namespace.default.search.paths += /vendor/${LIB}/egl
++#VNDK27#namespace.default.search.paths += /vendor_extra/${LIB}/hw
++#VNDK27#namespace.default.search.paths += /vendor_extra/${LIB}/egl
+ 
+ namespace.default.asan.search.paths  = /data/asan/odm/${LIB}
+ namespace.default.asan.search.paths +=           /odm/${LIB}
+ namespace.default.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.default.asan.search.paths +=           /vendor/${LIB}
++namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.default.asan.search.paths +=           /vendor_extra/${LIB}
+ #VNDK27#namespace.default.asan.search.paths += /data/asan/vendor/${LIB}/hw
+ #VNDK27#namespace.default.asan.search.paths +=           /vendor/${LIB}/hw
+ #VNDK27#namespace.default.asan.search.paths += /data/asan/vendor/${LIB}/egl
+ #VNDK27#namespace.default.asan.search.paths +=           /vendor/${LIB}/egl
++#VNDK27#namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}/hw
++#VNDK27#namespace.default.asan.search.paths +=           /vendor_extra/${LIB}/hw
++#VNDK27#namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}/egl
++#VNDK27#namespace.default.asan.search.paths +=           /vendor_extra/${LIB}/egl
+ 
+ namespace.default.asan.permitted.paths  = /data/asan/odm
+ namespace.default.asan.permitted.paths +=           /odm
+ namespace.default.asan.permitted.paths += /data/asan/vendor
+ namespace.default.asan.permitted.paths +=           /vendor
++namespace.default.asan.permitted.paths += /data/asan/vendor_extra
++namespace.default.asan.permitted.paths +=           /vendor_extra
+ 
+ namespace.default.links = system,vndk%VNDK_IN_SYSTEM_NS%,runtime
+ namespace.default.link.runtime.shared_libs = %SANITIZER_RUNTIME_LIBRARIES%
+@@ -461,6 +499,8 @@ namespace.vndk.search.paths  = /odm/${LIB}/vndk
+ namespace.vndk.search.paths += /odm/${LIB}/vndk-sp
+ namespace.vndk.search.paths += /vendor/${LIB}/vndk
+ namespace.vndk.search.paths += /vendor/${LIB}/vndk-sp
++namespace.vndk.search.paths += /vendor_extra/${LIB}/vndk
++namespace.vndk.search.paths += /vendor_extra/${LIB}/vndk-sp
+ namespace.vndk.search.paths += /system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.vndk.search.paths += /system/${LIB}/vndk%VNDK_VER%
+ 
+@@ -472,6 +512,10 @@ namespace.vndk.asan.search.paths += /data/asan/vendor/${LIB}/vndk
+ namespace.vndk.asan.search.paths +=           /vendor/${LIB}/vndk
+ namespace.vndk.asan.search.paths += /data/asan/vendor/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths +=           /vendor/${LIB}/vndk-sp
++namespace.vndk.asan.search.paths += /data/asan/vendor_extra/${LIB}/vndk
++namespace.vndk.asan.search.paths +=           /vendor_extra/${LIB}/vndk
++namespace.vndk.asan.search.paths += /data/asan/vendor_extra/${LIB}/vndk-sp
++namespace.vndk.asan.search.paths +=           /vendor_extra/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths += /data/asan/system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.vndk.asan.search.paths +=           /system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.vndk.asan.search.paths += /data/asan/system/${LIB}/vndk%VNDK_VER%
+@@ -582,6 +626,7 @@ additional.namespaces = runtime,media,conscrypt,resolv
+ namespace.default.search.paths  = /system/${LIB}
+ namespace.default.search.paths += /odm/${LIB}
+ namespace.default.search.paths += /vendor/${LIB}
++namespace.default.search.paths += /vendor_extra/${LIB}
+ 
+ namespace.default.asan.search.paths  = /data/asan/system/${LIB}
+ namespace.default.asan.search.paths +=           /system/${LIB}
+@@ -589,6 +634,8 @@ namespace.default.asan.search.paths += /data/asan/odm/${LIB}
+ namespace.default.asan.search.paths +=           /odm/${LIB}
+ namespace.default.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.default.asan.search.paths +=           /vendor/${LIB}
++namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.default.asan.search.paths +=           /vendor_extra/${LIB}
+ 
+ # Keep in sync with ld.config.txt in the com.android.runtime APEX.
+ namespace.default.links = runtime,resolv
+diff --git a/rootdir/etc/ld.config.vndk_lite.txt b/rootdir/etc/ld.config.vndk_lite.txt
+index 3e97e2d9a..fe7fe9e2c 100644
+--- a/rootdir/etc/ld.config.vndk_lite.txt
++++ b/rootdir/etc/ld.config.vndk_lite.txt
+@@ -11,6 +11,7 @@ dir.system = /%PRODUCT%/bin/
+ 
+ dir.vendor = /odm/bin/
+ dir.vendor = /vendor/bin/
++dir.vendor = /vendor_extra/bin/
+ dir.vendor = /data/nativetest/odm
+ dir.vendor = /data/nativetest64/odm
+ dir.vendor = /data/benchmarktest/odm
+@@ -49,6 +50,7 @@ namespace.default.search.paths += /%PRODUCT%/${LIB}
+ namespace.default.search.paths += /%PRODUCT_SERVICES%/${LIB}
+ namespace.default.search.paths += /odm/${LIB}
+ namespace.default.search.paths += /vendor/${LIB}
++namespace.default.search.paths += /vendor_extra/${LIB}
+ 
+ namespace.default.asan.search.paths  = /data/asan/system/${LIB}
+ namespace.default.asan.search.paths +=           /system/${LIB}
+@@ -60,6 +62,8 @@ namespace.default.asan.search.paths += /data/asan/odm/${LIB}
+ namespace.default.asan.search.paths +=           /odm/${LIB}
+ namespace.default.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.default.asan.search.paths +=           /vendor/${LIB}
++namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.default.asan.search.paths +=           /vendor_extra/${LIB}
+ 
+ # Keep in sync with the platform namespace in the com.android.runtime APEX
+ # ld.config.txt.
+@@ -182,20 +186,27 @@ namespace.sphal.visible = true
+ namespace.sphal.search.paths  = /odm/${LIB}
+ namespace.sphal.search.paths += /vendor/${LIB}
+ namespace.sphal.search.paths += /vendor/${LIB}/hw
++namespace.sphal.search.paths += /vendor_extra/${LIB}
++namespace.sphal.search.paths += /vendor_extra/${LIB}/hw
+ 
+ namespace.sphal.permitted.paths  = /odm/${LIB}
+ namespace.sphal.permitted.paths += /vendor/${LIB}
++namespace.sphal.permitted.paths += /vendor_extra/${LIB}
+ namespace.sphal.permitted.paths += /system/vendor/${LIB}
+ 
+ namespace.sphal.asan.search.paths  = /data/asan/odm/${LIB}
+ namespace.sphal.asan.search.paths +=           /odm/${LIB}
+ namespace.sphal.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.sphal.asan.search.paths +=           /vendor/${LIB}
++namespace.sphal.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.sphal.asan.search.paths +=           /vendor_extra/${LIB}
+ 
+ namespace.sphal.asan.permitted.paths  = /data/asan/odm/${LIB}
+ namespace.sphal.asan.permitted.paths +=           /odm/${LIB}
+ namespace.sphal.asan.permitted.paths += /data/asan/vendor/${LIB}
+ namespace.sphal.asan.permitted.paths +=           /vendor/${LIB}
++namespace.sphal.asan.permitted.paths += /data/asan/vendor_extra/${LIB}
++namespace.sphal.asan.permitted.paths +=           /vendor_extra/${LIB}
+ 
+ # Once in this namespace, access to libraries in /system/lib is restricted. Only
+ # libs listed here can be used. Order is important here as the namespaces are
+@@ -224,12 +235,15 @@ namespace.rs.visible = true
+ 
+ namespace.rs.search.paths  = /odm/${LIB}/vndk-sp
+ namespace.rs.search.paths += /vendor/${LIB}/vndk-sp
++namespace.rs.search.paths += /vendor_extra/${LIB}/vndk-sp
+ namespace.rs.search.paths += /system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.rs.search.paths += /odm/${LIB}
+ namespace.rs.search.paths += /vendor/${LIB}
++namespace.rs.search.paths += /vendor_extra/${LIB}
+ 
+ namespace.rs.permitted.paths  = /odm/${LIB}
+ namespace.rs.permitted.paths += /vendor/${LIB}
++namespace.rs.permitted.paths += /vendor_extra/${LIB}
+ namespace.rs.permitted.paths += /system/vendor/${LIB}
+ namespace.rs.permitted.paths += /data
+ 
+@@ -237,17 +251,23 @@ namespace.rs.asan.search.paths  = /data/asan/odm/${LIB}/vndk-sp
+ namespace.rs.asan.search.paths +=           /odm/${LIB}/vndk-sp
+ namespace.rs.asan.search.paths += /data/asan/vendor/${LIB}/vndk-sp
+ namespace.rs.asan.search.paths +=           /vendor/${LIB}/vndk-sp
++namespace.rs.asan.search.paths += /data/asan/vendor_extra/${LIB}/vndk-sp
++namespace.rs.asan.search.paths +=           /vendor_extra/${LIB}/vndk-sp
+ namespace.rs.asan.search.paths += /data/asan/system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.rs.asan.search.paths +=           /system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.rs.asan.search.paths += /data/asan/odm/${LIB}
+ namespace.rs.asan.search.paths +=           /odm/${LIB}
+ namespace.rs.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.rs.asan.search.paths +=           /vendor/${LIB}
++namespace.rs.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.rs.asan.search.paths +=           /vendor_extra/${LIB}
+ 
+ namespace.rs.asan.permitted.paths  = /data/asan/odm/${LIB}
+ namespace.rs.asan.permitted.paths +=           /odm/${LIB}
+ namespace.rs.asan.permitted.paths += /data/asan/vendor/${LIB}
+ namespace.rs.asan.permitted.paths +=           /vendor/${LIB}
++namespace.rs.asan.permitted.paths += /data/asan/vendor_extra/${LIB}
++namespace.rs.asan.permitted.paths +=           /vendor_extra/${LIB}
+ namespace.rs.asan.permitted.paths += /data
+ 
+ namespace.rs.links = default,vndk
+@@ -270,12 +290,15 @@ namespace.vndk.visible = true
+ 
+ namespace.vndk.search.paths  = /odm/${LIB}/vndk-sp
+ namespace.vndk.search.paths += /vendor/${LIB}/vndk-sp
++namespace.vndk.search.paths += /vendor_extra/${LIB}/vndk-sp
+ namespace.vndk.search.paths += /system/${LIB}/vndk-sp%VNDK_VER%
+ 
+ namespace.vndk.permitted.paths  = /odm/${LIB}/hw
+ namespace.vndk.permitted.paths += /odm/${LIB}/egl
+ namespace.vndk.permitted.paths += /vendor/${LIB}/hw
+ namespace.vndk.permitted.paths += /vendor/${LIB}/egl
++namespace.vndk.permitted.paths += /vendor_extra/${LIB}/hw
++namespace.vndk.permitted.paths += /vendor_extra/${LIB}/egl
+ namespace.vndk.permitted.paths += /system/vendor/${LIB}/egl
+ # This is exceptionally required since android.hidl.memory@1.0-impl.so is here
+ namespace.vndk.permitted.paths += /system/${LIB}/vndk-sp%VNDK_VER%/hw
+@@ -284,6 +307,8 @@ namespace.vndk.asan.search.paths  = /data/asan/odm/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths +=           /odm/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths += /data/asan/vendor/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths +=           /vendor/${LIB}/vndk-sp
++namespace.vndk.asan.search.paths += /data/asan/vendor_extra/${LIB}/vndk-sp
++namespace.vndk.asan.search.paths +=           /vendor_extra/${LIB}/vndk-sp
+ namespace.vndk.asan.search.paths += /data/asan/system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.vndk.asan.search.paths +=           /system/${LIB}/vndk-sp%VNDK_VER%
+ 
+@@ -295,6 +320,10 @@ namespace.vndk.asan.permitted.paths += /data/asan/vendor/${LIB}/hw
+ namespace.vndk.asan.permitted.paths +=           /vendor/${LIB}/hw
+ namespace.vndk.asan.permitted.paths += /data/asan/vendor/${LIB}/egl
+ namespace.vndk.asan.permitted.paths +=           /vendor/${LIB}/egl
++namespace.vndk.asan.permitted.paths += /data/asan/vendor_extra/${LIB}/hw
++namespace.vndk.asan.permitted.paths +=           /vendor_extra/${LIB}/hw
++namespace.vndk.asan.permitted.paths += /data/asan/vendor_extra/${LIB}/egl
++namespace.vndk.asan.permitted.paths +=           /vendor_extra/${LIB}/egl
+ 
+ namespace.vndk.asan.permitted.paths += /data/asan/system/${LIB}/vndk-sp%VNDK_VER%/hw
+ namespace.vndk.asan.permitted.paths +=           /system/${LIB}/vndk-sp%VNDK_VER%/hw
+@@ -325,6 +354,9 @@ namespace.default.search.paths += /odm/${LIB}/vndk-sp
+ namespace.default.search.paths += /vendor/${LIB}
+ namespace.default.search.paths += /vendor/${LIB}/vndk
+ namespace.default.search.paths += /vendor/${LIB}/vndk-sp
++namespace.default.search.paths += /vendor_extra/${LIB}
++namespace.default.search.paths += /vendor_extra/${LIB}/vndk
++namespace.default.search.paths += /vendor_extra/${LIB}/vndk-sp
+ 
+ # Access to system libraries is allowed
+ namespace.default.search.paths += /system/${LIB}/vndk-sp%VNDK_VER%
+@@ -345,6 +377,12 @@ namespace.default.asan.search.paths += /data/asan/vendor/${LIB}/vndk
+ namespace.default.asan.search.paths +=           /vendor/${LIB}/vndk
+ namespace.default.asan.search.paths += /data/asan/vendor/${LIB}/vndk-sp
+ namespace.default.asan.search.paths +=           /vendor/${LIB}/vndk-sp
++namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.default.asan.search.paths +=           /vendor_extra/${LIB}
++namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}/vndk
++namespace.default.asan.search.paths +=           /vendor_extra/${LIB}/vndk
++namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}/vndk-sp
++namespace.default.asan.search.paths +=           /vendor_extra/${LIB}/vndk-sp
+ namespace.default.asan.search.paths += /data/asan/system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.default.asan.search.paths +=           /system/${LIB}/vndk-sp%VNDK_VER%
+ namespace.default.asan.search.paths += /data/asan/system/${LIB}
+@@ -394,6 +432,7 @@ additional.namespaces = runtime,media,conscrypt,resolv
+ namespace.default.search.paths  = /system/${LIB}
+ namespace.default.search.paths += /odm/${LIB}
+ namespace.default.search.paths += /vendor/${LIB}
++namespace.default.search.paths += /vendor_extra/${LIB}
+ 
+ namespace.default.asan.search.paths  = /data/asan/system/${LIB}
+ namespace.default.asan.search.paths +=           /system/${LIB}
+@@ -401,6 +440,8 @@ namespace.default.asan.search.paths += /data/asan/odm/${LIB}
+ namespace.default.asan.search.paths +=           /odm/${LIB}
+ namespace.default.asan.search.paths += /data/asan/vendor/${LIB}
+ namespace.default.asan.search.paths +=           /vendor/${LIB}
++namespace.default.asan.search.paths += /data/asan/vendor_extra/${LIB}
++namespace.default.asan.search.paths +=           /vendor_extra/${LIB}
+ 
+ # Keep in sync with ld.config.txt in the com.android.runtime APEX.
+ namespace.default.links = runtime,resolv
+-- 
+2.30.1
+

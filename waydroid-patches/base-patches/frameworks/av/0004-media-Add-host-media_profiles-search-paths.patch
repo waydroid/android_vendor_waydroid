@@ -1,0 +1,25 @@
+From d0d5b152c7ec8ddd267fe8f02b12bac820f8e32b Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 21 May 2021 00:59:04 +0430
+Subject: [PATCH] media: Add host media_profiles search paths
+
+---
+ media/libmedia/include/media/MediaProfiles.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/media/libmedia/include/media/MediaProfiles.h b/media/libmedia/include/media/MediaProfiles.h
+index 3e8e7c854e..9e2b6315e7 100644
+--- a/media/libmedia/include/media/MediaProfiles.h
++++ b/media/libmedia/include/media/MediaProfiles.h
+@@ -94,6 +94,8 @@ public:
+      * successful only when validation is successful.
+      */
+     static constexpr char const * const xmlFiles[] = {
++            "odm_extra/etc/media_profiles_V1_0.xml",
++            "vendor_extra/etc/media_profiles_V1_0.xml",
+             "odm/etc/media_profiles_V1_0.xml",
+             "vendor/etc/media_profiles_V1_0.xml",
+             "system/etc/media_profiles.xml"
+-- 
+2.29.2
+

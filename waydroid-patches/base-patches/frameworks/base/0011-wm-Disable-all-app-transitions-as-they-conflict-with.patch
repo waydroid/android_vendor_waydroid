@@ -1,0 +1,64 @@
+From 7eede2e3bddaa64954d850159332d696e31bd1f8 Mon Sep 17 00:00:00 2001
+From: Simon Fels <morphis@gravedo.de>
+Date: Thu, 10 Nov 2016 08:04:23 +0100
+Subject: [PATCH 2/2] wm: Disable all app transitions as they conflict with our
+ window management
+
+Change-Id: I208080ac83100f5e6e7116c041b17fdd8f9328ab
+---
+ .../java/com/android/server/policy/PhoneWindowManager.java    | 2 +-
+ services/core/java/com/android/server/wm/AppTransition.java   | 2 +-
+ .../core/java/com/android/server/wm/TaskSnapshotSurface.java  | 4 ++--
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 2646b87a3db..16b6f871b85 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -2903,7 +2903,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                 params.privateFlags |= WindowManager.LayoutParams.PRIVATE_FLAG_COMPATIBLE_WINDOW;
+             }
+ 
+-            params.setTitle("Splash Screen " + packageName);
++            params.setTitle(packageName + "/SplashScreen");
+             addSplashscreenContent(win, context);
+ 
+             wm = (WindowManager) context.getSystemService(WINDOW_SERVICE);
+diff --git a/services/core/java/com/android/server/wm/AppTransition.java b/services/core/java/com/android/server/wm/AppTransition.java
+index 52901bcef17..7678c0ab02e 100644
+--- a/services/core/java/com/android/server/wm/AppTransition.java
++++ b/services/core/java/com/android/server/wm/AppTransition.java
+@@ -1795,7 +1795,7 @@ public class AppTransition implements Dump {
+                     + " transit=" + appTransitionToString(transit) + " isEntrance=" + enter
+                     + " Callers=" + Debug.getCallers(3));
+         }
+-        return a;
++        return null;
+     }
+ 
+     private Animation loadKeyguardExitAnimation(int transit) {
+diff --git a/services/core/java/com/android/server/wm/TaskSnapshotSurface.java b/services/core/java/com/android/server/wm/TaskSnapshotSurface.java
+index 1905476f472..2c116b30ff2 100644
+--- a/services/core/java/com/android/server/wm/TaskSnapshotSurface.java
++++ b/services/core/java/com/android/server/wm/TaskSnapshotSurface.java
+@@ -112,7 +112,7 @@ class TaskSnapshotSurface implements StartingSurface {
+ 
+     private static final String TAG = TAG_WITH_CLASS_NAME ? "SnapshotStartingWindow" : TAG_WM;
+     private static final int MSG_REPORT_DRAW = 0;
+-    private static final String TITLE_FORMAT = "SnapshotStartingWindow for taskId=%s";
++    private static final String TITLE_FORMAT = "/SnapshotStartingWindow";
+     private final Window mWindow;
+     private final Surface mSurface;
+     private SurfaceControl mSurfaceControl;
+@@ -193,7 +193,7 @@ class TaskSnapshotSurface implements StartingSurface {
+             layoutParams.width = LayoutParams.MATCH_PARENT;
+             layoutParams.height = LayoutParams.MATCH_PARENT;
+             layoutParams.systemUiVisibility = sysUiVis;
+-            layoutParams.setTitle(String.format(TITLE_FORMAT, task.mTaskId));
++            layoutParams.setTitle(mainWindow.getAttrs().packageName + TITLE_FORMAT);
+ 
+             final TaskDescription td = task.getTaskDescription();
+             if (td != null) {
+-- 
+2.25.1
+

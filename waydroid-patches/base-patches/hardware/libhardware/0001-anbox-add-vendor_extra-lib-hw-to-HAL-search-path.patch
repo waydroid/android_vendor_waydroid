@@ -1,0 +1,42 @@
+From df21a3b04b2934ab081eda5e7c7d758aa6a91f9d Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Tue, 23 Mar 2021 15:24:31 +0700
+Subject: [PATCH] (anbox) add /vendor_extra/lib*/hw to HAL search path
+
+Change-Id: I1a3942554538aeff6bfbb784bf0b3eaacab01ddc
+---
+ hardware.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/hardware.c b/hardware.c
+index 6e72ce9..7260940 100644
+--- a/hardware.c
++++ b/hardware.c
+@@ -39,10 +39,12 @@
+ #define HAL_LIBRARY_PATH1 "/system/lib64/hw"
+ #define HAL_LIBRARY_PATH2 "/vendor/lib64/hw"
+ #define HAL_LIBRARY_PATH3 "/odm/lib64/hw"
++#define HAL_LIBRARY_PATH4 "/vendor_extra/lib64/hw"
+ #else
+ #define HAL_LIBRARY_PATH1 "/system/lib/hw"
+ #define HAL_LIBRARY_PATH2 "/vendor/lib/hw"
+ #define HAL_LIBRARY_PATH3 "/odm/lib/hw"
++#define HAL_LIBRARY_PATH4 "/vendor_extra/lib/hw"
+ #endif
+ 
+ /**
+@@ -191,6 +193,12 @@ static int hw_module_exists(char *path, size_t path_len, const char *name,
+         return 0;
+ #endif
+ 
++    // Anbox: check inside vendor_extra path as last fallback
++    snprintf(path, path_len, "%s/%s.%s.so",
++             HAL_LIBRARY_PATH4, name, subname);
++    if (path_in_path(path, HAL_LIBRARY_PATH4) && access(path, R_OK) == 0)
++        return 0;
++
+     return -ENOENT;
+ }
+ 
+-- 
+2.30.1

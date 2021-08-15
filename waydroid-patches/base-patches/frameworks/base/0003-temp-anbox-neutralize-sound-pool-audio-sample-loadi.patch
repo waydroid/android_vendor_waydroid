@@ -1,0 +1,31 @@
+From 0e4ffed63bf89dad6a5cead06584ec70f65933d8 Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Sun, 15 Nov 2020 00:25:07 +0700
+Subject: [PATCH] [temp] (halbox) neutralize sound pool audio sample
+ loading
+
+Change-Id: I395137bec139e0bfc33792d06e11db212eb9434a
+---
+ media/jni/soundpool/SoundPoolThread.cpp | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/media/jni/soundpool/SoundPoolThread.cpp b/media/jni/soundpool/SoundPoolThread.cpp
+index ba3b482935d..b0d0b9fc506 100644
+--- a/media/jni/soundpool/SoundPoolThread.cpp
++++ b/media/jni/soundpool/SoundPoolThread.cpp
+@@ -105,9 +105,10 @@ void SoundPoolThread::loadSample(int sampleID) {
+ void SoundPoolThread::doLoadSample(int sampleID) {
+     sp <Sample> sample = mSoundPool->findSample(sampleID);
+     status_t status = -1;
+-    if (sample != 0) {
++    // Disabled for Anbox
++    /*if (sample != 0) {
+         status = sample->doLoad();
+-    }
++    }*/
+     mSoundPool->notify(SoundPoolEvent(SoundPoolEvent::SAMPLE_LOADED, sampleID, status));
+ }
+ 
+-- 
+2.28.0
+

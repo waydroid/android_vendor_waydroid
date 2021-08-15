@@ -1,0 +1,29 @@
+From 34b51e3324c801a1d3efd14d1a7ba3ed03d55fba Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sun, 2 May 2021 02:06:01 +0800
+Subject: [PATCH] (anbox) do not fail on VNDK ABI mismatch
+
+Change-Id: I439748c1e538aa5414a66799c6720f1775d34d04
+---
+ cc/builder.go | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/cc/builder.go b/cc/builder.go
+index a9ee4e92..edad15dd 100644
+--- a/cc/builder.go
++++ b/cc/builder.go
+@@ -740,9 +740,8 @@ func SourceAbiDiff(ctx android.ModuleContext, inputDump android.Path, referenceD
+ 	createReferenceDumpFlags := ""
+ 
+ 	localAbiCheckAllowFlags := append([]string(nil), abiCheckAllowFlags...)
+-	if exportedHeaderFlags == "" {
+-		localAbiCheckAllowFlags = append(localAbiCheckAllowFlags, "-advice-only")
+-	}
++	localAbiCheckAllowFlags = append(localAbiCheckAllowFlags, "-advice-only")
++
+ 	if isLlndk {
+ 		localAbiCheckAllowFlags = append(localAbiCheckAllowFlags, "-consider-opaque-types-different")
+ 		createReferenceDumpFlags = "--llndk"
+-- 
+2.25.1
+

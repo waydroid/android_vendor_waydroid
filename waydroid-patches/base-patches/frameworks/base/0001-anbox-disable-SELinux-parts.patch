@@ -1,0 +1,85 @@
+From 14b812d586679092031fab8eade8edd7ce2dc815 Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Sun, 15 Nov 2020 00:24:05 +0700
+Subject: [PATCH] (anbox) disable SELinux parts
+
+Change-Id: I1bee5fb7f9f879e3bc9dc0c69cfb004fde8a320a
+---
+ core/jni/com_android_internal_os_Zygote.cpp         | 13 ++++++++-----
+ .../core/java/com/android/server/pm/Settings.java   |  6 +++---
+ 2 files changed, 11 insertions(+), 8 deletions(-)
+
+diff --git a/core/jni/com_android_internal_os_Zygote.cpp b/core/jni/com_android_internal_os_Zygote.cpp
+index 440988b1bd4..d83bac8ab3a 100644
+--- a/core/jni/com_android_internal_os_Zygote.cpp
++++ b/core/jni/com_android_internal_os_Zygote.cpp
+@@ -1135,13 +1135,14 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids,
+   __android_log_close();
+   stats_log_close();
+ 
+-  const char* se_info_ptr = se_info.has_value() ? se_info.value().c_str() : nullptr;
++  // Disabled for Anbox
++  /*const char* se_info_ptr = se_info.has_value() ? se_info.value().c_str() : nullptr;
+   const char* nice_name_ptr = nice_name.has_value() ? nice_name.value().c_str() : nullptr;
+ 
+   if (selinux_android_setcontext(uid, is_system_server, se_info_ptr, nice_name_ptr) == -1) {
+     fail_fn(CREATE_ERROR("selinux_android_setcontext(%d, %d, \"%s\", \"%s\") failed",
+                          uid, is_system_server, se_info_ptr, nice_name_ptr));
+-  }
++  }*/
+ 
+   // Make it easier to debug audit logs by setting the main thread's name to the
+   // nice name rather than "app_process".
+@@ -1170,10 +1171,11 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids,
+     }
+ 
+     // TODO(oth): Remove hardcoded label here (b/117874058).
+-    static const char* kSystemServerLabel = "u:r:system_server:s0";
++    // Disabled for Anbox
++    /*static const char* kSystemServerLabel = "u:r:system_server:s0";
+     if (selinux_android_setcon(kSystemServerLabel) != 0) {
+       fail_fn(CREATE_ERROR("selinux_android_setcon(%s)", kSystemServerLabel));
+-    }
++    }*/
+   }
+ 
+   env->CallStaticVoidMethod(gZygoteClass, gCallPostForkChildHooks, runtime_flags,
+@@ -1631,7 +1633,8 @@ static void com_android_internal_os_Zygote_nativeInitNativeState(JNIEnv* env, jc
+   // the value before zygote forks.
+   gIsSecurityEnforced = security_getenforce();
+ 
+-  selinux_android_seapp_context_init();
++  // Disabled for Anbox
++  /*selinux_android_seapp_context_init();*/
+ 
+   /*
+    * Storage Initialization
+diff --git a/services/core/java/com/android/server/pm/Settings.java b/services/core/java/com/android/server/pm/Settings.java
+index a3dbfdc099d..84241e93dec 100644
+--- a/services/core/java/com/android/server/pm/Settings.java
++++ b/services/core/java/com/android/server/pm/Settings.java
+@@ -2636,18 +2636,18 @@ public final class Settings {
+     void writePackageListLPr(int creatingUserId) {
+         String filename = mPackageListFilename.getAbsolutePath();
+         String ctx = SELinux.fileSelabelLookup(filename);
+-        if (ctx == null) {
++        if (SELinux.isSELinuxEnabled() && ctx == null) {
+             Slog.wtf(TAG, "Failed to get SELinux context for " +
+                 mPackageListFilename.getAbsolutePath());
+         }
+ 
+-        if (!SELinux.setFSCreateContext(ctx)) {
++        if (SELinux.isSELinuxEnabled() && !SELinux.setFSCreateContext(ctx)) {
+             Slog.wtf(TAG, "Failed to set packages.list SELinux context");
+         }
+         try {
+             writePackageListLPrInternal(creatingUserId);
+         } finally {
+-            SELinux.setFSCreateContext(null);
++            if (SELinux.isSELinuxEnabled()) SELinux.setFSCreateContext(null);
+         }
+     }
+ 
+-- 
+2.28.0
+
