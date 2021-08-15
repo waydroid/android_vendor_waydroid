@@ -237,7 +237,7 @@ index 00000000..755889d3
 +        ResolveInfo defaultLauncher = mPm.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY);
 +        if (defaultLauncher.activityInfo != null) {
 +            String nameOfLauncherPkg = defaultLauncher.activityInfo.packageName;
-+            SystemProperties.set("anbox.blacklist_apps", nameOfLauncherPkg);
++            SystemProperties.set("waydroid.blacklist_apps", nameOfLauncherPkg);
 +        }
 +    }
 +

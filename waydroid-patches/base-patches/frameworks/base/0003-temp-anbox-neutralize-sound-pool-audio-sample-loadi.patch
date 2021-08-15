@@ -18,7 +18,7 @@ index ba3b482935d..b0d0b9fc506 100644
      sp <Sample> sample = mSoundPool->findSample(sampleID);
      status_t status = -1;
 -    if (sample != 0) {
-+    // Disabled for Anbox
++    // Disabled for Waydroid
 +    /*if (sample != 0) {
          status = sample->doLoad();
 -    }

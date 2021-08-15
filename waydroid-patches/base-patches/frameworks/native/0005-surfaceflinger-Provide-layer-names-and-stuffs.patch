@@ -22,7 +22,7 @@ index 282935307..efe4717c4 100644
      "libhidltransport",
      "libfmq",
      "libpdx_default_transport",
-+    "vendor.anbox.display@1.0",
++    "vendor.waydroid.display@1.0",
  ]
  
  headerLibraries = [
@@ -34,7 +34,7 @@ index 37b11de07..358fbe05c 100644
          "libinput",
          "libutils",
          "libSurfaceFlingerProp",
-+        "vendor.anbox.display@1.0",
++        "vendor.waydroid.display@1.0",
      ],
      static_libs: [
          "libcompositionengine",
@@ -42,7 +42,7 @@ index 37b11de07..358fbe05c 100644
          "libhidlbase",
          "libhidltransport",
          "libhwbinder",
-+        "vendor.anbox.display@1.0",
++        "vendor.waydroid.display@1.0",
      ],
  }
  
@@ -54,7 +54,7 @@ index fd1c369d8..3e57ecfa8 100644
          "libtimestats_proto",
          "libui",
          "libutils",
-+        "vendor.anbox.display@1.0",
++        "vendor.waydroid.display@1.0",
      ],
      static_libs: [
          "libmath",
@@ -84,7 +84,7 @@ index 7f47a2ecd..d832d7f94 100644
          }
      }
 +
-+    mAnboxDisplay = IAnboxDisplay::getService();
++    mWaydroidDisplay = IWaydroidDisplay::getService();
  }
  
  Composer::~Composer() = default;
@@ -100,8 +100,8 @@ index 7f47a2ecd..d832d7f94 100644
  
      const native_handle_t* handle = nullptr;
      if (target.get()) {
-+        if (mAnboxDisplay)
-+            mAnboxDisplay->setTargetLayerHandleInfo(target->getPixelFormat(), target->getStride());
++        if (mWaydroidDisplay)
++            mWaydroidDisplay->setTargetLayerHandleInfo(target->getPixelFormat(), target->getStride());
          handle = target->getNativeBuffer()->handle;
      }
  
@@ -109,8 +109,8 @@ index 7f47a2ecd..d832d7f94 100644
  
      const native_handle_t* handle = nullptr;
      if (buffer.get()) {
-+        if (mAnboxDisplay)
-+            mAnboxDisplay->setLayerHandleInfo(mLayersZMap[layer], buffer->getPixelFormat(),
++        if (mWaydroidDisplay)
++            mWaydroidDisplay->setLayerHandleInfo(mLayersZMap[layer], buffer->getPixelFormat(),
 +                                              buffer->getStride());
 +        ALOGE("layer %d stride: %d", mLayersZMap[layer], (int)buffer->getStride());
          handle = buffer->getNativeBuffer()->handle;
@@ -129,12 +129,12 @@ index 7f47a2ecd..d832d7f94 100644
  }
  
 +Error Composer::setLayerName(Display, Layer layer, std::string name) {
-+    if (!mAnboxDisplay) {
++    if (!mWaydroidDisplay) {
 +        return Error::UNSUPPORTED;
 +    }
 +    if (mLayersNameMap[mLayersZMap[layer]] != name) {
 +        mLayersNameMap[mLayersZMap[layer]] = name;
-+        return mAnboxDisplay->setLayerName(mLayersZMap[layer], name);
++        return mWaydroidDisplay->setLayerName(mLayersZMap[layer], name);
 +    } else
 +        return Error::NONE;
 +}
@@ -150,7 +150,7 @@ index c4e952b8d..c54ee8d03 100644
  #include <android/hardware/graphics/common/1.1/types.h>
  #include <android/hardware/graphics/composer/2.3/IComposer.h>
  #include <android/hardware/graphics/composer/2.3/IComposerClient.h>
-+#include <vendor/anbox/display/1.0/IAnboxDisplay.h>
++#include <vendor/waydroid/display/1.0/IWaydroidDisplay.h>
  #include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
  #include <gui/HdrMetadata.h>
  #include <math/mat4.h>
@@ -158,7 +158,7 @@ index c4e952b8d..c54ee8d03 100644
  
  namespace Hwc2 {
  
-+using ::vendor::anbox::display::V1_0::IAnboxDisplay;
++using ::vendor::waydroid::display::V1_0::IWaydroidDisplay;
  using frameworks::vr::composer::V1_0::IVrComposerClient;
  
  namespace types = hardware::graphics::common;
@@ -167,7 +167,7 @@ index c4e952b8d..c54ee8d03 100644
              Display display, Layer layer, const std::vector<PerFrameMetadataBlob>& metadata) = 0;
      virtual Error setDisplayBrightness(Display display, float brightness) = 0;
 +
-+    // AnboxDisplay HAL 1.0
++    // WaydroidDisplay HAL 1.0
 +    virtual Error setLayerName(Display display, Layer layer, std::string name) = 0;
  };
  
@@ -176,7 +176,7 @@ index c4e952b8d..c54ee8d03 100644
              const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
      Error setDisplayBrightness(Display display, float brightness) override;
  
-+    // AnboxDisplay HAL 1.0
++    // WaydroidDisplay HAL 1.0
 +    Error setLayerName(Display display, Layer layer, std::string name) override;
 +
  private:
@@ -187,7 +187,7 @@ index c4e952b8d..c54ee8d03 100644
      // hwcomposer. This allows us to redirect surfaces to 3d surfaces in vr.
      const bool mIsUsingVrComposer;
 +
-+    sp<IAnboxDisplay> mAnboxDisplay;
++    sp<IWaydroidDisplay> mWaydroidDisplay;
 +    std::map<Layer, int32_t> mLayersZMap;
 +    std::map<int32_t, std::string> mLayersNameMap;
  };
@@ -218,7 +218,7 @@ index b7cdf7f6c..b3cb63fd2 100644
      // Composer HAL 2.3
      [[clang::warn_unused_result]] virtual Error setColorTransform(const android::mat4& matrix) = 0;
 +
-+    // AnboxDisplay HAL 1.0
++    // WaydroidDisplay HAL 1.0
 +    [[clang::warn_unused_result]] virtual Error setLayerName(std::string name) = 0;
  };
  
@@ -227,7 +227,7 @@ index b7cdf7f6c..b3cb63fd2 100644
      // Composer HAL 2.3
      Error setColorTransform(const android::mat4& matrix) override;
  
-+    // AnboxDisplay HAL 1.0
++    // WaydroidDisplay HAL 1.0
 +    Error setLayerName(std::string name) override;
 +
  private:

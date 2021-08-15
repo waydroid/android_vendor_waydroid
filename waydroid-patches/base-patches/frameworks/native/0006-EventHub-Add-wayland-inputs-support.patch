@@ -70,7 +70,7 @@ index b5405439a..91d324c49 100644
 -#endif
 -
 +} else {
-             if (property_get("anbox.display_width", property, nullptr) > 0) {
+             if (property_get("waydroid.display_width", property, nullptr) > 0) {
                  width = atoi(property);
              }
 @@ -417,6 +430,7 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,

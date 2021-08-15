@@ -1,7 +1,7 @@
 From 826da87b16f72f381bdae7d83e37682dfdb410d5 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Mon, 22 Mar 2021 10:13:32 +0700
-Subject: [PATCH] (anbox) add /vendor_extra lib folders to default library path
+Subject: [PATCH] (waydroid) add /vendor_extra lib folders to default library path
 
 This can be used to mount actual device's vendor on Halium devices.
 

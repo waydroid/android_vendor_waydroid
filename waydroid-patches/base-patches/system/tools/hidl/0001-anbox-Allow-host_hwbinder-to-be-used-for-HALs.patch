@@ -1,7 +1,7 @@
 From c38c389a65822d2de8968dc1f9c8f47c5e235da7 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Thu, 15 Apr 2021 12:15:57 +0700
-Subject: [PATCH] (anbox) Allow host_hwbinder to be used for HALs
+Subject: [PATCH] (waydroid) Allow host_hwbinder to be used for HALs
 
 Change-Id: I75de3547376a98904f49a48a1029633570f3ab4d
 ---

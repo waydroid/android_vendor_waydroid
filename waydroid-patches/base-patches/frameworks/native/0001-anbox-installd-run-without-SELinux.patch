@@ -1,7 +1,7 @@
 From d22648e986e6cef9dbfabd4a1064bc25d51cce17 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Wed, 11 Nov 2020 10:35:07 +0700
-Subject: [PATCH 5/5] (anbox): installd: run without SELinux
+Subject: [PATCH 5/5] (waydroid): installd: run without SELinux
 
 Change-Id: I85981dcdec8030a20309c79cfd2628fb30d53197
 ---
@@ -25,7 +25,7 @@ index ecf09fcaf..82935bfd2 100644
      int res = 0;
 -    char* before = nullptr;
 +
-+    // Disabled for Anbox
++    // Disabled for Waydroid
 +    return res;
 +
 +    /*char* before = nullptr;
@@ -46,7 +46,7 @@ index ecf09fcaf..82935bfd2 100644
          }
  
 -        if (selinux_android_restorecon(to.c_str(), SELINUX_ANDROID_RESTORECON_RECURSE) != 0) {
-+        // Disabled for Anbox
++        // Disabled for Waydroid
 +        /*if (selinux_android_restorecon(to.c_str(), SELINUX_ANDROID_RESTORECON_RECURSE) != 0) {
              res = error("Failed to restorecon " + to);
              goto fail;
@@ -60,7 +60,7 @@ index ecf09fcaf..82935bfd2 100644
      }
  
 -    char *con = nullptr;
-+    // Disabled for Anbox
++    // Disabled for Waydroid
 +    /*char *con = nullptr;
      if (lgetfilecon(pkgdir, &con) < 0) {
          return error("Failed to lgetfilecon " + _pkgdir);
@@ -74,7 +74,7 @@ index ecf09fcaf..82935bfd2 100644
      }
  
 -    if (lsetfilecon(libsymlink, con) < 0) {
-+    // Disabled for Anbox
++    // Disabled for Waydroid
 +    /*if (lsetfilecon(libsymlink, con) < 0) {
          res = error("Failed to lsetfilecon " + _libsymlink);
          goto out;
@@ -92,7 +92,7 @@ index ecf09fcaf..82935bfd2 100644
          return error("Failed to prepare " + oatDir);
      }
 -    if (selinux_android_restorecon(oat_dir, 0)) {
-+    // Disabled for Anbox
++    // Disabled for Waydroid
 +    /*if (selinux_android_restorecon(oat_dir, 0)) {
          return error("Failed to restorecon " + oatDir);
 -    }
@@ -118,7 +118,7 @@ index 5fb13a5c5..c0e636e10 100644
      // call which also does the restorecon. TODO(calin): unify the paths.
      if (is_secondary_dex) {
 -        if (selinux_android_restorecon_pkgdir(oat_dir, se_info, uid,
-+        // Disabled for Anbox
++        // Disabled for Waydroid
 +        /*if (selinux_android_restorecon_pkgdir(oat_dir, se_info, uid,
                  SELINUX_ANDROID_RESTORECON_RECURSE)) {
              *error_msg = std::string("Failed to restorecon ").append(oat_dir);
@@ -138,7 +138,7 @@ index 2e2cc182e..9f22d7a2b 100644
          exit(209);
      }
 -    if (selinux_android_restorecon(kPostinstallApexDir, 0) < 0) {
-+    // Disabled for Anbox
++    // Disabled for Waydroid
 +    /*if (selinux_android_restorecon(kPostinstallApexDir, 0) < 0) {
          PLOG(ERROR) << "Failed to restorecon " << kPostinstallApexDir;
          exit(214);

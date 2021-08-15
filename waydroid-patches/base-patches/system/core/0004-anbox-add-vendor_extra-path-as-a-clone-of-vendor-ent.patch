@@ -1,7 +1,7 @@
 From b5f1e0f5890b028d472fd9382ef349483c2e6a8f Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Mon, 22 Mar 2021 10:21:49 +0700
-Subject: [PATCH] (anbox) add /vendor_extra path as a clone of /vendor entries
+Subject: [PATCH] (waydroid) add /vendor_extra path as a clone of /vendor entries
 
 Change-Id: Idbc768b7a2877f0cc82ae99d3802d3a1bbf45b7b
 ---

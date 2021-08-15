@@ -1,7 +1,7 @@
 From bdb2e1ec79c05045473c00853c1108414a64a21f Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Wed, 11 Nov 2020 08:08:51 +0700
-Subject: [PATCH 2/4] (anbox) init: modify mount_all to skip mounts and trigger
+Subject: [PATCH 2/4] (waydroid) init: modify mount_all to skip mounts and trigger
  nonencrypted state
 
 Change-Id: Iae8cffa6aeb2d56f35a51f0e9f52fd92402c43e9
@@ -33,7 +33,7 @@ index 7db851ac6..c1da6c27e 100644
          return Error() << "mount_fstab() failed " << mount_fstab_return_code.error();
 -    }
 +    }*/
-+    // Anbox: filesystem mount is handled outside container, always non-encrypted
++    // Waydroid: filesystem mount is handled outside container, always non-encrypted
 +    Result<int> mount_fstab_return_code = FS_MGR_MNTALL_DEV_NOT_ENCRYPTED;
      property_set(prop_name, std::to_string(t.duration().count()));
  
@@ -47,7 +47,7 @@ index d5afabce8..1fcdb141e 100644
      trigger boot
  
 +on fs
-+    # Do fake mount_all for Anbox
++    # Do fake mount_all for Waydroid
 +    mount_all /dev/null
 +
  on early-fs

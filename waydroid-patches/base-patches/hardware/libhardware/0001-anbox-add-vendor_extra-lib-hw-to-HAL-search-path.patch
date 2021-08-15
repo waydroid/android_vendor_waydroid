@@ -1,7 +1,7 @@
 From df21a3b04b2934ab081eda5e7c7d758aa6a91f9d Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Tue, 23 Mar 2021 15:24:31 +0700
-Subject: [PATCH] (anbox) add /vendor_extra/lib*/hw to HAL search path
+Subject: [PATCH] (waydroid) add /vendor_extra/lib*/hw to HAL search path
 
 Change-Id: I1a3942554538aeff6bfbb784bf0b3eaacab01ddc
 ---
@@ -29,7 +29,7 @@ index 6e72ce9..7260940 100644
          return 0;
  #endif
  
-+    // Anbox: check inside vendor_extra path as last fallback
++    // Waydroid: check inside vendor_extra path as last fallback
 +    snprintf(path, path_len, "%s/%s.%s.so",
 +             HAL_LIBRARY_PATH4, name, subname);
 +    if (path_in_path(path, HAL_LIBRARY_PATH4) && access(path, R_OK) == 0)

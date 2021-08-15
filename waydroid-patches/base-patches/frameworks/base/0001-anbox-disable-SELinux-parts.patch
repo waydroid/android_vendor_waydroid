@@ -1,7 +1,7 @@
 From 14b812d586679092031fab8eade8edd7ce2dc815 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Sun, 15 Nov 2020 00:24:05 +0700
-Subject: [PATCH] (anbox) disable SELinux parts
+Subject: [PATCH] (waydroid) disable SELinux parts
 
 Change-Id: I1bee5fb7f9f879e3bc9dc0c69cfb004fde8a320a
 ---
@@ -18,7 +18,7 @@ index 440988b1bd4..d83bac8ab3a 100644
    stats_log_close();
  
 -  const char* se_info_ptr = se_info.has_value() ? se_info.value().c_str() : nullptr;
-+  // Disabled for Anbox
++  // Disabled for Waydroid
 +  /*const char* se_info_ptr = se_info.has_value() ? se_info.value().c_str() : nullptr;
    const char* nice_name_ptr = nice_name.has_value() ? nice_name.value().c_str() : nullptr;
  
@@ -35,7 +35,7 @@ index 440988b1bd4..d83bac8ab3a 100644
  
      // TODO(oth): Remove hardcoded label here (b/117874058).
 -    static const char* kSystemServerLabel = "u:r:system_server:s0";
-+    // Disabled for Anbox
++    // Disabled for Waydroid
 +    /*static const char* kSystemServerLabel = "u:r:system_server:s0";
      if (selinux_android_setcon(kSystemServerLabel) != 0) {
        fail_fn(CREATE_ERROR("selinux_android_setcon(%s)", kSystemServerLabel));
@@ -49,7 +49,7 @@ index 440988b1bd4..d83bac8ab3a 100644
    gIsSecurityEnforced = security_getenforce();
  
 -  selinux_android_seapp_context_init();
-+  // Disabled for Anbox
++  // Disabled for Waydroid
 +  /*selinux_android_seapp_context_init();*/
  
    /*

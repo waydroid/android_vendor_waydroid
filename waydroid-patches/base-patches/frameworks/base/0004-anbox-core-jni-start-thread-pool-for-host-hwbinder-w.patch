@@ -1,7 +1,7 @@
 From 3706032c94b414148fcf562e9eb0475d537fb8e7 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Wed, 28 Apr 2021 15:44:32 +0700
-Subject: [PATCH] (anbox) core/jni: start thread pool for host hwbinder when
+Subject: [PATCH] (waydroid) core/jni: start thread pool for host hwbinder when
  needed
 
 ---

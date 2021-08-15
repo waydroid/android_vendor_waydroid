@@ -1,7 +1,7 @@
 From 34b51e3324c801a1d3efd14d1a7ba3ed03d55fba Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Sun, 2 May 2021 02:06:01 +0800
-Subject: [PATCH] (anbox) do not fail on VNDK ABI mismatch
+Subject: [PATCH] (waydroid) do not fail on VNDK ABI mismatch
 
 Change-Id: I439748c1e538aa5414a66799c6720f1775d34d04
 ---

@@ -69,11 +69,11 @@ index ce5627271..00489cba6 100644
              }
 +#endif
 +
-+            if (property_get("anbox.display_width", property, nullptr) > 0) {
++            if (property_get("waydroid.display_width", property, nullptr) > 0) {
 +                width = atoi(property);
 +            }
 +
-+            if (property_get("anbox.display_height", property, nullptr) > 0) {
++            if (property_get("waydroid.display_height", property, nullptr) > 0) {
 +                height = atoi(property);
 +            }
 +

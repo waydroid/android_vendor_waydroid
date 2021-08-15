@@ -1,7 +1,7 @@
 From bdf1502ae29eea2dcf9073b3d84e11d632e6aa30 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Sun, 15 Nov 2020 00:24:46 +0700
-Subject: [PATCH] (anbox) disable suspend control
+Subject: [PATCH] (waydroid) disable suspend control
 
 Change-Id: I1c8cbb5980efc063fae25597b3c6e927a682c1ca
 ---
@@ -18,7 +18,7 @@ index bf0599fe18a..671b649c579 100644
      if (!enabled) {
 -        sp<ISuspendControlService> suspendControl = getSuspendControl();
 -        suspendControl->enableAutosuspend(&enabled);
-+        // Disabled for Anbox
++        // Disabled for Waydroid
 +        /*sp<ISuspendControlService> suspendControl = getSuspendControl();
 +        suspendControl->enableAutosuspend(&enabled);*/
      }
@@ -29,7 +29,7 @@ index bf0599fe18a..671b649c579 100644
      std::lock_guard<std::mutex> lock(gSuspendMutex);
      if (!gSuspendBlocker) {
 -        sp<ISystemSuspend> suspendHal = getSuspendHal();
-+        // Disabled for Anbox
++        // Disabled for Waydroid
 +        /*sp<ISystemSuspend> suspendHal = getSuspendHal();
          gSuspendBlocker = suspendHal->acquireWakeLock(WakeLockType::PARTIAL,
 -                "PowerManager.SuspendLockout");
