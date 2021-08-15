@@ -1,0 +1,58 @@
+From ba16860b891a0b817044dc3ed2e78235ff8ce001 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Wed, 14 Apr 2021 15:47:57 +0430
+Subject: [PATCH] Fix expungeHandle
+
+---
+ BpHwBinder.cpp                    | 2 +-
+ IPCThreadState.cpp                | 8 ++++++++
+ include/hwbinder/IPCThreadState.h | 1 +
+ 3 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/BpHwBinder.cpp b/BpHwBinder.cpp
+index 2be8422..a922c35 100644
+--- a/BpHwBinder.cpp
++++ b/BpHwBinder.cpp
+@@ -283,7 +283,7 @@ BpHwBinder::~BpHwBinder()
+     }
+ 
+     if (ipc) {
+-        ipc->expungeHandle(mHandle, this);
++        ipc->expungeHandle(mHandle, this, mIsHostHwBinder);
+         ipc->decWeakHandle(mHandle);
+     }
+ }
+diff --git a/IPCThreadState.cpp b/IPCThreadState.cpp
+index 8bcfec5..88e1dbf 100644
+--- a/IPCThreadState.cpp
++++ b/IPCThreadState.cpp
+@@ -815,6 +815,14 @@ void IPCThreadState::expungeHandle(int32_t handle, IBinder* binder)
+     self()->mProcess->expungeHandle(handle, binder);  // NOLINT
+ }
+ 
++void IPCThreadState::expungeHandle(int32_t handle, IBinder* binder, bool isHost)
++{
++#if LOG_REFCOUNTS
++    printf("IPCThreadState::expungeHandle(%ld)\n", handle);
++#endif
++    self(isHost)->mProcess->expungeHandle(handle, binder); // NOLINT
++}
++
+ status_t IPCThreadState::requestDeathNotification(int32_t handle, BpHwBinder* proxy)
+ {
+     mOut.writeInt32(BC_REQUEST_DEATH_NOTIFICATION);
+diff --git a/include/hwbinder/IPCThreadState.h b/include/hwbinder/IPCThreadState.h
+index f1e022d..4550014 100644
+--- a/include/hwbinder/IPCThreadState.h
++++ b/include/hwbinder/IPCThreadState.h
+@@ -83,6 +83,7 @@ public:
+             void                decWeakHandle(int32_t handle);
+             status_t            attemptIncStrongHandle(int32_t handle);
+     static  void                expungeHandle(int32_t handle, IBinder* binder);
++    static  void                expungeHandle(int32_t handle, IBinder* binder, bool isHost);
+             status_t            requestDeathNotification(   int32_t handle,
+                                                             BpHwBinder* proxy);
+             status_t            clearDeathNotification( int32_t handle,
+-- 
+2.29.2
+

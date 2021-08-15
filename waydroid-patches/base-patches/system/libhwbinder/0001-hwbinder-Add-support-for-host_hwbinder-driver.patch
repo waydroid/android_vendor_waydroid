@@ -1,0 +1,313 @@
+From 8a060a0990589ffcc563ab373bb6d0d306bd4931 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sat, 10 Apr 2021 21:59:58 +0430
+Subject: [PATCH] hwbinder: Add support for host_hwbinder driver
+
+---
+ IPCThreadState.cpp              | 120 +++++++++++++++++++++++---------
+ ProcessState.cpp                |  55 ++++++++++++---
+ Static.cpp                      |   2 +
+ include/hwbinder/ProcessState.h |   3 +
+ include/hwbinder/Static.h       |   2 +
+ 5 files changed, 140 insertions(+), 42 deletions(-)
+
+diff --git a/IPCThreadState.cpp b/IPCThreadState.cpp
+index 13ae0cd..1f6be62 100644
+--- a/IPCThreadState.cpp
++++ b/IPCThreadState.cpp
+@@ -276,34 +276,66 @@ static const void* printCommand(TextOutput& out, const void* _cmd)
+ 
+ static pthread_mutex_t gTLSMutex = PTHREAD_MUTEX_INITIALIZER;
+ static bool gHaveTLS = false;
++static bool gHostHaveTLS = false;
+ static pthread_key_t gTLS = 0;
++static pthread_key_t gHostTLS = 0;
+ static bool gShutdown = false;
++static bool gHostShutdown = false;
+ 
+ IPCThreadState* IPCThreadState::self()
+ {
+-    if (gHaveTLS) {
+ restart:
+-        const pthread_key_t k = gTLS;
+-        IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
+-        if (st) return st;
+-        return new IPCThreadState;
++    if (ProcessState::isHostBinder()) {
++        if (gHostHaveTLS) {
++            const pthread_key_t k = gHostTLS;
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
++            if (st) return st;
++            return new IPCThreadState;
++        }
++    } else {
++        if (gHaveTLS) {
++            const pthread_key_t k = gTLS;
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
++            if (st) return st;
++            return new IPCThreadState;
++        }
+     }
+ 
+-    if (gShutdown) {
+-        ALOGW("Calling IPCThreadState::self() during shutdown is dangerous, expect a crash.\n");
+-        return nullptr;
++    if (ProcessState::isHostBinder()) {
++        if (gHostShutdown) {
++            ALOGW("Calling IPCThreadState::self() during shutdown is dangerous, expect a crash.\n");
++            return nullptr;
++        }
++    } else {
++        if (gShutdown) {
++            ALOGW("Calling IPCThreadState::self() during shutdown is dangerous, expect a crash.\n");
++            return nullptr;
++        }
+     }
+ 
+     pthread_mutex_lock(&gTLSMutex);
+-    if (!gHaveTLS) {
+-        int key_create_value = pthread_key_create(&gTLS, threadDestructor);
+-        if (key_create_value != 0) {
+-            pthread_mutex_unlock(&gTLSMutex);
+-            ALOGW("IPCThreadState::self() unable to create TLS key, expect a crash: %s\n",
+-                    strerror(key_create_value));
+-            return nullptr;
++    if (ProcessState::isHostBinder()) {
++        if (!gHostHaveTLS) {
++            int key_create_value = pthread_key_create(&gHostTLS, threadDestructor);
++            if (key_create_value != 0) {
++                pthread_mutex_unlock(&gTLSMutex);
++                ALOGW("IPCThreadState::self() unable to create TLS key, expect a crash: %s\n",
++                        strerror(key_create_value));
++                return nullptr;
++            }
++            gHostHaveTLS = true;
++        }
++    } else {
++        if (!gHaveTLS) {
++            int key_create_value = pthread_key_create(&gTLS, threadDestructor);
++            if (key_create_value != 0) {
++                pthread_mutex_unlock(&gTLSMutex);
++                ALOGW("IPCThreadState::self() unable to create TLS key, expect a crash: %s\n",
++                        strerror(key_create_value));
++                return nullptr;
++            }
++            gHaveTLS = true;
+         }
+-        gHaveTLS = true;
+     }
+     pthread_mutex_unlock(&gTLSMutex);
+     goto restart;
+@@ -311,27 +343,50 @@ restart:
+ 
+ IPCThreadState* IPCThreadState::selfOrNull()
+ {
+-    if (gHaveTLS) {
+-        const pthread_key_t k = gTLS;
+-        IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
+-        return st;
++    if (ProcessState::isHostBinder()) {
++        if (gHostHaveTLS) {
++            const pthread_key_t k = gHostTLS;
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
++            return st;
++        }
++    } else {
++        if (gHaveTLS) {
++            const pthread_key_t k = gTLS;
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
++            return st;
++        }
+     }
+     return nullptr;
+ }
+ 
+ void IPCThreadState::shutdown()
+ {
+-    gShutdown = true;
+-
+-    if (gHaveTLS) {
+-        // XXX Need to wait for all thread pool threads to exit!
+-        IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gTLS);
+-        if (st) {
+-            delete st;
+-            pthread_setspecific(gTLS, nullptr);
++    if (ProcessState::isHostBinder()) {
++        gHostShutdown = true;
++
++        if (gHostHaveTLS) {
++            // XXX Need to wait for all thread pool threads to exit!
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gHostTLS);
++            if (st) {
++                delete st;
++                pthread_setspecific(gHostTLS, nullptr);
++            }
++            pthread_key_delete(gHostTLS);
++            gHostHaveTLS = false;
++        }
++    } else {
++        gShutdown = true;
++
++        if (gHaveTLS) {
++            // XXX Need to wait for all thread pool threads to exit!
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gTLS);
++            if (st) {
++                delete st;
++                pthread_setspecific(gTLS, nullptr);
++            }
++            pthread_key_delete(gTLS);
++            gHaveTLS = false;
+         }
+-        pthread_key_delete(gTLS);
+-        gHaveTLS = false;
+     }
+ }
+ 
+@@ -778,7 +833,10 @@ IPCThreadState::IPCThreadState()
+       mIsLooper(false),
+       mIsPollingThread(false),
+       mCallRestriction(mProcess->mCallRestriction) {
+-    pthread_setspecific(gTLS, this);
++    if (ProcessState::isHostBinder())
++        pthread_setspecific(gHostTLS, this);
++    else
++        pthread_setspecific(gTLS, this);
+     clearCaller();
+     mIn.setDataCapacity(256);
+     mOut.setDataCapacity(256);
+diff --git a/ProcessState.cpp b/ProcessState.cpp
+index 8a8b7cc..fa7f2d0 100644
+--- a/ProcessState.cpp
++++ b/ProcessState.cpp
+@@ -68,28 +68,58 @@ protected:
+ sp<ProcessState> ProcessState::self()
+ {
+     Mutex::Autolock _l(gProcessMutex);
+-    if (gProcess != nullptr) {
++    if (gIsHost) {
++        if (gHostProcess != nullptr) {
++            return gHostProcess;
++        }
++        gHostProcess = new ProcessState(DEFAULT_BINDER_VM_SIZE);
++        return gHostProcess;
++    } else {
++        if (gProcess != nullptr) {
++            return gProcess;
++        }
++        gProcess = new ProcessState(DEFAULT_BINDER_VM_SIZE);
+         return gProcess;
+     }
+-    gProcess = new ProcessState(DEFAULT_BINDER_VM_SIZE);
+-    return gProcess;
+ }
+ 
+ sp<ProcessState> ProcessState::selfOrNull() {
+     Mutex::Autolock _l(gProcessMutex);
+-    return gProcess;
++    if (gIsHost)
++        return gHostProcess;
++    else
++        return gProcess;
+ }
+ 
+ sp<ProcessState> ProcessState::initWithMmapSize(size_t mmap_size) {
+     Mutex::Autolock _l(gProcessMutex);
+-    if (gProcess != nullptr) {
+-        LOG_ALWAYS_FATAL_IF(mmap_size != gProcess->getMmapSize(),
+-                "ProcessState already initialized with a different mmap size.");
++    if (gIsHost) {
++        if (gHostProcess != nullptr) {
++            LOG_ALWAYS_FATAL_IF(mmap_size != gHostProcess->getMmapSize(),
++                    "ProcessState already initialized with a different mmap size.");
++            return gHostProcess;
++        }
++
++        gHostProcess = new ProcessState(mmap_size);
++        return gHostProcess;
++    } else {
++        if (gProcess != nullptr) {
++            LOG_ALWAYS_FATAL_IF(mmap_size != gProcess->getMmapSize(),
++                    "ProcessState already initialized with a different mmap size.");
++            return gProcess;
++        }
++
++        gProcess = new ProcessState(mmap_size);
+         return gProcess;
+     }
++}
++
++bool ProcessState::isHostBinder() {
++    return gIsHost;
++}
+ 
+-    gProcess = new ProcessState(mmap_size);
+-    return gProcess;
++void ProcessState::switchToHostBinder(bool value) {
++    gIsHost = value;
+ }
+ 
+ void ProcessState::setContextObject(const sp<IBinder>& object)
+@@ -397,7 +427,10 @@ void ProcessState::giveThreadPoolName() {
+ 
+ static int open_driver()
+ {
+-    int fd = open("/dev/hwbinder", O_RDWR | O_CLOEXEC);
++    const char *driver = "/dev/hwbinder";
++    if (gIsHost)
++        driver = "/dev/host_hwbinder";
++    int fd = open(driver, O_RDWR | O_CLOEXEC);
+     if (fd >= 0) {
+         int vers = 0;
+         status_t result = ioctl(fd, BINDER_VERSION, &vers);
+@@ -417,7 +450,7 @@ static int open_driver()
+             ALOGE("Binder ioctl to set max threads failed: %s", strerror(errno));
+         }
+     } else {
+-        ALOGW("Opening '/dev/hwbinder' failed: %s\n", strerror(errno));
++        ALOGW("Opening '%s' failed: %s\n", driver, strerror(errno));
+     }
+     return fd;
+ }
+diff --git a/Static.cpp b/Static.cpp
+index 87f632c..8f6093b 100644
+--- a/Static.cpp
++++ b/Static.cpp
+@@ -75,6 +75,8 @@ TextOutput& aerr(gStderrTextOutput);
+ 
+ Mutex& gProcessMutex = *new Mutex;
+ sp<ProcessState> gProcess;
++sp<ProcessState> gHostProcess;
++bool gIsHost;
+ 
+ }   // namespace hardware
+ }   // namespace android
+diff --git a/include/hwbinder/ProcessState.h b/include/hwbinder/ProcessState.h
+index 6490a8d..554a619 100644
+--- a/include/hwbinder/ProcessState.h
++++ b/include/hwbinder/ProcessState.h
+@@ -40,6 +40,9 @@ public:
+     // Note: don't call self() or selfOrNull() before initWithMmapSize()
+     static  sp<ProcessState>    initWithMmapSize(size_t mmapSize); // size in bytes
+ 
++    static  bool                isHostBinder();
++    static  void                switchToHostBinder(bool value);
++
+             void                setContextObject(const sp<IBinder>& object);
+             sp<IBinder>         getContextObject(const sp<IBinder>& caller);
+ 
+diff --git a/include/hwbinder/Static.h b/include/hwbinder/Static.h
+index 4b84c89..f8ba196 100644
+--- a/include/hwbinder/Static.h
++++ b/include/hwbinder/Static.h
+@@ -31,6 +31,8 @@ extern Vector<int32_t> gTextBuffers;
+ // For ProcessState.cpp
+ extern Mutex& gProcessMutex;
+ extern sp<ProcessState> gProcess;
++extern sp<ProcessState> gHostProcess;
++extern bool gIsHost;
+ 
+ }   // namespace hardware
+ }   // namespace android
+-- 
+2.29.2
+

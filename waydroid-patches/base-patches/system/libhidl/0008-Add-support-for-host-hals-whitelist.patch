@@ -1,0 +1,159 @@
+From 6f7041ff93a9185fafd1669796487919232beff9 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Tue, 18 May 2021 08:33:28 +0430
+Subject: [PATCH] Add support for host hals whitelist
+
+---
+ transport/Android.bp            |  1 +
+ transport/ServiceManagement.cpp | 64 +++++++++++++++++++++++++++------
+ 2 files changed, 54 insertions(+), 11 deletions(-)
+
+diff --git a/transport/Android.bp b/transport/Android.bp
+index 50f277e..7a1829b 100644
+--- a/transport/Android.bp
++++ b/transport/Android.bp
+@@ -26,6 +26,7 @@ cc_defaults {
+         "libcutils",
+         "libvndksupport"
+     ],
++    static_libs: [ "libtinyxml2" ],
+     export_shared_lib_headers: [
+         "libutils",
+     ],
+diff --git a/transport/ServiceManagement.cpp b/transport/ServiceManagement.cpp
+index c40771a..5d8830b 100644
+--- a/transport/ServiceManagement.cpp
++++ b/transport/ServiceManagement.cpp
+@@ -34,6 +34,7 @@
+ #include <hidl/ServiceManagement.h>
+ #include <hidl/Status.h>
+ #include <utils/SystemClock.h>
++#include <tinyxml2.h>
+ 
+ #include <android-base/file.h>
+ #include <android-base/logging.h>
+@@ -63,6 +64,9 @@ using IServiceManager1_1 = android::hidl::manager::V1_1::IServiceManager;
+ using IServiceManager1_2 = android::hidl::manager::V1_2::IServiceManager;
+ using ::android::hidl::manager::V1_0::IServiceNotification;
+ 
++using NodeType = tinyxml2::XMLElement;
++using DocType = tinyxml2::XMLDocument;
++
+ namespace android {
+ namespace hardware {
+ 
+@@ -149,6 +153,24 @@ static void tryShortenProcessName(const std::string& descriptor) {
+     }
+ }
+ 
++static bool isHostHalAllowed(std::string ifaceName, bool* priority) {
++    DocType doc;
++    doc.LoadFile("/system/etc/hosthals.xml");
++    NodeType *titleElement = doc.FirstChildElement("hosthals");
++
++    for (NodeType *child = titleElement->FirstChildElement("hal");
++         child != nullptr;
++         child = child->NextSiblingElement("hal"))
++    {
++        if (!strcmp(ifaceName.c_str(), child->FirstChildElement("name")->GetText())) {
++            *priority = !strcmp("true", child->FirstChildElement("priority")->GetText());
++            return true;
++        }
++    }
++
++    return false;
++}
++
+ namespace details {
+ 
+ /*
+@@ -347,6 +369,7 @@ struct PassthroughServiceManager : IServiceManager1_1 {
+         const std::string& fqName,
+         const std::function<bool /* continue */ (void* /* handle */, const std::string& /* lib */,
+                                                  const std::string& /* sym */)>& eachLib) {
++        bool hostHalPriority = false;
+         //fqName looks like android.hardware.foo@1.0::IFoo
+         size_t idx = fqName.find("::");
+ 
+@@ -358,6 +381,7 @@ struct PassthroughServiceManager : IServiceManager1_1 {
+ 
+         std::string packageAndVersion = fqName.substr(0, idx);
+         std::string ifaceName = fqName.substr(idx + strlen("::"));
++        std::string ifaceNameNoVer = fqName.substr(0, fqName.find("@"));
+ 
+         const std::string prefix = packageAndVersion + "-impl";
+         const std::string sym = "HIDL_FETCH_" + ifaceName;
+@@ -367,15 +391,27 @@ struct PassthroughServiceManager : IServiceManager1_1 {
+ 
+         dlerror(); // clear
+ 
++        bool isHostHal = isHostHalAllowed(ifaceNameNoVer, &hostHalPriority);
+         static std::string halLibPathVndkSp = android::base::StringPrintf(
+             HAL_LIBRARY_PATH_VNDK_SP_FOR_VERSION, details::getVndkVersionStr().c_str());
+-        std::vector<std::string> paths = {
+-            HAL_LIBRARY_PATH_ODM, HAL_LIBRARY_PATH_VENDOR,
+-            HAL_LIBRARY_PATH_VENDOR_EXTRA, halLibPathVndkSp,
++
++        std::vector<std::string> paths;
++        paths.push_back(HAL_LIBRARY_PATH_ODM);
++        if (isHostHal) {
++            if (hostHalPriority) {
++                paths.push_back(HAL_LIBRARY_PATH_VENDOR_EXTRA);
++                paths.push_back(HAL_LIBRARY_PATH_VENDOR);
++            } else {
++                paths.push_back(HAL_LIBRARY_PATH_VENDOR);
++                paths.push_back(HAL_LIBRARY_PATH_VENDOR_EXTRA);
++            }
++        } else {
++            paths.push_back(HAL_LIBRARY_PATH_VENDOR);
++        }
++        paths.push_back(halLibPathVndkSp);
+ #ifndef __ANDROID_VNDK__
+-            HAL_LIBRARY_PATH_SYSTEM,
++            paths.push_back(HAL_LIBRARY_PATH_SYSTEM);
+ #endif
+-        };
+ 
+ #ifdef LIBHIDL_TARGET_DEBUGGABLE
+         const char* env = std::getenv("TREBLE_TESTING_OVERRIDE");
+@@ -750,7 +786,14 @@ sp<::android::hidl::base::V1_0::IBase> getRawServiceInternal(const std::string&
+     if (kIsRecovery) {
+         transport = Transport::PASSTHROUGH;
+     } else {
+-        sm = defaultServiceManager1_1();
++        bool hostHalPriority = false;
++        bool isHostHal = false;
++        std::string ifaceName = descriptor.substr(0, descriptor.find("@"));
++
++        if (doesSupportHostBinder()) {
++            isHostHal = isHostHalAllowed(ifaceName, &hostHalPriority);
++        }
++        sm = defaultServiceManager1_1(hostHalPriority);
+         if (sm == nullptr) {
+             ALOGE("getService: defaultServiceManager() is null");
+             return nullptr;
+@@ -763,17 +806,16 @@ sp<::android::hidl::base::V1_0::IBase> getRawServiceInternal(const std::string&
+                   transportRet.description().c_str());
+             return nullptr;
+         }
+-        if (doesSupportHostBinder())
+-        {
++        if (isHostHal) {
+             if (transportRet == Transport::EMPTY) {
+-                sm = defaultServiceManager1_1(/*useHostHwBinder*/true);
++                sm = defaultServiceManager1_1(!hostHalPriority);
+                 if (sm == nullptr) {
+-                    ALOGE("getService: defaultServiceManager() of host is null");
++                    ALOGE("getService: defaultServiceManager() is null");
+                     return nullptr;
+                 }
+                 transportRet = sm->getTransport(descriptor, instance);
+                 if (!transportRet.isOk()) {
+-                    ALOGE("getService: defaultServiceManager()->getTransport of host returns %s",
++                    ALOGE("getService: defaultServiceManager()->getTransport returns %s",
+                         transportRet.description().c_str());
+                     return nullptr;
+                 }
+-- 
+2.29.2
+
