@@ -1,6 +1,6 @@
-From db745a4b563e07051b810f120eed666ad3be1090 Mon Sep 17 00:00:00 2001
+From fa14f81e6dd3410ed9ad8acda2cdb1595b97aabe Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
-Date: Fri, 25 Jun 2021 03:34:50 +0430
+Date: Tue, 24 Aug 2021 22:45:23 +0430
 Subject: [PATCH] surfaceflinger: Provide layer names and stuffs
 
 ---
@@ -8,14 +8,14 @@ Subject: [PATCH] surfaceflinger: Provide layer names and stuffs
  services/surfaceflinger/Android.bp            |  2 ++
  .../CompositionEngine/Android.bp              |  1 +
  .../CompositionEngine/src/OutputLayer.cpp     |  6 ++++++
- .../DisplayHardware/ComposerHal.cpp           | 21 +++++++++++++++++++
+ .../DisplayHardware/ComposerHal.cpp           | 20 +++++++++++++++++++
  .../DisplayHardware/ComposerHal.h             | 12 +++++++++++
  .../surfaceflinger/DisplayHardware/HWC2.cpp   |  6 ++++++
  .../surfaceflinger/DisplayHardware/HWC2.h     |  6 ++++++
- 8 files changed, 55 insertions(+)
+ 8 files changed, 54 insertions(+)
 
 diff --git a/libs/vr/libvrflinger/Android.bp b/libs/vr/libvrflinger/Android.bp
-index 282935307..efe4717c4 100644
+index 282935307..c3e9efd6f 100644
 --- a/libs/vr/libvrflinger/Android.bp
 +++ b/libs/vr/libvrflinger/Android.bp
 @@ -60,6 +60,7 @@ sharedLibraries = [
@@ -27,7 +27,7 @@ index 282935307..efe4717c4 100644
  
  headerLibraries = [
 diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
-index 37b11de07..358fbe05c 100644
+index 37b11de07..b6d84e3a9 100644
 --- a/services/surfaceflinger/Android.bp
 +++ b/services/surfaceflinger/Android.bp
 @@ -58,6 +58,7 @@ cc_defaults {
@@ -47,7 +47,7 @@ index 37b11de07..358fbe05c 100644
  }
  
 diff --git a/services/surfaceflinger/CompositionEngine/Android.bp b/services/surfaceflinger/CompositionEngine/Android.bp
-index fd1c369d8..3e57ecfa8 100644
+index fd1c369d8..e7acc8079 100644
 --- a/services/surfaceflinger/CompositionEngine/Android.bp
 +++ b/services/surfaceflinger/CompositionEngine/Android.bp
 @@ -22,6 +22,7 @@ cc_defaults {
@@ -76,7 +76,7 @@ index 985b598f1..c69a64cc4 100644
                      hwcLayer->setTransform(static_cast<HWC2::Transform>(mState.bufferTransform));
              error != HWC2::Error::None) {
 diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
-index 7f47a2ecd..d832d7f94 100644
+index 7f47a2ecd..0cd0833e4 100644
 --- a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
 +++ b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
 @@ -204,6 +204,8 @@ Composer::Composer(const std::string& serviceName)
@@ -105,18 +105,17 @@ index 7f47a2ecd..d832d7f94 100644
          handle = target->getNativeBuffer()->handle;
      }
  
-@@ -709,6 +714,10 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
+@@ -709,6 +714,9 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
  
      const native_handle_t* handle = nullptr;
      if (buffer.get()) {
 +        if (mWaydroidDisplay)
 +            mWaydroidDisplay->setLayerHandleInfo(mLayersZMap[layer], buffer->getPixelFormat(),
 +                                              buffer->getStride());
-+        ALOGE("layer %d stride: %d", mLayersZMap[layer], (int)buffer->getStride());
          handle = buffer->getNativeBuffer()->handle;
      }
  
-@@ -820,6 +829,7 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
+@@ -820,6 +828,7 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
      mWriter.selectDisplay(display);
      mWriter.selectLayer(layer);
      mWriter.setLayerZOrder(z);
@@ -124,7 +123,7 @@ index 7f47a2ecd..d832d7f94 100644
      return Error::NONE;
  }
  
-@@ -1167,6 +1177,17 @@ Error Composer::setDisplayBrightness(Display display, float brightness) {
+@@ -1167,6 +1176,17 @@ Error Composer::setDisplayBrightness(Display display, float brightness) {
      return mClient_2_3->setDisplayBrightness(display, brightness);
  }
  
@@ -143,7 +142,7 @@ index 7f47a2ecd..d832d7f94 100644
  {
      resetData();
 diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.h b/services/surfaceflinger/DisplayHardware/ComposerHal.h
-index c4e952b8d..c54ee8d03 100644
+index c4e952b8d..66a4c4bed 100644
 --- a/services/surfaceflinger/DisplayHardware/ComposerHal.h
 +++ b/services/surfaceflinger/DisplayHardware/ComposerHal.h
 @@ -27,6 +27,7 @@
@@ -210,7 +209,7 @@ index c463c4e40..f1c272507 100644
  } // namespace impl
  } // namespace HWC2
 diff --git a/services/surfaceflinger/DisplayHardware/HWC2.h b/services/surfaceflinger/DisplayHardware/HWC2.h
-index b7cdf7f6c..b3cb63fd2 100644
+index b7cdf7f6c..354aac3aa 100644
 --- a/services/surfaceflinger/DisplayHardware/HWC2.h
 +++ b/services/surfaceflinger/DisplayHardware/HWC2.h
 @@ -391,6 +391,9 @@ public:

@@ -1,7 +1,7 @@
-From 5b014bd0fc4e83bb6a1319d51ec60bc86edddf6a Mon Sep 17 00:00:00 2001
+From b7368038c6ef9d0ef212ec99454a1d04828a06e1 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Fri, 28 Jul 2017 19:44:57 +0800
-Subject: [PATCH 1/2] RenderEngine: support non-RGBA_8888 format
+Subject: [PATCH] RenderEngine: support non-RGBA_8888 format
 
 Some of our GPUs (e.g., radeon) don't support RGBA_8888 well.
 To workaround it, just get the EGL config by a simpler query.
@@ -52,5 +52,5 @@ index d2a752511..1bc2773e6 100644
          ALOGI("version   : %s", eglQueryString(display, EGL_VERSION));
          ALOGI("extensions: %s", eglQueryString(display, EGL_EXTENSIONS));
 -- 
-2.25.1
+2.29.2
 

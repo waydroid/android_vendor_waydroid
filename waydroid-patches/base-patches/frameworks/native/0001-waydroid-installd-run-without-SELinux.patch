@@ -1,7 +1,7 @@
-From d22648e986e6cef9dbfabd4a1064bc25d51cce17 Mon Sep 17 00:00:00 2001
+From a5a21dadaba75610b62e8a3b0654e3a34145a7e9 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Wed, 11 Nov 2020 10:35:07 +0700
-Subject: [PATCH 5/5] (waydroid): installd: run without SELinux
+Subject: [PATCH] (waydroid): installd: run without SELinux
 
 Change-Id: I85981dcdec8030a20309c79cfd2628fb30d53197
 ---
@@ -11,7 +11,7 @@ Change-Id: I85981dcdec8030a20309c79cfd2628fb30d53197
  3 files changed, 28 insertions(+), 18 deletions(-)
 
 diff --git a/cmds/installd/InstalldNativeService.cpp b/cmds/installd/InstalldNativeService.cpp
-index ecf09fcaf..82935bfd2 100644
+index ecf09fcaf..0cc4b0354 100644
 --- a/cmds/installd/InstalldNativeService.cpp
 +++ b/cmds/installd/InstalldNativeService.cpp
 @@ -302,10 +302,14 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */
@@ -101,7 +101,7 @@ index ecf09fcaf..82935bfd2 100644
      if (fs_prepare_dir(oat_instr_dir, S_IRWXU | S_IRWXG | S_IXOTH, AID_SYSTEM, AID_INSTALL)) {
          return error(StringPrintf("Failed to prepare %s", oat_instr_dir));
 diff --git a/cmds/installd/dexopt.cpp b/cmds/installd/dexopt.cpp
-index 5fb13a5c5..c0e636e10 100644
+index 5fb13a5c5..453b98698 100644
 --- a/cmds/installd/dexopt.cpp
 +++ b/cmds/installd/dexopt.cpp
 @@ -2012,7 +2012,7 @@ static std::string format_dexopt_error(int status, const char* dex_path) {
@@ -130,7 +130,7 @@ index 5fb13a5c5..c0e636e10 100644
  
      // Create a swap file if necessary.
 diff --git a/cmds/installd/otapreopt_chroot.cpp b/cmds/installd/otapreopt_chroot.cpp
-index 2e2cc182e..9f22d7a2b 100644
+index 2e2cc182e..536d9c8bf 100644
 --- a/cmds/installd/otapreopt_chroot.cpp
 +++ b/cmds/installd/otapreopt_chroot.cpp
 @@ -200,10 +200,11 @@ static int otapreopt_chroot(const int argc, char **arg) {
@@ -148,5 +148,5 @@ index 2e2cc182e..9f22d7a2b 100644
          PLOG(ERROR) << "Failed to chmod " << kPostinstallApexDir << " to 0755";
          exit(210);
 -- 
-2.28.0
+2.29.2
 

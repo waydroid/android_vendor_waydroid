@@ -1,6 +1,6 @@
-From 3ee2379cf25e412d4bb379cf52c043cdb2eca780 Mon Sep 17 00:00:00 2001
+From f67aacb1d8c0790c093c1b377ff0633603901246 Mon Sep 17 00:00:00 2001
 From: TheKit <nekit1000@gmail.com>
-Date: Tue, 7 Mar 2021 17:13:31 +0200
+Date: Sun, 7 Mar 2021 17:13:31 +0200
 Subject: [PATCH] (halium) disable SELinux checks in ServiceManager
 
 Change-Id: Ida8e91453db58b1123468931c94d4a40d273b0b3
@@ -9,7 +9,7 @@ Change-Id: Ida8e91453db58b1123468931c94d4a40d273b0b3
  1 file changed, 15 insertions(+), 9 deletions(-)
 
 diff --git a/cmds/servicemanager/service_manager.c b/cmds/servicemanager/service_manager.c
-index ec3fac538..c971805db 100644
+index ec3fac538..1c0f32c0f 100644
 --- a/cmds/servicemanager/service_manager.c
 +++ b/cmds/servicemanager/service_manager.c
 @@ -61,9 +61,12 @@ int str16eq(const uint16_t *a, const char *b)
@@ -77,5 +77,5 @@ index ec3fac538..c971805db 100644
  
  
 -- 
-2.30.1
+2.29.2
 

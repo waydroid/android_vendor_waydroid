@@ -1,4 +1,4 @@
-From aa30bc2834e03ea9b390e13a7918062d906cfc20 Mon Sep 17 00:00:00 2001
+From ccb3a94d1606f9700f1cb5fed5d3a71c6b83defa Mon Sep 17 00:00:00 2001
 From: Tomeu Vizoso <tomeu.vizoso@collabora.com>
 Date: Wed, 24 Oct 2018 08:23:52 +0200
 Subject: [PATCH] Hack EventHub until it works with our fake evdev events
@@ -8,7 +8,7 @@ Subject: [PATCH] Hack EventHub until it works with our fake evdev events
  1 file changed, 89 insertions(+), 8 deletions(-)
 
 diff --git a/services/inputflinger/EventHub.cpp b/services/inputflinger/EventHub.cpp
-index ce5627271..00489cba6 100644
+index ce5627271..a0dcb0f25 100644
 --- a/services/inputflinger/EventHub.cpp
 +++ b/services/inputflinger/EventHub.cpp
 @@ -28,6 +28,8 @@

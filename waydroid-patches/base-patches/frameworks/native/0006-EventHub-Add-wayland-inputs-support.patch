@@ -1,4 +1,4 @@
-From 69e2c825f1a869f90a0550744aac2156a2fe4b5a Mon Sep 17 00:00:00 2001
+From 1659ff3a728b797b66d57358c94434b8192f47c0 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Fri, 4 Jun 2021 16:27:09 +0430
 Subject: [PATCH] EventHub: Add wayland inputs support
@@ -8,7 +8,7 @@ Subject: [PATCH] EventHub: Add wayland inputs support
  1 file changed, 78 insertions(+), 31 deletions(-)
 
 diff --git a/services/inputflinger/EventHub.cpp b/services/inputflinger/EventHub.cpp
-index b5405439a..91d324c49 100644
+index a0dcb0f25..b4745cf7a 100644
 --- a/services/inputflinger/EventHub.cpp
 +++ b/services/inputflinger/EventHub.cpp
 @@ -28,8 +28,6 @@
