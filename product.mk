@@ -20,7 +20,7 @@ PRODUCT_COPY_FILES += \
 
 # Init
 PRODUCT_PACKAGES += \
-    init.anbox.rc
+    init.waydroid.rc
 
 # Properties
 PRODUCT_COPY_FILES += \
