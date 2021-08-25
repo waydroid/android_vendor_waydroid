@@ -1,0 +1,28 @@
+From 4b98dced5cf44278cdbe43065139485d8c349c46 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Wed, 25 Aug 2021 23:15:59 +0800
+Subject: [PATCH] init: Define "host" user
+
+Change-Id: I6df4fcbc4af48c51c385f8413855f74afc146a45
+---
+ init/util.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/init/util.cpp b/init/util.cpp
+index f51c3a3de..5646e0898 100644
+--- a/init/util.cpp
++++ b/init/util.cpp
+@@ -61,6 +61,10 @@ const std::string kDefaultAndroidDtDir("/proc/device-tree/firmware/android/");
+ // DecodeUid() - decodes and returns the given string, which can be either the
+ // numeric or name representation, into the integer uid or gid.
+ Result<uid_t> DecodeUid(const std::string& name) {
++    if (name == "host") {
++        std::string uid = android::base::GetProperty("waydroid.host.uid", "1000");
++        return static_cast<uid_t>(strtoul(uid.c_str(), 0, 0));
++    }
+     if (isalpha(name[0])) {
+         passwd* pwd = getpwnam(name.c_str());
+         if (!pwd) return ErrnoError() << "getpwnam failed";
+-- 
+2.25.1
+
