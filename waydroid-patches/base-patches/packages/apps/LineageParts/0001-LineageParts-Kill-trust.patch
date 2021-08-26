@@ -1,0 +1,68 @@
+From 1802fc74f623e10ab718b9225753f727578fbb96 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Tue, 20 Jul 2021 17:16:14 +0430
+Subject: [PATCH] LineageParts: Kill trust
+
+---
+ AndroidManifest.xml       | 8 ++++----
+ res/xml/parts_catalog.xml | 4 ++--
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index eebaa7c..42b9a2c 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -65,7 +65,7 @@
+                 android:value="org.lineageos.lineageparts.PartsUpdater" />
+         </activity>
+ 
+-        <activity android:name=".trust.TrustOnBoardingActivity"
++        <!-- <activity android:name=".trust.TrustOnBoardingActivity"
+             android:label="@string/trust_title"
+             android:theme="@style/OnBoardingStyle"
+             android:exported="true"
+@@ -75,7 +75,7 @@
+                 <action android:name="org.lineageos.lineageparts.TRUST_HINT" />
+                 <category android:name="android.intent.category.DEFAULT" />
+             </intent-filter>
+-        </activity>
++        </activity> -->
+ 
+         <receiver android:name=".BootReceiver" android:enabled="true">
+             <intent-filter android:priority="2147483647">
+@@ -169,7 +169,7 @@
+                 android:resource="@string/summary_empty" />
+         </activity-alias>
+ 
+-        <!-- Trust interface (Privacy category) -->
++        <!-- Trust interface (Privacy category)
+         <activity-alias
+             android:name=".trust.TrustPreferences"
+             android:label="@string/trust_title"
+@@ -188,7 +188,7 @@
+             <meta-data
+                 android:name="com.android.settings.summary"
+                 android:resource="@string/summary_empty" />
+-        </activity-alias>
++        </activity-alias> -->
+ 
+         <!-- Contributors Cloud (MyDeviceInfo category) -->
+         <activity-alias
+diff --git a/res/xml/parts_catalog.xml b/res/xml/parts_catalog.xml
+index a4346c7..af83a3d 100644
+--- a/res/xml/parts_catalog.xml
++++ b/res/xml/parts_catalog.xml
+@@ -108,8 +108,8 @@
+           android:fragment="org.lineageos.lineageparts.gestures.TouchscreenGestureSettings"
+           lineage:xmlRes="@xml/touchscreen_gesture_settings" />
+ 
+-    <part android:key="trust_interface"
++    <!-- <part android:key="trust_interface"
+           android:title="@string/trust_title"
+           android:fragment="org.lineageos.lineageparts.trust.TrustPreferences"
+-          lineage:xmlRes="@xml/trust_preferences" />
++          lineage:xmlRes="@xml/trust_preferences" /> -->
+ </parts-catalog>
+-- 
+2.29.2
+
