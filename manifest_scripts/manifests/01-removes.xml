@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!-- Remove replaced Projects -->
+  <remove-project name="platform/external/libdrm" />
+  <remove-project name="platform/external/mesa3d" />
+  <remove-project name="platform/hardware/intel/common/libva" />
+
+</manifest>

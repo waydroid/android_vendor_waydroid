@@ -5,3 +5,8 @@ function apply-waydroid-patches
 {
 	${vendor_path}/waydroid-patches/apply-patches.sh
 }
+
+function waydroid-generate-manifest
+{
+    ${vendor_path}/manifest_scripts/generate-manifest.sh
+}
