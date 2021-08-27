@@ -1,0 +1,87 @@
+From 8576ffc726fa493b93377f1b97ef6ceff94a698c Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 27 Aug 2021 22:54:26 +0800
+Subject: [PATCH] native: Address host uid services as system UID
+
+Change-Id: If534b9a36f40f15390f5b5a6ca726ebf267406c1
+---
+ cmds/servicemanager/service_manager.c | 18 ++++++++++++++++++
+ libs/binder/IPCThreadState.cpp        |  6 ++++++
+ 2 files changed, 24 insertions(+)
+
+diff --git a/cmds/servicemanager/service_manager.c b/cmds/servicemanager/service_manager.c
+index 1c0f32c0f..030040494 100644
+--- a/cmds/servicemanager/service_manager.c
++++ b/cmds/servicemanager/service_manager.c
+@@ -10,6 +10,7 @@
+ 
+ #include <cutils/android_filesystem_config.h>
+ #include <cutils/multiuser.h>
++#include <cutils/properties.h>
+ 
+ #include <selinux/android.h>
+ #include <selinux/avc.h>
+@@ -120,6 +121,11 @@ static bool check_mac_perms_from_lookup(pid_t spid, const char* sid, uid_t uid,
+ static int svc_can_register(const uint16_t *name, size_t name_len, pid_t spid, const char* sid, uid_t uid)
+ {
+     const char *perm = "add";
++    char property[PROPERTY_VALUE_MAX];
++
++    if (property_get("waydroid.host.uid", property, "1000") > 0)
++        if (uid == (uid_t)atoi(property))
++            return 1;
+ 
+     if (multiuser_get_app_id(uid) >= AID_APP) {
+         return 0; /* Don't allow apps to register services */
+@@ -131,12 +137,24 @@ static int svc_can_register(const uint16_t *name, size_t name_len, pid_t spid, c
+ static int svc_can_list(pid_t spid, const char* sid, uid_t uid)
+ {
+     const char *perm = "list";
++    char property[PROPERTY_VALUE_MAX];
++
++    if (property_get("waydroid.host.uid", property, "1000") > 0)
++        if (uid == (uid_t)atoi(property))
++            return 1;
++
+     return check_mac_perms_from_getcon(spid, sid, uid, perm) ? 1 : 0;
+ }
+ 
+ static int svc_can_find(const uint16_t *name, size_t name_len, pid_t spid, const char* sid, uid_t uid)
+ {
+     const char *perm = "find";
++    char property[PROPERTY_VALUE_MAX];
++
++    if (property_get("waydroid.host.uid", property, "1000") > 0)
++        if (uid == (uid_t)atoi(property))
++            return 1;
++
+     return check_mac_perms_from_lookup(spid, sid, uid, perm, str8(name, name_len)) ? 1 : 0;
+ }
+ 
+diff --git a/libs/binder/IPCThreadState.cpp b/libs/binder/IPCThreadState.cpp
+index 9a561cba6..f0e6f53cd 100644
+--- a/libs/binder/IPCThreadState.cpp
++++ b/libs/binder/IPCThreadState.cpp
+@@ -24,6 +24,7 @@
+ #include <binder/TextOutput.h>
+ 
+ #include <android-base/macros.h>
++#include <android-base/properties.h>
+ #include <cutils/sched_policy.h>
+ #include <utils/CallStack.h>
+ #include <utils/Log.h>
+@@ -373,6 +374,11 @@ const char* IPCThreadState::getCallingSid() const
+ 
+ uid_t IPCThreadState::getCallingUid() const
+ {
++    if (mCallingUid != 1000) {
++        int hostuid = android::base::GetIntProperty("waydroid.host.uid", 1000);
++        if (mCallingUid == (uid_t)hostuid)
++            return 1000;
++    }
+     return mCallingUid;
+ }
+ 
+-- 
+2.25.1
+

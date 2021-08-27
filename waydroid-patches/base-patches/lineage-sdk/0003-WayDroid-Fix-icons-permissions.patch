@@ -1,0 +1,26 @@
+From a47cfb823af29f56c6c31292f2cfc382e935d411 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 27 Aug 2021 22:53:49 +0800
+Subject: [PATCH] WayDroid: Fix icons permissions
+
+Change-Id: Ic073a730970feddb9cf0ddccfd75f2e24b48ca6f
+---
+ .../java/org/lineageos/platform/internal/WayDroidService.java   | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index ff5b33a5..3f674b2f 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -150,6 +150,8 @@ public class WayDroidService extends LineageSystemService {
+                 }
+             }
+         }
++        imageFile.setReadable(true, false);
++        imageFile.setWritable(true, false);
+     }
+ 
+     private Bitmap drawableToBitmap(Drawable drawable) {
+-- 
+2.25.1
+
