@@ -17,6 +17,7 @@
 top_dir=`pwd`
 LOCALDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 patch_dir="$LOCALDIR/base-patches"
+roms_patch_dir="$LOCALDIR/roms-patches"
 
 #setup colors
 red=`tput setaf 1`
@@ -97,7 +98,7 @@ apply_patch() {
 		git am --abort >& /dev/null
 
 		echo "                Searching other vendors for patch resolutions..."
-        for agvendor in "$LOCALDIR/roms-patches/*/" ; do
+        for agvendor in "$roms_patch_dir"/*/ ; do
             agvendor_name=$(echo ${d%%/} | sed 's|.*/||')
 			echo "                looking in $agvendor_name for that patch..."
 			if [[ -f "${agvendor}${i}" ]]; then
@@ -134,6 +135,13 @@ apply_patch() {
     tag_project $previous_project
   fi
 }
+
+if [ -f build/make/core/version_defaults.mk ]; then
+    if grep -q "PLATFORM_SDK_VERSION := 28" build/make/core/version_defaults.mk; then
+        patch_dir="${patch_dir}-28"
+        roms_patch_dir="${roms_patch_dir}-28"
+    fi
+fi
 
 #Apply common patches
 cd $patch_dir
