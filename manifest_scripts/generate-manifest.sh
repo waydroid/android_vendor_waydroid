@@ -18,6 +18,7 @@ top_dir=`pwd`
 LOCALDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 loc_man="${top_dir}/.repo/local_manifests"
 manifests_url="https://raw.githubusercontent.com/waydroid/android_vendor_waydroid/lineage-17.1/manifest_scripts/manifests"
+manifests_path="${LOCALDIR}/manifests"
 
 #setup colors
 red=`tput setaf 1`
@@ -46,11 +47,18 @@ fi
 
 mkdir -p ${loc_man}
 
+if [ -f build/make/core/version_defaults.mk ]; then
+    if grep -q "PLATFORM_SDK_VERSION := 28" build/make/core/version_defaults.mk; then
+        manifests_url="${manifests_url}-28"
+        manifests_path="${manifests_path}-28"
+    fi
+fi
+
 echo -e ${reset}""${reset}
 echo -e ${green}"Placing manifest fragments..."${reset}
 echo -e ${reset}""${reset}
-if [ -d "${LOCALDIR}/manifests" ]; then
-    cp -fpr ${LOCALDIR}/manifests/*.xml "${loc_man}/"
+if [ -d "${manifests_path}" ]; then
+    cp -fpr ${manifests_path}/*.xml "${loc_man}/"
 else
     echo -e ${reset}""${reset}
     echo -e ${ltblue}"INFO: Manifests not found, downloading"${reset}
