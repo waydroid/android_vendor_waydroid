@@ -2,5 +2,6 @@
 <manifest>
   <!-- Remove replaced Projects -->
   <remove-project name="platform/external/libdrm" />
+  <remove-project name="platform/external/mesa3d" />
 
 </manifest>
