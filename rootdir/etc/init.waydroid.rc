@@ -32,8 +32,8 @@ service vendor.audio-hal-2-0 /vendor/bin/hw/android.hardware.audio@2.0-service
 service vendor.hwcomposer-2-1 /vendor/bin/hw/android.hardware.graphics.composer@2.1-service --desktop_file_hint=unity8.desktop
     override
     class hal animation
-    user system
-    group graphics drmrpc
+    user host
+    group system graphics drmrpc
     capabilities SYS_NICE
     onrestart restart surfaceflinger
     writepid /dev/cpuset/system-background/tasks
