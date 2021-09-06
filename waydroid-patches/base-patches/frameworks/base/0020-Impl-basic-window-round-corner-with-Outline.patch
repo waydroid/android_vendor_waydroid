@@ -1,0 +1,112 @@
+From cda5f93112128a18b4f4ad134432f04724504908 Mon Sep 17 00:00:00 2001
+From: utzcoz <utzcoz@outlook.com>
+Date: Thu, 3 Sep 2020 00:09:53 +0800
+Subject: [PATCH 2/2] Impl basic window round corner with Outline
+
+Signed-off-by: utzcoz <utzcoz@outlook.com>
+Change-Id: I65925af3c2739fc896ee26076f80da45dbffeaf8
+
+Conflicts:
+	core/res/res/values/symbols.xml
+---
+ .../android/internal/policy/DecorView.java    | 30 +++++++++++++++++++
+ core/res/res/values/dimens.xml                |  3 ++
+ core/res/res/values/symbols.xml               |  3 ++
+ 3 files changed, 36 insertions(+)
+
+diff --git a/core/java/com/android/internal/policy/DecorView.java b/core/java/com/android/internal/policy/DecorView.java
+index 5017b0a54390..663b4b120df5 100644
+--- a/core/java/com/android/internal/policy/DecorView.java
++++ b/core/java/com/android/internal/policy/DecorView.java
+@@ -268,6 +268,15 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+     private Insets mLastBackgroundInsets = Insets.NONE;
+     private boolean mDrawLegacyNavigationBarBackground;
+ 
++    // region @boringdroid
++    private float mWindowCornerRadius = 8;
++    private ViewOutlineProvider mWindowOutline = new ViewOutlineProvider() {
++        @Override
++        public void getOutline(View view, Outline outline) {
++            outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), mWindowCornerRadius);
++        }
++    };
++    // endregion
+     DecorView(Context context, int featureId, PhoneWindow window,
+             WindowManager.LayoutParams params) {
+         super(context);
+@@ -297,6 +306,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+         initResizingPaints();
+ 
+         mLegacyNavigationBarBackgroundPaint.setColor(Color.BLACK);
++        // region @boringdroid
++        mWindowCornerRadius = context.getResources().getDimension(R.dimen.decor_corner_radius);
++        // endregion
+     }
+ 
+     void setBackgroundFallback(@Nullable Drawable fallbackDrawable) {
+@@ -2057,6 +2069,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+             // Configuration now requires a caption.
+             final LayoutInflater inflater = mWindow.getLayoutInflater();
+             mDecorCaptionView = createDecorCaptionView(inflater);
++            // region @boringdroid
++            updateWindowCorner();
++            // endregion
+             if (mDecorCaptionView != null) {
+                 if (mDecorCaptionView.getParent() == null) {
+                     addView(mDecorCaptionView, 0,
+@@ -2083,6 +2098,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+         }
+ 
+         mDecorCaptionView = createDecorCaptionView(inflater);
++        // region @boringdroid
++        updateWindowCorner();
++        // endregion
+         final View root = inflater.inflate(layoutResource, null);
+         if (mDecorCaptionView != null) {
+             if (mDecorCaptionView.getParent() == null) {
+@@ -2188,6 +2206,18 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+         }
+     }
+ 
++    // region @boringdroid
++    private void updateWindowCorner() {
++        if (mDecorCaptionView == null) {
++            setClipToOutline(false);
++            setOutlineProvider(null);
++        } else {
++            setOutlineProvider(mWindowOutline);
++            setClipToOutline(true);
++        }
++    }
++    // endregion
++
+     void updateDecorCaptionShade() {
+         if (mDecorCaptionView != null) {
+             setDecorCaptionShade(getContext(), mDecorCaptionView);
+diff --git a/core/res/res/values/dimens.xml b/core/res/res/values/dimens.xml
+index 3edfb36982f8..50598f96e50f 100644
+--- a/core/res/res/values/dimens.xml
++++ b/core/res/res/values/dimens.xml
+@@ -772,4 +772,7 @@
+     <dimen name="resolver_edge_margin">24dp</dimen>
+     <dimen name="resolver_elevation">1dp</dimen>
+     <dimen name="chooser_action_button_icon_size">18dp</dimen>
++    <!-- region @boringdroid -->
++    <item name="decor_corner_radius" type="dimen">8dp</item>
++    <!-- endregion -->
+ </resources>
+diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
+index e16b3f8a1622..397e13d03970 100644
+--- a/core/res/res/values/symbols.xml
++++ b/core/res/res/values/symbols.xml
+@@ -3878,4 +3878,7 @@
+ 
+   <!-- For Pdn throttle feature -->
+   <java-symbol type="bool" name="config_pdp_retry_for_29_33_55_enabled" />
++  <!-- region @boringdroid -->
++  <java-symbol type="dimen" name="decor_corner_radius" />
++  <!-- endregion -->
+ </resources>
+-- 
+2.25.1
+
