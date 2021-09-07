@@ -30,5 +30,5 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.setupwizard.mode=DISABLED
 
 PRODUCT_PACKAGES += \
-    BoringdroidSystemUIApk \
-    BoringdroidSettingsApk
+    BoringdroidSystemUIApk
+
