@@ -1,0 +1,50 @@
+From e731f2245c0975a9cc860270ed683dac21ee6892 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Wed, 8 Sep 2021 11:10:51 +0800
+Subject: [PATCH] base: Add TID to SurfaceView layer name
+
+Change-Id: Ic607a646287829b05e0e90501f8fa8d5ab94a6b1
+---
+ core/java/android/view/SurfaceControl.java | 3 +--
+ core/java/android/view/SurfaceView.java    | 4 ++--
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/core/java/android/view/SurfaceControl.java b/core/java/android/view/SurfaceControl.java
+index 399b5cf7f1c..9530dae0120 100644
+--- a/core/java/android/view/SurfaceControl.java
++++ b/core/java/android/view/SurfaceControl.java
+@@ -1356,8 +1356,7 @@ public final class SurfaceControl implements Parcelable {
+ 
+     @Override
+     public String toString() {
+-        return "Surface(name=" + mName + ")/@0x" +
+-                Integer.toHexString(System.identityHashCode(this));
++        return mName;
+     }
+ 
+     /*
+diff --git a/core/java/android/view/SurfaceView.java b/core/java/android/view/SurfaceView.java
+index d11548d687b..d7c14ce700a 100644
+--- a/core/java/android/view/SurfaceView.java
++++ b/core/java/android/view/SurfaceView.java
+@@ -748,7 +748,7 @@ public class SurfaceView extends View implements ViewRootImpl.WindowStoppedCallb
+                     mDeferredDestroySurfaceControl = mSurfaceControl;
+ 
+                     updateOpaqueFlag();
+-                    final String name = "SurfaceView - " + viewRoot.getTitle().toString();
++                    final String name = viewRoot.getSurfaceControl().toString();
+ 
+                     mSurfaceControl = new SurfaceControl.Builder(mSurfaceSession)
+                         .setName(name)
+@@ -759,7 +759,7 @@ public class SurfaceView extends View implements ViewRootImpl.WindowStoppedCallb
+                         .setFlags(mSurfaceFlags)
+                         .build();
+                     mBackgroundControl = new SurfaceControl.Builder(mSurfaceSession)
+-                        .setName("Background for -" + name)
++                        .setName(name)
+                         .setOpaque(true)
+                         .setColorLayer()
+                         .setParent(mSurfaceControl)
+-- 
+2.25.1
+
