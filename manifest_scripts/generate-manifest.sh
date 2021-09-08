@@ -77,12 +77,13 @@ while IFS= read -r rpitem; do
         if grep -qRlZ "$rpitem_trimmed" "${top_dir}/.repo/manifests/"; then
             echo -e ${yellow}"WARN: ROM already includes: $rpitem"${reset}
         else
+            echo -e ${green}"INFO: Needed: $rpitem"${reset}
             prefix="<remove-project name="
             suffix=" />"
             item=${rpitem_trimmed#"$prefix"}
             item=${item%"$suffix"}
             if ! grep -qRlZ "$item" "${top_dir}/.repo/manifests/"; then
-                sed -i "/$item/d" "${loc_man}/01-removes.xml"
+                sed -e "$item"'d' "${loc_man}/01-removes.xml"
             fi
         fi
     fi
