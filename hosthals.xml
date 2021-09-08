@@ -71,4 +71,8 @@
         <name>vendor.mediatek.hardware.mms</name>
         <priority>true</priority>
     </hal>
+    <hal>
+        <name>android.hardware.media.c2</name>
+        <priority>true</priority>
+    </hal>
 </hosthals>
