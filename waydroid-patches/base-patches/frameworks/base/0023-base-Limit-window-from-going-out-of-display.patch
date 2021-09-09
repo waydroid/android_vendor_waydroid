@@ -1,0 +1,26 @@
+From 1df76dce90c6baf3cf9206b6fb0b1f2105e1bc6c Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Thu, 9 Sep 2021 15:12:20 +0800
+Subject: [PATCH 1/2] base: Limit window from going out of display
+
+Change-Id: I45ee32a7dbfa3aea4ddceaa640a2ce3b92583ae1
+---
+ services/core/java/com/android/server/wm/TaskPositioner.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/wm/TaskPositioner.java b/services/core/java/com/android/server/wm/TaskPositioner.java
+index 7a460d404a8..d19c4e393e1 100644
+--- a/services/core/java/com/android/server/wm/TaskPositioner.java
++++ b/services/core/java/com/android/server/wm/TaskPositioner.java
+@@ -645,7 +645,7 @@ class TaskPositioner implements IBinder.DeathRecipient {
+         mWindowDragBounds.set(mWindowOriginalBounds);
+         // Horizontally, at least mMinVisibleWidth pixels of the window should remain visible.
+         final int maxLeft = stackBounds.right - mMinVisibleWidth;
+-        final int minLeft = stackBounds.left + mMinVisibleWidth - mWindowOriginalBounds.width();
++        final int minLeft = 0;
+ 
+         // Vertically, the top mMinVisibleHeight of the window should remain visible.
+         // (This assumes that the window caption bar is at the top of the window).
+-- 
+2.25.1
+
