@@ -1,0 +1,58 @@
+From 50a61f13a5145f857a510eaa9a16b76cccc73151 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sun, 12 Sep 2021 11:55:30 +0800
+Subject: [PATCH 1/2] Power: Add proper suspender
+
+Change-Id: I7bf3efc6ac97e4c106c3cc2815fbb773cda5d57e
+---
+ .../android/server/power/PowerManagerService.java   | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index 3dbb3f95bc0..1bdc6fa3677 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -106,6 +106,7 @@ import com.android.server.power.batterysaver.BatterySaverStateMachine;
+ import com.android.server.power.batterysaver.BatterySavingStats;
+ 
+ import lineageos.providers.LineageSettings;
++import lineageos.waydroid.Hardware;
+ 
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+@@ -249,6 +250,7 @@ public final class PowerManagerService extends SystemService
+     private final NativeWrapper mNativeWrapper;
+     private final Injector mInjector;
+ 
++    private Hardware mWaydroidHardware = null;
+     private LightsManager mLightsManager;
+     private BatteryManagerInternal mBatteryManagerInternal;
+     private DisplayManagerInternal mDisplayManagerInternal;
+@@ -823,6 +825,9 @@ public final class PowerManagerService extends SystemService
+         mBatterySaverStateMachine = new BatterySaverStateMachine(
+                 mLock, mContext, mBatterySaverController);
+ 
++        if (Hardware.getService() != null)
++            mWaydroidHardware = Hardware.getInstance(context);
++
+         synchronized (mLock) {
+             mWakeLockSuspendBlocker =
+                     mInjector.createSuspendBlocker(this, "PowerManagerService.WakeLocks");
+@@ -2382,8 +2387,12 @@ public final class PowerManagerService extends SystemService
+                 if (shouldNapAtBedTimeLocked()) {
+                     changed = napNoUpdateLocked(time, Process.SYSTEM_UID);
+                 } else {
+-                    changed = goToSleepNoUpdateLocked(time,
+-                            PowerManager.GO_TO_SLEEP_REASON_TIMEOUT, 0, Process.SYSTEM_UID);
++                    //changed = goToSleepNoUpdateLocked(time,
++                    //        PowerManager.GO_TO_SLEEP_REASON_TIMEOUT, 0, Process.SYSTEM_UID);
++                    final boolean no_suspend = SystemProperties.get("persist.waydroid.no_suspend", "false").equals("true");
++                    final boolean no_open_wins = SystemProperties.get("waydroid.open_windows", "-1").equals("0");
++                    if (mWaydroidHardware != null && !no_suspend && no_open_wins)
++                        mWaydroidHardware.suspend();
+                 }
+             }
+         }
+-- 
+2.25.1
+
