@@ -46,9 +46,9 @@ index 3dbb3f95bc0..1bdc6fa3677 100644
 -                            PowerManager.GO_TO_SLEEP_REASON_TIMEOUT, 0, Process.SYSTEM_UID);
 +                    //changed = goToSleepNoUpdateLocked(time,
 +                    //        PowerManager.GO_TO_SLEEP_REASON_TIMEOUT, 0, Process.SYSTEM_UID);
-+                    final boolean no_suspend = SystemProperties.get("persist.waydroid.no_suspend", "false").equals("true");
++                    final boolean suspend = SystemProperties.get("persist.waydroid.suspend", "false").equals("true");
 +                    final boolean no_open_wins = SystemProperties.get("waydroid.open_windows", "-1").equals("0");
-+                    if (mWaydroidHardware != null && !no_suspend && no_open_wins)
++                    if (mWaydroidHardware != null && suspend && no_open_wins)
 +                        mWaydroidHardware.suspend();
                  }
              }
