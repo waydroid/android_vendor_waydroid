@@ -1,15 +1,15 @@
-From 50a61f13a5145f857a510eaa9a16b76cccc73151 Mon Sep 17 00:00:00 2001
+From 8c75ed3a1122252580d192d05e4029824499a371 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Sun, 12 Sep 2021 11:55:30 +0800
-Subject: [PATCH 1/2] Power: Add proper suspender
+Subject: [PATCH] Power: Add proper suspender
 
 Change-Id: I7bf3efc6ac97e4c106c3cc2815fbb773cda5d57e
 ---
- .../android/server/power/PowerManagerService.java   | 13 +++++++++++--
- 1 file changed, 11 insertions(+), 2 deletions(-)
+ .../server/power/PowerManagerService.java     | 26 ++++++++++++++-----
+ 1 file changed, 20 insertions(+), 6 deletions(-)
 
 diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
-index 3dbb3f95bc0..1bdc6fa3677 100644
+index ca37b59b543..b2c8d226adf 100644
 --- a/services/core/java/com/android/server/power/PowerManagerService.java
 +++ b/services/core/java/com/android/server/power/PowerManagerService.java
 @@ -106,6 +106,7 @@ import com.android.server.power.batterysaver.BatterySaverStateMachine;
@@ -38,7 +38,33 @@ index 3dbb3f95bc0..1bdc6fa3677 100644
          synchronized (mLock) {
              mWakeLockSuspendBlocker =
                      mInjector.createSuspendBlocker(this, "PowerManagerService.WakeLocks");
-@@ -2382,8 +2387,12 @@ public final class PowerManagerService extends SystemService
+@@ -1489,10 +1494,10 @@ public final class PowerManagerService extends SystemService
+                     + ", uid=" + uid);
+         }
+ 
+-        if (eventTime < mLastSleepTime || eventTime < mLastWakeTime
++        /*if (eventTime < mLastSleepTime || eventTime < mLastWakeTime
+                 || !mBootCompleted || !mSystemReady) {
+             return false;
+-        }
++        }*/
+ 
+         Trace.traceBegin(Trace.TRACE_TAG_POWER, "userActivity");
+         try {
+@@ -1574,10 +1579,10 @@ public final class PowerManagerService extends SystemService
+             Slog.d(TAG, "wakeUpNoUpdateLocked: eventTime=" + eventTime + ", uid=" + reasonUid);
+         }
+ 
+-        if (eventTime < mLastSleepTime || mWakefulness == WAKEFULNESS_AWAKE
++        /*if (eventTime < mLastSleepTime || mWakefulness == WAKEFULNESS_AWAKE
+                 || !mBootCompleted || !mSystemReady || mForceSuspendActive) {
+             return false;
+-        }
++        }*/
+ 
+         Trace.asyncTraceBegin(Trace.TRACE_TAG_POWER, TRACE_SCREEN_ON, 0);
+ 
+@@ -2384,8 +2389,17 @@ public final class PowerManagerService extends SystemService
                  if (shouldNapAtBedTimeLocked()) {
                      changed = napNoUpdateLocked(time, Process.SYSTEM_UID);
                  } else {
@@ -48,8 +74,13 @@ index 3dbb3f95bc0..1bdc6fa3677 100644
 +                    //        PowerManager.GO_TO_SLEEP_REASON_TIMEOUT, 0, Process.SYSTEM_UID);
 +                    final boolean suspend = SystemProperties.get("persist.waydroid.suspend", "false").equals("true");
 +                    final boolean no_open_wins = SystemProperties.get("waydroid.open_windows", "-1").equals("0");
-+                    if (mWaydroidHardware != null && suspend && no_open_wins)
++                    if (mWaydroidHardware != null && suspend && no_open_wins && ((dirty & DIRTY_WAKE_LOCKS) == 0)) {
++                        wakeUpNoUpdateLocked(SystemClock.uptimeMillis(),
++                            PowerManager.WAKE_REASON_UNKNOWN,
++                            "android.server.power:DREAM_FINISHED", Process.SYSTEM_UID,
++                            mContext.getOpPackageName(), Process.SYSTEM_UID);
 +                        mWaydroidHardware.suspend();
++                    }
                  }
              }
          }
