@@ -1,0 +1,41 @@
+From c2581bebc21cec80254bb821630870b570abbc6e Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Thu, 2 Dec 2010 11:27:10 +0800
+Subject: [PATCH] gralloc: auto select pixel format according to color depth
+
+Change-Id: I1e6db2bbe03260d156644ca0700eb2e3e02956dc
+---
+ modules/gralloc/framebuffer.cpp | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/modules/gralloc/framebuffer.cpp b/modules/gralloc/framebuffer.cpp
+index c1717115..39156eb4 100644
+--- a/modules/gralloc/framebuffer.cpp
++++ b/modules/gralloc/framebuffer.cpp
+@@ -318,9 +318,20 @@ int fb_device_open(hw_module_t const* module, const char* name,
+         status = mapFrameBuffer(m);
+         if (status >= 0) {
+             int stride = m->finfo.line_length / (m->info.bits_per_pixel >> 3);
+-            int format = (m->info.bits_per_pixel == 32)
+-                         ? (m->info.red.offset ? HAL_PIXEL_FORMAT_BGRA_8888 : HAL_PIXEL_FORMAT_RGBX_8888)
+-                         : HAL_PIXEL_FORMAT_RGB_565;
++            /*
++             * Auto detect current depth and select mode
++             */
++            int format;
++            if (m->info.bits_per_pixel == 32) {
++                format = (m->info.red.offset == 16) ? HAL_PIXEL_FORMAT_BGRA_8888
++                       : (m->info.red.offset == 24) ? HAL_PIXEL_FORMAT_RGBA_8888
++                       : HAL_PIXEL_FORMAT_RGBX_8888;
++            } else if (m->info.bits_per_pixel == 16) {
++                format = HAL_PIXEL_FORMAT_RGB_565;
++            } else {
++                ALOGE("Unsupported format %d", m->info.bits_per_pixel);
++                return -EINVAL;
++            }
+             const_cast<uint32_t&>(dev->device.flags) = 0;
+             const_cast<uint32_t&>(dev->device.width) = m->info.xres;
+             const_cast<uint32_t&>(dev->device.height) = m->info.yres;
+-- 
+2.29.2
+

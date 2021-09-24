@@ -1,0 +1,27 @@
+From 2a811199971d286cbe0e2f680abf0d7ab2a2ec82 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 24 Sep 2021 14:08:50 +0800
+Subject: [PATCH] FramebufferSurface: Drop FB usage
+
+Change-Id: I74dcfcae5eda19bd8246596b7c0f9073d42860fb
+---
+ services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp b/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
+index 7370b0ccb..52b427fc7 100644
+--- a/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
++++ b/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
+@@ -67,8 +67,7 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, DisplayId displayId,
+ 
+     mName = "FramebufferSurface";
+     mConsumer->setConsumerName(mName);
+-    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_FB |
+-                                       GRALLOC_USAGE_HW_RENDER |
++    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_RENDER |
+                                        GRALLOC_USAGE_HW_COMPOSER);
+     const auto& activeConfig = mHwc.getActiveConfig(displayId);
+     mConsumer->setDefaultBufferSize(activeConfig->getWidth(),
+-- 
+2.25.1
+
