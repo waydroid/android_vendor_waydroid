@@ -4,3 +4,4 @@
 /mnt_extra                u:object_r:rootfs:s0
 /run                      u:object_r:rootfs:s0
 /var                      u:object_r:rootfs:s0
+/tmp                      u:object_r:rootfs:s0

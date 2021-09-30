@@ -17,7 +17,7 @@
 EXTRA_VENDOR_PATH := vendor/extra
 
 # Filesystem
-BOARD_ROOT_EXTRA_FOLDERS := odm_extra vendor_extra mnt_extra run var
+BOARD_ROOT_EXTRA_FOLDERS := odm_extra vendor_extra mnt_extra run var tmp
 
 # Sepolicy
 BOARD_PLAT_PRIVATE_SEPOLICY_DIR += $(EXTRA_VENDOR_PATH)/sepolicy/private
