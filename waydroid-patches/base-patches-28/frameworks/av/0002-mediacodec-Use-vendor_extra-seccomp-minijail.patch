@@ -1,0 +1,25 @@
+From 0c2fb36e214ba6ae2464e34dbab4a62a5179c538 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 3 May 2021 06:24:52 +0430
+Subject: [PATCH] mediacodec: Use vendor_extra seccomp minijail
+
+---
+ services/mediacodec/main_codecservice.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/services/mediacodec/main_codecservice.cpp b/services/mediacodec/main_codecservice.cpp
+index 51619f625e..b9e62f77c2 100644
+--- a/services/mediacodec/main_codecservice.cpp
++++ b/services/mediacodec/main_codecservice.cpp
+@@ -34,7 +34,7 @@ using namespace android;
+ static const char kSystemSeccompPolicyPath[] =
+         "/system/etc/seccomp_policy/mediacodec.policy";
+ static const char kVendorSeccompPolicyPath[] =
+-        "/vendor/etc/seccomp_policy/mediacodec.policy";
++        "/vendor_extra/etc/seccomp_policy/mediacodec.policy";
+ 
+ int main(int argc __unused, char** argv)
+ {
+-- 
+2.29.2
+

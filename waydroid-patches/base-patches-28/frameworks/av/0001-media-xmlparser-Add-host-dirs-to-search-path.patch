@@ -1,0 +1,27 @@
+From 943722d4a5e432e47eb4151e222d357b2654fa33 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 3 May 2021 02:50:23 +0430
+Subject: [PATCH] media: xmlparser: Add host dirs to search path
+
+Change-Id: I879acdd7d4551cc8ca248981f14817efaf378bd1
+---
+ .../include/media/stagefright/xmlparser/MediaCodecsXmlParser.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/media/libstagefright/xmlparser/include/media/stagefright/xmlparser/MediaCodecsXmlParser.h b/media/libstagefright/xmlparser/include/media/stagefright/xmlparser/MediaCodecsXmlParser.h
+index cc69e5276b..29953c2958 100644
+--- a/media/libstagefright/xmlparser/include/media/stagefright/xmlparser/MediaCodecsXmlParser.h
++++ b/media/libstagefright/xmlparser/include/media/stagefright/xmlparser/MediaCodecsXmlParser.h
+@@ -34,7 +34,8 @@ public:
+ 
+     // Treblized media codec list will be located in /odm/etc or /vendor/etc.
+     static constexpr char const* defaultSearchDirs[] =
+-            {"/odm/etc", "/vendor/etc", "/etc", nullptr};
++            {"/odm_extra/etc", "/vendor_extra/etc",
++                "/odm/etc", "/vendor/etc", "/etc", nullptr};
+     static constexpr char const* defaultMainXmlName =
+             "media_codecs.xml";
+     static constexpr char const* defaultPerformanceXmlName =
+-- 
+2.29.2
+
