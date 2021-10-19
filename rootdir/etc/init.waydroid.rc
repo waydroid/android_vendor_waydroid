@@ -3,6 +3,9 @@ on boot
     chmod 0755 /sys/kernel/debug
     chmod 0755 /sys/kernel/debug/tracing
 
+on property:sys.boot_completed=1
+    start adbd
+
 on post-fs-data
     mkdir /data/icons 0775 system system
 
