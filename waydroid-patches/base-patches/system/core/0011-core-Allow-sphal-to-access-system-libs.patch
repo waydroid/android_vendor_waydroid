@@ -1,71 +1,59 @@
-From dcc79db9693ad892c1b32176bdbcf14e78258078 Mon Sep 17 00:00:00 2001
+From 70527628b3ba3ce08b62651acdb8b905470d5e8e Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Mon, 18 Oct 2021 13:27:19 +0800
 Subject: [PATCH] core: Allow sphal to access system libs
 
 Change-Id: I420dc6aabaf17b465273e1005cfd5197a0d69d51
 ---
- rootdir/etc/ld.config.txt           | 24 ++++++++++++++++++++++++
+ rootdir/etc/ld.config.txt           | 12 ++++++++++++
  rootdir/etc/ld.config.vndk_lite.txt | 24 ++++++++++++++++++++++++
- 2 files changed, 48 insertions(+)
+ 2 files changed, 36 insertions(+)
 
 diff --git a/rootdir/etc/ld.config.txt b/rootdir/etc/ld.config.txt
-index 971d5abe7..3cd227a7a 100644
+index 971d5abe7..bcdf052b7 100644
 --- a/rootdir/etc/ld.config.txt
 +++ b/rootdir/etc/ld.config.txt
-@@ -248,12 +248,20 @@ namespace.sphal.search.paths += /vendor/${LIB}
+@@ -248,12 +248,16 @@ namespace.sphal.search.paths += /vendor/${LIB}
  namespace.sphal.search.paths += /vendor/${LIB}/hw
  namespace.sphal.search.paths += /vendor_extra/${LIB}
  namespace.sphal.search.paths += /vendor_extra/${LIB}/hw
-+namespace.sphal.search.paths += /system/${LIB}
-+namespace.sphal.search.paths += /system/product/${LIB}
-+namespace.sphal.search.paths += /system/${LIB}/vndk-sp-29
-+namespace.sphal.search.paths += /system/${LIB}/vndk-29
++namespace.sphal.search.paths += /system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.search.paths += /system/${LIB}/vndk-%VNDK_VER%
  
  namespace.sphal.permitted.paths  = /odm/${LIB}
  namespace.sphal.permitted.paths += /odm_extra/${LIB}
  namespace.sphal.permitted.paths += /vendor/${LIB}
  namespace.sphal.permitted.paths += /vendor_extra/${LIB}
  namespace.sphal.permitted.paths += /system/vendor/${LIB}
-+namespace.sphal.permitted.paths += /system/${LIB}
-+namespace.sphal.permitted.paths += /system/product/${LIB}
-+namespace.sphal.permitted.paths += /system/${LIB}/vndk-sp-29
-+namespace.sphal.permitted.paths += /system/${LIB}/vndk-29
++namespace.sphal.permitted.paths += /system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.permitted.paths += /system/${LIB}/vndk-%VNDK_VER%
  
  namespace.sphal.asan.search.paths  = /data/asan/odm/${LIB}
  namespace.sphal.asan.search.paths +=           /odm/${LIB}
-@@ -263,6 +271,14 @@ namespace.sphal.asan.search.paths += /data/asan/vendor/${LIB}
+@@ -263,6 +267,10 @@ namespace.sphal.asan.search.paths += /data/asan/vendor/${LIB}
  namespace.sphal.asan.search.paths +=           /vendor/${LIB}
  namespace.sphal.asan.search.paths += /data/asan/vendor_extra/${LIB}
  namespace.sphal.asan.search.paths +=           /vendor_extra/${LIB}
-+namespace.sphal.asan.search.paths += /data/asan/system/${LIB}
-+namespace.sphal.asan.search.paths +=           /system/${LIB}
-+namespace.sphal.asan.search.paths += /data/asan/system/product/${LIB}
-+namespace.sphal.asan.search.paths +=           /system/product/${LIB}
-+namespace.sphal.asan.search.paths += /data/asan/system/${LIB}/vndk-sp-29
-+namespace.sphal.asan.search.paths +=           /system/${LIB}/vndk-sp-29
-+namespace.sphal.asan.search.paths += /data/asan/system/${LIB}/vndk-29
-+namespace.sphal.asan.search.paths +=           /system/${LIB}/vndk-29
++namespace.sphal.asan.search.paths += /data/asan/system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.asan.search.paths +=           /system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.asan.search.paths += /data/asan/system/${LIB}/vndk-%VNDK_VER%
++namespace.sphal.asan.search.paths +=           /system/${LIB}/vndk-%VNDK_VER%
  
  namespace.sphal.asan.permitted.paths  = /data/asan/odm/${LIB}
  namespace.sphal.asan.permitted.paths +=           /odm/${LIB}
-@@ -272,6 +288,14 @@ namespace.sphal.asan.permitted.paths += /data/asan/vendor/${LIB}
+@@ -272,6 +280,10 @@ namespace.sphal.asan.permitted.paths += /data/asan/vendor/${LIB}
  namespace.sphal.asan.permitted.paths +=           /vendor/${LIB}
  namespace.sphal.asan.permitted.paths += /data/asan/vendor_extra/${LIB}
  namespace.sphal.asan.permitted.paths +=           /vendor_extra/${LIB}
-+namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}
-+namespace.sphal.asan.permitted.paths +=           /system/${LIB}
-+namespace.sphal.asan.permitted.paths += /data/asan/system/product/${LIB}
-+namespace.sphal.asan.permitted.paths +=           /system/product/${LIB}
-+namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}/vndk-sp-29
-+namespace.sphal.asan.permitted.paths +=           /system/${LIB}/vndk-sp-29
-+namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}/vndk-29
-+namespace.sphal.asan.permitted.paths +=           /system/${LIB}/vndk-29
++namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.asan.permitted.paths +=           /system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}/vndk-%VNDK_VER%
++namespace.sphal.asan.permitted.paths +=           /system/${LIB}/vndk-%VNDK_VER%
  
  # Once in this namespace, access to libraries in /system/lib is restricted. Only
  # libs listed here can be used. Order is important here as the namespaces are
 diff --git a/rootdir/etc/ld.config.vndk_lite.txt b/rootdir/etc/ld.config.vndk_lite.txt
-index cabd2657f..107d7edbd 100644
+index cabd2657f..031f4a209 100644
 --- a/rootdir/etc/ld.config.vndk_lite.txt
 +++ b/rootdir/etc/ld.config.vndk_lite.txt
 @@ -189,11 +189,19 @@ namespace.sphal.search.paths += /vendor/${LIB}/hw
@@ -74,8 +62,8 @@ index cabd2657f..107d7edbd 100644
  namespace.sphal.search.paths += /system/${LIB}/hw
 +namespace.sphal.search.paths += /system/${LIB}
 +namespace.sphal.search.paths += /system/product/${LIB}
-+namespace.sphal.search.paths += /system/${LIB}/vndk-sp-29
-+namespace.sphal.search.paths += /system/${LIB}/vndk-29
++namespace.sphal.search.paths += /system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.search.paths += /system/${LIB}/vndk-%VNDK_VER%
  
  namespace.sphal.permitted.paths  = /odm/${LIB}
  namespace.sphal.permitted.paths += /vendor/${LIB}
@@ -83,8 +71,8 @@ index cabd2657f..107d7edbd 100644
  namespace.sphal.permitted.paths += /system/vendor/${LIB}
 +namespace.sphal.permitted.paths += /system/${LIB}
 +namespace.sphal.permitted.paths += /system/product/${LIB}
-+namespace.sphal.permitted.paths += /system/${LIB}/vndk-sp-29
-+namespace.sphal.permitted.paths += /system/${LIB}/vndk-29
++namespace.sphal.permitted.paths += /system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.permitted.paths += /system/${LIB}/vndk-%VNDK_VER%
  
  namespace.sphal.asan.search.paths  = /data/asan/odm/${LIB}
  namespace.sphal.asan.search.paths +=           /odm/${LIB}
@@ -96,10 +84,10 @@ index cabd2657f..107d7edbd 100644
 +namespace.sphal.asan.search.paths +=           /system/${LIB}
 +namespace.sphal.asan.search.paths += /data/asan/system/product/${LIB}
 +namespace.sphal.asan.search.paths +=           /system/product/${LIB}
-+namespace.sphal.asan.search.paths += /data/asan/system/${LIB}/vndk-sp-29
-+namespace.sphal.asan.search.paths +=           /system/${LIB}/vndk-sp-29
-+namespace.sphal.asan.search.paths += /data/asan/system/${LIB}/vndk-29
-+namespace.sphal.asan.search.paths +=           /system/${LIB}/vndk-29
++namespace.sphal.asan.search.paths += /data/asan/system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.asan.search.paths +=           /system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.asan.search.paths += /data/asan/system/${LIB}/vndk-%VNDK_VER%
++namespace.sphal.asan.search.paths +=           /system/${LIB}/vndk-%VNDK_VER%
  
  namespace.sphal.asan.permitted.paths  = /data/asan/odm/${LIB}
  namespace.sphal.asan.permitted.paths +=           /odm/${LIB}
@@ -111,10 +99,10 @@ index cabd2657f..107d7edbd 100644
 +namespace.sphal.asan.permitted.paths +=           /system/${LIB}
 +namespace.sphal.asan.permitted.paths += /data/asan/system/product/${LIB}
 +namespace.sphal.asan.permitted.paths +=           /system/product/${LIB}
-+namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}/vndk-sp-29
-+namespace.sphal.asan.permitted.paths +=           /system/${LIB}/vndk-sp-29
-+namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}/vndk-29
-+namespace.sphal.asan.permitted.paths +=           /system/${LIB}/vndk-29
++namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.asan.permitted.paths +=           /system/${LIB}/vndk-sp-%VNDK_VER%
++namespace.sphal.asan.permitted.paths += /data/asan/system/${LIB}/vndk-%VNDK_VER%
++namespace.sphal.asan.permitted.paths +=           /system/${LIB}/vndk-%VNDK_VER%
  
  # Once in this namespace, access to libraries in /system/lib is restricted. Only
  # libs listed here can be used. Order is important here as the namespaces are
