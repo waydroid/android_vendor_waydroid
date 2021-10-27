@@ -1,0 +1,590 @@
+From b3e9dee68597e4e80b92388523e034fbdd55056e Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Mon, 18 Oct 2021 17:40:30 +0200
+Subject: [PATCH] include *.bp
+
+Change-Id: Iad43b83193f6bc43fd186420eaecfe054783a543
+---
+ Android.bp                             | 177 +++++++++++++++++++++++++
+ Android.gen.bp                         |   5 +
+ src/Android.bp                         |  31 +++++
+ src/intel/Android.bp                   | 129 ++++++++++++++++++
+ src/mesa/Android.bp                    |  82 ++++++++++++
+ src/mesa/Android.libmesa_glsl_utils.mk |  74 -----------
+ src/mesa/Android.mk                    |   2 +-
+ src/mesa/Android.sources.bp            |   9 ++
+ 8 files changed, 434 insertions(+), 75 deletions(-)
+ create mode 100644 Android.bp
+ create mode 100644 Android.gen.bp
+ create mode 100644 src/Android.bp
+ create mode 100644 src/intel/Android.bp
+ create mode 100644 src/mesa/Android.bp
+ delete mode 100644 src/mesa/Android.libmesa_glsl_utils.mk
+ create mode 100644 src/mesa/Android.sources.bp
+
+diff --git a/Android.bp b/Android.bp
+new file mode 100644
+index 00000000000..915445f50c4
+--- /dev/null
++++ b/Android.bp
+@@ -0,0 +1,177 @@
++// Mesa 3-D graphics library
++//
++// Copyright (C) 2010-2011 Chia-I Wu <olvaffe@gmail.com>
++// Copyright (C) 2010-2011 LunarG Inc.
++//
++// Permission is hereby granted, free of charge, to any person obtaining a
++// copy of this software and associated documentation files (the "Software"),
++// to deal in the Software without restriction, including without limitation
++// the rights to use, copy, modify, merge, publish, distribute, sublicense,
++// and/or sell copies of the Software, and to permit persons to whom the
++// Software is furnished to do so, subject to the following conditions:
++//
++// The above copyright notice and this permission notice shall be included
++// in all copies or substantial portions of the Software.
++//
++// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++// DEALINGS IN THE SOFTWARE.
++
++soong_namespace {}
++
++build = ["Android.gen.bp"]
++
++cc_library_headers {
++    name: "mesa_common_headers",
++    export_include_dirs: [
++        "src",
++        "include",
++    ],
++    host_supported: true,
++    vendor: true,
++    visibility: [":__subpackages__"],
++}
++
++// This needs to be kept in sync with Android.common.mk
++cc_defaults {
++    name: "mesa_common_defaults",
++    defaults: ["mesa_version_defaults"],
++
++    // uncomment to keep the debug symbols
++    // strip: { none: true, },
++
++    vendor: true,
++    header_libs: ["mesa_common_headers"],
++
++    cflags: [
++        "-Wno-error",
++        "-Werror=incompatible-pointer-types",
++        "-Wno-unused-parameter",
++        "-Wno-pointer-arith",
++        "-Wno-missing-field-initializers",
++        "-Wno-initializer-overrides",
++        "-Wno-mismatched-tags",
++        // PACKAGE_VERSION is in mesa_version_defaults
++        "-DPACKAGE_BUGREPORT=\"https://bugs.freedesktop.org/enter_bug.cgi?product=Mesa\"",
++
++        // XXX: The following __STDC_*_MACROS defines should not be needed.
++        // It's likely due to a bug elsewhere, but let's temporarily add them
++        // here to fix the radeonsi build.
++        "-DENABLE_SHADER_CACHE",
++        "-D__STDC_CONSTANT_MACROS",
++        "-D__STDC_LIMIT_MACROS",
++        "-DHAVE___BUILTIN_EXPECT",
++        "-DHAVE___BUILTIN_FFS",
++        "-DHAVE___BUILTIN_FFSLL",
++        "-DHAVE_DLFCN_H",
++        "-DHAVE_FUNC_ATTRIBUTE_FLATTEN",
++        "-DHAVE_FUNC_ATTRIBUTE_UNUSED",
++        "-DHAVE_FUNC_ATTRIBUTE_FORMAT",
++        "-DHAVE_FUNC_ATTRIBUTE_PACKED",
++        "-DHAVE_FUNC_ATTRIBUTE_ALIAS",
++        "-DHAVE_FUNC_ATTRIBUTE_NORETURN",
++        "-DHAVE_FUNC_ATTRIBUTE_RETURNS_NONNULL",
++        "-DHAVE_FUNC_ATTRIBUTE_WARN_UNUSED_RESULT",
++        "-DHAVE___BUILTIN_CTZ",
++        "-DHAVE___BUILTIN_POPCOUNT",
++        "-DHAVE___BUILTIN_POPCOUNTLL",
++        "-DHAVE___BUILTIN_CLZ",
++        "-DHAVE___BUILTIN_CLZLL",
++        "-DHAVE___BUILTIN_UNREACHABLE",
++        "-DHAVE_PTHREAD=1",
++        "-DHAVE_DLADDR",
++        "-DHAVE_DL_ITERATE_PHDR",
++        "-DHAVE_LINUX_FUTEX_H",
++        "-DHAVE_ENDIAN_H",
++        "-DHAVE_ZLIB",
++        "-DMAJOR_IN_SYSMACROS",
++        "-DVK_USE_PLATFORM_ANDROID_KHR",
++        "-fvisibility=hidden",
++        "-fno-math-errno",
++        "-fno-trapping-math",
++        "-Werror",
++        "-Wno-#warnings",
++        "-Wno-asm-operand-widths",
++        "-Wno-cast-calling-convention",
++        "-Wno-constant-logical-operand",
++        "-Wno-enum-conversion",
++        "-Wno-format",
++        "-Wno-gnu-variable-sized-type-not-at-end",
++        "-Wno-implicit-fallthrough",
++        "-Wno-incompatible-pointer-types",
++        "-Wno-missing-braces",
++        "-Wno-overloaded-virtual",
++        "-Wno-self-assign",
++        "-Wno-shift-negative-value",
++        "-Wno-sign-compare",
++        "-Wno-sometimes-uninitialized",
++        "-Wno-switch",
++        "-Wno-typedef-redefinition",
++        "-Wno-uninitialized",
++        "-DHAVE_TIMESPEC_GET",
++    ],
++
++    // mesa requires at least c99 compiler
++    c_std: "c99",
++
++    cppflags: [
++        "-D__STDC_CONSTANT_MACROS",
++        "-D__STDC_FORMAT_MACROS",
++        "-D__STDC_LIMIT_MACROS",
++        "-Wno-error=non-virtual-dtor",
++        "-Wno-non-virtual-dtor",
++    ],
++
++    arch: {
++        arm: {
++            neon: {
++                cflags: ["-DUSE_ARM_ASM"],
++            },
++        },
++        arm64: {
++            cflags: ["-DUSE_AARCH64_ASM"],
++        },
++    },
++
++    multilib: {
++        lib32: {
++            cflags: ["-DDEFAULT_DRIVER_DIR=\"/vendor/lib/dri\""],
++        },
++        lib64: {
++            cflags: ["-DDEFAULT_DRIVER_DIR=\"/vendor/lib64/dri\""],
++        },
++    },
++
++    product_variables: {
++        platform_sdk_version: {
++            cflags: ["-DANDROID_API_LEVEL=%d"],
++        },
++    },
++
++    target: {
++        host: {
++            cflags: [
++                "-D_GNU_SOURCE",
++                "-DHAVE_LIBDRM",
++            ],
++            shared_libs: ["libdrm"],
++        },
++    },
++}
++
++//genrule {
++//    name: "mesa_genxml_genX",
++//    cmd: "cp $(in) $(genDir)/genxml/",
++//    srcs: [
++//        "prebuilt-intermediates/genxml/genX_bits.h",
++//        "prebuilt-intermediates/genxml/genX_xml.h",
++//    ],
++//    out: [
++//        "genxml/genX_bits.h",
++//        "genxml/genX_xml.h",
++//    ],
++//}
+diff --git a/Android.gen.bp b/Android.gen.bp
+new file mode 100644
+index 00000000000..b34aeec193a
+--- /dev/null
++++ b/Android.gen.bp
+@@ -0,0 +1,5 @@
++// Autogenerated by aosp-gen-bp.sh
++cc_defaults {
++    name: "mesa_version_defaults",
++    cflags: ["-DPACKAGE_VERSION=\"19.1.3\""],
++}
+diff --git a/src/Android.bp b/src/Android.bp
+new file mode 100644
+index 00000000000..741022da520
+--- /dev/null
++++ b/src/Android.bp
+@@ -0,0 +1,31 @@
++cc_library_headers {
++    name: "libmesa_glsl_utils_includes",
++    export_include_dirs: [
++        "compiler/nir",
++        "mapi",
++        "gallium/include",
++        "gallium/auxiliary",
++    ],
++    host_supported: true,
++    vendor: true,
++    visibility: [":__subpackages__"],
++}
++
++cc_library_headers {
++    name: "mesa_mapi_headers",
++    export_include_dirs: ["mapi"],
++    host_supported: true,
++    vendor: true,
++    visibility: [":__subpackages__"],
++}
++
++cc_library_headers {
++    name: "libmesa_sse41_includes",
++    export_include_dirs: [
++        "mapi",
++        "gallium/include",
++        "gallium/auxiliary",
++    ],
++    vendor: true,
++    visibility: [":__subpackages__"],
++}
+diff --git a/src/intel/Android.bp b/src/intel/Android.bp
+new file mode 100644
+index 00000000000..3d4339bf01d
+--- /dev/null
++++ b/src/intel/Android.bp
+@@ -0,0 +1,129 @@
++// Copyright © 2016 Intel Corporation
++// Copyright © 2016 Mauro Rossi <issor.oruam@gmail.com>
++//
++// Permission is hereby granted, free of charge, to any person obtaining a
++// copy of this software and associated documentation files (the "Software"),
++// to deal in the Software without restriction, including without limitation
++// the rights to use, copy, modify, merge, publish, distribute, sublicense,
++// and/or sell copies of the Software, and to permit persons to whom the
++// Software is furnished to do so, subject to the following conditions:
++//
++// The above copyright notice and this permission notice shall be included
++// in all copies or substantial portions of the Software.
++//
++// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++// DEALINGS IN THE SOFTWARE.
++//
++
++//genrule_defaults {
++//    name: "mesa_genxml_genrule_defaults",
++//    tool_files: ["genxml/gen_pack_header.py"],
++//    cmd: "python $(location) $(in) >$(out)",
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen4",
++//    srcs: ["genxml/gen4.xml"],
++//    out: ["genxml/gen4_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen45",
++//    srcs: ["genxml/gen45.xml"],
++//    out: ["genxml/gen45_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen5",
++//    srcs: ["genxml/gen5.xml"],
++//    out: ["genxml/gen5_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen6",
++//    srcs: ["genxml/gen6.xml"],
++//    out: ["genxml/gen6_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen7",
++//    srcs: ["genxml/gen7.xml"],
++//    out: ["genxml/gen7_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen75",
++//    srcs: ["genxml/gen75.xml"],
++//    out: ["genxml/gen75_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen8",
++//    srcs: ["genxml/gen8.xml"],
++//    out: ["genxml/gen8_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen9",
++//    srcs: ["genxml/gen9.xml"],
++//    out: ["genxml/gen9_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen10",
++//    srcs: ["genxml/gen10.xml"],
++//    out: ["genxml/gen10_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++//
++//genrule {
++//    name: "mesa_genxml_gen11",
++//    srcs: ["genxml/gen11.xml"],
++//    out: ["genxml/gen11_pack.h"],
++//    defaults: ["mesa_genxml_genrule_defaults"],
++//}
++
++//cc_library_headers {
++//    name: "libmesa_genxml",
++//    defaults: ["mesa_common_defaults"],
++//    generated_headers: [
++//        "mesa_genxml_genX",
++//        "mesa_genxml_gen4",
++//        "mesa_genxml_gen45",
++//        "mesa_genxml_gen5",
++//        "mesa_genxml_gen6",
++//        "mesa_genxml_gen7",
++//        "mesa_genxml_gen75",
++//        "mesa_genxml_gen8",
++//        "mesa_genxml_gen9",
++//        "mesa_genxml_gen10",
++//        "mesa_genxml_gen11",
++//    ],
++//    export_generated_headers: [
++//        "mesa_genxml_genX",
++//        "mesa_genxml_gen4",
++//        "mesa_genxml_gen45",
++//        "mesa_genxml_gen5",
++//        "mesa_genxml_gen6",
++//        "mesa_genxml_gen7",
++//        "mesa_genxml_gen75",
++//        "mesa_genxml_gen8",
++//        "mesa_genxml_gen9",
++//        "mesa_genxml_gen10",
++//        "mesa_genxml_gen11",
++//    ],
++//    export_include_dirs: ["."],
++//}
+\ No newline at end of file
+diff --git a/src/mesa/Android.bp b/src/mesa/Android.bp
+new file mode 100644
+index 00000000000..75c00acf385
+--- /dev/null
++++ b/src/mesa/Android.bp
+@@ -0,0 +1,82 @@
++// Copyright 2012 Intel Corporation
++// Copyright (C) 2010-2011 Chia-I Wu <olvaffe@gmail.com>
++// Copyright (C) 2010-2011 LunarG Inc.
++//
++// Permission is hereby granted, free of charge, to any person obtaining a
++// copy of this software and associated documentation files (the "Software"),
++// to deal in the Software without restriction, including without limitation
++// the rights to use, copy, modify, merge, publish, distribute, sublicense,
++// and/or sell copies of the Software, and to permit persons to whom the
++// Software is furnished to do so, subject to the following conditions:
++//
++// The above copyright notice and this permission notice shall be included
++// in all copies or substantial portions of the Software.
++//
++// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++// DEALINGS IN THE SOFTWARE.
++
++build = ["Android.sources.bp"]
++
++//
++// The libmesa_glsl_utils libraries allow us to avoid a circular dependency
++// between core mesa and glsl.
++//
++//cc_library_static {
++//    name: "libmesa_glsl_utils",
++//    defaults: ["mesa_common_defaults"],
++//    //host_supported: true,
++//
++//    srcs: [
++//        "main/extensions_table.c",
++//        "main/imports.c",
++//        "program/symbol_table.c",
++//        "program/dummy_errors.c",
++//    ],
++//    header_libs: ["libmesa_glsl_utils_includes"],
++//
++//    target: {
++//        host: {
++//            cflags: ["-D_POSIX_C_SOURCE=199309L"],
++//        },
++//    },
++//}
++
++//cc_binary_host {
++//    name: "mesa_gen_matypes",
++//    defaults: ["mesa_common_defaults"],
++//    srcs: ["x86/gen_matypes.c"],
++//    header_libs: ["mesa_mapi_headers"],
++//    compile_multilib: "32",
++//}
++
++cc_library_static {
++    name: "libmesa_sse41",
++    defaults: ["mesa_common_defaults"],
++
++    srcs: [":mesa_x86_sse41_srcs"],
++
++    cflags: [
++        "-msse4.1",
++        "-mstackrealign",
++    ],
++    header_libs: ["libmesa_sse41_includes"],
++
++    enabled: false,
++    arch: {
++        x86: {
++            sse4_1: {
++                enabled: true,
++            },
++        },
++        x86_64: {
++            sse4_1: {
++                enabled: true,
++            },
++        },
++    },
++}
+diff --git a/src/mesa/Android.libmesa_glsl_utils.mk b/src/mesa/Android.libmesa_glsl_utils.mk
+deleted file mode 100644
+index 66b6ef13a61..00000000000
+--- a/src/mesa/Android.libmesa_glsl_utils.mk
++++ /dev/null
+@@ -1,74 +0,0 @@
+-# Copyright 2012 Intel Corporation
+-# Copyright (C) 2010-2011 Chia-I Wu <olvaffe@gmail.com>
+-# Copyright (C) 2010-2011 LunarG Inc.
+-#
+-# Permission is hereby granted, free of charge, to any person obtaining a
+-# copy of this software and associated documentation files (the "Software"),
+-# to deal in the Software without restriction, including without limitation
+-# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+-# and/or sell copies of the Software, and to permit persons to whom the
+-# Software is furnished to do so, subject to the following conditions:
+-#
+-# The above copyright notice and this permission notice shall be included
+-# in all copies or substantial portions of the Software.
+-#
+-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+-# DEALINGS IN THE SOFTWARE.
+-
+-LOCAL_PATH := $(call my-dir)
+-
+-#
+-# The libmesa_glsl_utils libraries allow us to avoid a circular dependency
+-# between core mesa and glsl.
+-#
+-
+-# ---------------------------------------
+-# libmesa_glsl_utils.a for target
+-# ---------------------------------------
+-
+-include $(CLEAR_VARS)
+-
+-LOCAL_MODULE := libmesa_glsl_utils
+-
+-LOCAL_C_INCLUDES := \
+-	$(MESA_TOP)/src/compiler/nir \
+-	$(MESA_TOP)/src/mapi \
+-	$(MESA_TOP)/src/gallium/include \
+-	$(MESA_TOP)/src/gallium/auxiliary
+-
+-LOCAL_SRC_FILES := \
+-	main/extensions_table.c \
+-	program/symbol_table.c \
+-	program/dummy_errors.c
+-
+-include $(MESA_COMMON_MK)
+-include $(BUILD_STATIC_LIBRARY)
+-
+-# ---------------------------------------
+-# libmesa_glsl_utils.a for host
+-# ---------------------------------------
+-
+-include $(CLEAR_VARS)
+-
+-LOCAL_MODULE := libmesa_glsl_utils
+-LOCAL_IS_HOST_MODULE := true
+-LOCAL_CFLAGS := -D_POSIX_C_SOURCE=199309L
+-
+-LOCAL_C_INCLUDES := \
+-	$(MESA_TOP)/src/compiler/nir \
+-	$(MESA_TOP)/src/mapi \
+-	$(MESA_TOP)/src/gallium/include \
+-	$(MESA_TOP)/src/gallium/auxiliary
+-
+-LOCAL_SRC_FILES := \
+-	main/extensions_table.c \
+-	program/symbol_table.c \
+-	program/dummy_errors.c
+-
+-include $(MESA_COMMON_MK)
+-include $(BUILD_HOST_STATIC_LIBRARY)
+diff --git a/src/mesa/Android.mk b/src/mesa/Android.mk
+index a740c2d2220..ffa8360df25 100644
+--- a/src/mesa/Android.mk
++++ b/src/mesa/Android.mk
+@@ -20,7 +20,7 @@
+ 
+ LOCAL_PATH := $(call my-dir)
+ 
+-include $(LOCAL_PATH)/Android.libmesa_glsl_utils.mk
++#include $(LOCAL_PATH)/Android.libmesa_glsl_utils.mk
+ include $(LOCAL_PATH)/Android.libmesa_dricore.mk
+ include $(LOCAL_PATH)/Android.libmesa_st_mesa.mk
+ include $(LOCAL_PATH)/Android.libmesa_sse41.mk
+diff --git a/src/mesa/Android.sources.bp b/src/mesa/Android.sources.bp
+new file mode 100644
+index 00000000000..0e3d255658d
+--- /dev/null
++++ b/src/mesa/Android.sources.bp
+@@ -0,0 +1,9 @@
++// Generated by aosp-gen-bp.sh
++filegroup {
++    name: "mesa_x86_sse41_srcs",
++    visibility: [":__subpackages__"],
++    srcs: [
++        "main/streaming-load-memcpy.c",
++        "main/sse_minmax.c",
++    ],
++}
+-- 
+2.30.2
+

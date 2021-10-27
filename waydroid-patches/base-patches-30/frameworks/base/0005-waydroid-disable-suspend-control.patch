@@ -1,0 +1,42 @@
+From f526b814e1c9ecdf78a1aa5e578ae883d3f929df Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Sun, 15 Nov 2020 00:24:46 +0700
+Subject: [PATCH 5/6] (waydroid) disable suspend control
+
+Change-Id: I1c8cbb5980efc063fae25597b3c6e927a682c1ca
+---
+ .../com_android_server_power_PowerManagerService.cpp   | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/services/core/jni/com_android_server_power_PowerManagerService.cpp b/services/core/jni/com_android_server_power_PowerManagerService.cpp
+index 61d53351..53515745 100644
+--- a/services/core/jni/com_android_server_power_PowerManagerService.cpp
++++ b/services/core/jni/com_android_server_power_PowerManagerService.cpp
+@@ -454,8 +454,9 @@ sp<ISuspendControlService> getSuspendControl() {
+ void enableAutoSuspend() {
+     static bool enabled = false;
+     if (!enabled) {
+-        sp<ISuspendControlService> suspendControl = getSuspendControl();
+-        suspendControl->enableAutosuspend(&enabled);
++        // Disabled for Waydroid
++        /*sp<ISuspendControlService> suspendControl = getSuspendControl();
++        suspendControl->enableAutosuspend(&enabled);*/
+     }
+ 
+     {
+@@ -470,9 +471,10 @@ void enableAutoSuspend() {
+ void disableAutoSuspend() {
+     std::lock_guard<std::mutex> lock(gSuspendMutex);
+     if (!gSuspendBlocker) {
+-        sp<ISystemSuspend> suspendHal = getSuspendHal();
++        // Disabled for Waydroid
++        /*sp<ISystemSuspend> suspendHal = getSuspendHal();
+         gSuspendBlocker = suspendHal->acquireWakeLock(WakeLockType::PARTIAL,
+-                "PowerManager.SuspendLockout");
++                "PowerManager.SuspendLockout");*/
+     }
+ }
+ 
+-- 
+2.30.2
+

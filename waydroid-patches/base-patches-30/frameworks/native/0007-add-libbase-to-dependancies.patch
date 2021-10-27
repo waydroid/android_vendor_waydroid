@@ -1,0 +1,25 @@
+From e834e188a13354997334ea049c08f0e4fc8f66c2 Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Fri, 22 Oct 2021 12:36:58 +0200
+Subject: [PATCH 07/12] add libbase to dependancies
+
+Change-Id: Iaa3813dc8e49729cc04d83052d8b2b1a70d5b198
+---
+ libs/binder/Android.bp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libs/binder/Android.bp b/libs/binder/Android.bp
+index b24a577588..cc8f7e7024 100644
+--- a/libs/binder/Android.bp
++++ b/libs/binder/Android.bp
+@@ -143,6 +143,7 @@ cc_library {
+         "liblog",
+         "libcutils",
+         "libutils",
++        "libbase",
+     ],
+ 
+     header_libs: [
+-- 
+2.30.2
+

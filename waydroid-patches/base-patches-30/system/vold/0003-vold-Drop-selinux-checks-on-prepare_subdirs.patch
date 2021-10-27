@@ -1,0 +1,57 @@
+From 71528493dd31681d2a676d0ece7155bb8347ad1c Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sun, 25 Jul 2021 03:38:14 +0800
+Subject: [PATCH 3/4] vold: Drop selinux checks on prepare_subdirs
+
+Change-Id: I60936b9972e7dd9906e9bfd935af6dbc63aa0493
+---
+ vold_prepare_subdirs.cpp | 30 ------------------------------
+ 1 file changed, 30 deletions(-)
+
+diff --git a/vold_prepare_subdirs.cpp b/vold_prepare_subdirs.cpp
+index d624d73..04a0aa1 100644
+--- a/vold_prepare_subdirs.cpp
++++ b/vold_prepare_subdirs.cpp
+@@ -57,39 +57,9 @@ static bool valid_uuid(const std::string& s) {
+ static bool prepare_dir(struct selabel_handle* sehandle, mode_t mode, uid_t uid, gid_t gid,
+                         const std::string& path) {
+     auto clearfscreatecon = android::base::make_scope_guard([] { setfscreatecon(nullptr); });
+-    auto secontext = std::unique_ptr<char, void (*)(char*)>(nullptr, freecon);
+-    char* tmp_secontext;
+-    if (sehandle && selabel_lookup(sehandle, &tmp_secontext, path.c_str(), S_IFDIR) == 0) {
+-        secontext.reset(tmp_secontext);
+-    }
+-    LOG(DEBUG) << "Setting up mode " << std::oct << mode << std::dec << " uid " << uid << " gid "
+-               << gid << " context " << (secontext ? secontext.get() : "null")
+-               << " on path: " << path;
+-    if (secontext) {
+-        if (setfscreatecon(secontext.get()) != 0) {
+-            PLOG(ERROR) << "Unable to read setfscreatecon for: " << path;
+-            return false;
+-        }
+-    }
+     if (fs_prepare_dir(path.c_str(), mode, uid, gid) != 0) {
+         return false;
+     }
+-    if (secontext) {
+-        char* tmp_oldsecontext = nullptr;
+-        if (lgetfilecon(path.c_str(), &tmp_oldsecontext) < 0) {
+-            PLOG(ERROR) << "Unable to read secontext for: " << path;
+-            return false;
+-        }
+-        auto oldsecontext = std::unique_ptr<char, void (*)(char*)>(tmp_oldsecontext, freecon);
+-        if (strcmp(secontext.get(), oldsecontext.get()) != 0) {
+-            LOG(INFO) << "Relabelling from " << ((char*)oldsecontext.get()) << " to "
+-                      << ((char*)secontext.get()) << ": " << path;
+-            if (lsetfilecon(path.c_str(), secontext.get()) != 0) {
+-                PLOG(ERROR) << "Relabelling failed for: " << path;
+-                return false;
+-            }
+-        }
+-    }
+     return true;
+ }
+ 
+-- 
+2.30.2
+

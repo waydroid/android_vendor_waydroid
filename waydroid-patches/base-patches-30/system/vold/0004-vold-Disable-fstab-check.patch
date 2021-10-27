@@ -1,0 +1,26 @@
+From d250ca9c6cf737f6d2df5e6049f7bfd41a26f17c Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 18 Oct 2021 13:20:28 +0800
+Subject: [PATCH 4/4] vold: Disable fstab check
+
+Change-Id: I82e2fccae7865858d20dda6882ad7e52225e5013
+---
+ main.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/main.cpp b/main.cpp
+index 7f91041..b76e7fc 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -217,6 +217,8 @@ static int process_config(VolumeManager* vm, bool* has_adoptable, bool* has_quot
+                           bool* has_reserved) {
+     ATRACE_NAME("process_config");
+ 
++    if (1) return 0;
++
+     if (!ReadDefaultFstab(&fstab_default)) {
+         PLOG(ERROR) << "Failed to open default fstab";
+         return -1;
+-- 
+2.30.2
+

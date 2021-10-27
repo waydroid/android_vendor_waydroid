@@ -1,0 +1,40 @@
+From 100dcf6a44b26ffce1765f50bb172299b84b581b Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Wed, 20 Oct 2021 18:19:07 +0200
+Subject: [PATCH 02/13] disable seccomp for media.codec
+
+Change-Id: I26ca80778a36daf8986f3e3e2c34031a9c587f26
+---
+ services/mediacodec/main_codecservice.cpp | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/services/mediacodec/main_codecservice.cpp b/services/mediacodec/main_codecservice.cpp
+index 6a82b1b..718a227 100644
+--- a/services/mediacodec/main_codecservice.cpp
++++ b/services/mediacodec/main_codecservice.cpp
+@@ -31,17 +31,17 @@
+ using namespace android;
+ 
+ // Must match location in Android.mk.
+-static const char kSystemSeccompPolicyPath[] =
+-        "/system/etc/seccomp_policy/mediacodec.policy";
+-static const char kVendorSeccompPolicyPath[] =
+-        "/vendor/etc/seccomp_policy/mediacodec.policy";
++//static const char kSystemSeccompPolicyPath[] =
++//        "/system/etc/seccomp_policy/mediacodec.policy";
++//static const char kVendorSeccompPolicyPath[] =
++//        "/vendor/etc/seccomp_policy/mediacodec.policy";
+ 
+ int main(int argc __unused, char** argv)
+ {
+     strcpy(argv[0], "media.codec");
+     LOG(INFO) << "mediacodecservice starting";
+     signal(SIGPIPE, SIG_IGN);
+-    SetUpMinijail(kSystemSeccompPolicyPath, kVendorSeccompPolicyPath);
++    //SetUpMinijail(kSystemSeccompPolicyPath, kVendorSeccompPolicyPath);
+ 
+     android::ProcessState::initWithDriver("/dev/vndbinder");
+     android::ProcessState::self()->startThreadPool();
+-- 
+2.30.2
+

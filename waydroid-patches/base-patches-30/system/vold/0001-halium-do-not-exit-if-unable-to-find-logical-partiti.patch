@@ -1,0 +1,31 @@
+From fd2b21369d3dfbf9f6f6ec1034a19549a54859b8 Mon Sep 17 00:00:00 2001
+From: TheKit <nekit1000@gmail.com>
+Date: Tue, 22 Dec 2020 00:01:17 +0200
+Subject: [PATCH 1/4] (halium) do not exit if unable to find logical partition
+
+This is non-fatal as mounts can be handled outside LXC container.
+
+Change-Id: Ic3eb67019051298ea52b31ae342e3b9221ae5d74
+---
+ main.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/main.cpp b/main.cpp
+index ebe5510..7f91041 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -236,7 +236,10 @@ static int process_config(VolumeManager* vm, bool* has_adoptable, bool* has_quot
+ 
+         /* Make sure logical partitions have an updated blk_device. */
+         if (entry.fs_mgr_flags.logical && !fs_mgr_update_logical_partition(&entry)) {
+-            PLOG(FATAL) << "could not find logical partition " << entry.blk_device;
++            //PLOG(FATAL) << "could not find logical partition " << entry.blk_device;
++            // Halium: make it non-fatal
++            PLOG(ERROR) << "could not find logical partition " << entry.blk_device;
++            continue;
+         }
+ 
+         if (entry.fs_mgr_flags.vold_managed) {
+-- 
+2.30.2
+

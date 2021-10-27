@@ -1,0 +1,68 @@
+From b4d837aa2ee88186cea3bc855fa72f6c2ed401f7 Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Wed, 20 Oct 2021 19:25:44 +0200
+Subject: [PATCH 6/6] fix vold issues
+
+Change-Id: I590e851a02829c6807aa39a58dbc249d4af6caf5
+---
+ fs_mgr/fs_mgr_fstab.cpp | 2 +-
+ init/builtins.cpp       | 2 +-
+ init/init.cpp           | 2 +-
+ rootdir/init.rc         | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/fs_mgr/fs_mgr_fstab.cpp b/fs_mgr/fs_mgr_fstab.cpp
+index 1a3e2c8..76ffb16 100644
+--- a/fs_mgr/fs_mgr_fstab.cpp
++++ b/fs_mgr/fs_mgr_fstab.cpp
+@@ -493,7 +493,7 @@ bool ReadFstabFile(FILE* fstab_file, bool proc_mounts, Fstab* fstab_out) {
+ 
+     if (fstab.empty()) {
+         LERROR << "No entries found in fstab";
+-        goto err;
++        //goto err;
+     }
+ 
+     /* If an A/B partition, modify block device to be the real block device */
+diff --git a/init/builtins.cpp b/init/builtins.cpp
+index 550f5dd..876be57 100644
+--- a/init/builtins.cpp
++++ b/init/builtins.cpp
+@@ -688,7 +688,7 @@ static Result<void> do_mount_all(const BuiltinArguments& args) {
+     }
+ 
+     // Anbox: filesystem mount is handled outside container, always non-encrypted
+-    mount_fstab_result.code = mount_fstab_result.code;
++    mount_fstab_result.code = FS_MGR_MNTALL_DEV_NOT_ENCRYPTABLE;
+     mount_fstab_result.userdata_mounted = true;
+ 
+     if (mount_fstab_result.userdata_mounted) {
+diff --git a/init/init.cpp b/init/init.cpp
+index b5ba354..5cef708 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -832,7 +832,7 @@ int SecondStageMain(int argc, char** argv) {
+ 
+ 
+     am.QueueBuiltinAction(SetupCgroupsAction, "SetupCgroups");
+-    am.QueueBuiltinAction(SetKptrRestrictAction, "SetKptrRestrict");
++    //am.QueueBuiltinAction(SetKptrRestrictAction, "SetKptrRestrict");
+     am.QueueBuiltinAction(TestPerfEventSelinuxAction, "TestPerfEventSelinux");
+     am.QueueEventTrigger("early-init");
+ 
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 25b95dc..1ba1ec8 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -450,7 +450,7 @@ on late-init
+ 
+ on fs
+     # Do fake mount_all for Anbox
+-    mount_all /dev/null
++    mount_all /vendor/etc/fstab.waydroid
+ 
+ on early-fs
+     # Once metadata has been mounted, we'll need vold to deal with userdata checkpointing
+-- 
+2.30.2
+

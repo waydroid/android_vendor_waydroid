@@ -1,0 +1,61 @@
+From ebb1cb91c3d5d9dbcb67d5d46f00c245815dbf5b Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Fri, 15 Oct 2021 19:59:43 +0200
+Subject: [PATCH] fix
+
+---
+ gatekeeper/SoftGateKeeperDevice.cpp | 28 ++++++++--------------------
+ 1 file changed, 8 insertions(+), 20 deletions(-)
+
+diff --git a/gatekeeper/SoftGateKeeperDevice.cpp b/gatekeeper/SoftGateKeeperDevice.cpp
+index 5e2bec9..43d1b08 100644
+--- a/gatekeeper/SoftGateKeeperDevice.cpp
++++ b/gatekeeper/SoftGateKeeperDevice.cpp
+@@ -37,22 +37,13 @@ int SoftGateKeeperDevice::enroll(uint32_t uid,
+         current_password_length = 0;
+     }
+ 
+-    SizedBuffer desired_password_buffer(desired_password_length);
+-    memcpy(desired_password_buffer.buffer.get(), desired_password, desired_password_length);
++    SizedBuffer desired_password_buffer(const_cast<uint8_t *>(desired_password), desired_password_length);
++    SizedBuffer current_password_handle_buffer(const_cast<uint8_t *>(current_password_handle), current_password_handle_length);
+ 
+-    SizedBuffer current_password_handle_buffer(current_password_handle_length);
+-    if (current_password_handle) {
+-        memcpy(current_password_handle_buffer.buffer.get(), current_password_handle,
+-                current_password_handle_length);
+-    }
+-
+-    SizedBuffer current_password_buffer(current_password_length);
+-    if (current_password) {
+-        memcpy(current_password_buffer.buffer.get(), current_password, current_password_length);
+-    }
++    SizedBuffer current_password_buffer(const_cast<uint8_t *>(current_password), current_password_length);
+ 
+-    EnrollRequest request(uid, &current_password_handle_buffer, &desired_password_buffer,
+-            &current_password_buffer);
++    EnrollRequest request(uid, move(current_password_handle_buffer), move(desired_password_buffer),
++            move(current_password_buffer));
+     EnrollResponse response;
+ 
+     impl_->Enroll(request, &response);
+@@ -84,13 +75,10 @@ int SoftGateKeeperDevice::verify(uint32_t uid,
+         return -EINVAL;
+     }
+ 
+-    SizedBuffer password_handle_buffer(enrolled_password_handle_length);
+-    memcpy(password_handle_buffer.buffer.get(), enrolled_password_handle,
+-            enrolled_password_handle_length);
+-    SizedBuffer provided_password_buffer(provided_password_length);
+-    memcpy(provided_password_buffer.buffer.get(), provided_password, provided_password_length);
++    SizedBuffer password_handle_buffer(const_cast<uint8_t *>(enrolled_password_handle), enrolled_password_handle_length);
++    SizedBuffer provided_password_buffer(const_cast<uint8_t *>(provided_password), provided_password_length);
+ 
+-    VerifyRequest request(uid, challenge, &password_handle_buffer, &provided_password_buffer);
++    VerifyRequest request(uid, challenge, move(password_handle_buffer), move(provided_password_buffer));
+     VerifyResponse response;
+ 
+     impl_->Verify(request, &response);
+-- 
+2.30.2
+

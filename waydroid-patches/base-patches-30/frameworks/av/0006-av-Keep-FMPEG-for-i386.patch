@@ -1,0 +1,33 @@
+From f93aa3956c2e40d5b71e985b3d05264857c8b7fa Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Wed, 8 Sep 2021 10:52:28 +0800
+Subject: [PATCH 06/13] av: Keep FMPEG for i386
+
+Change-Id: I90bf2b194be63404f31e46aa092611f620ce8173
+---
+ media/libstagefright/omx/OMXUtils.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/media/libstagefright/omx/OMXUtils.cpp b/media/libstagefright/omx/OMXUtils.cpp
+index 2887bdb..e07940e 100644
+--- a/media/libstagefright/omx/OMXUtils.cpp
++++ b/media/libstagefright/omx/OMXUtils.cpp
+@@ -173,6 +173,7 @@ const char *GetComponentRole(bool isEncoder, const char *mime) {
+         { MEDIA_MIMETYPE_IMAGE_ANDROID_HEIC,
+             "image_decoder.heic", "image_encoder.heic" },
+ 
++#if defined(__i386__)
+         // FFMPEG extensions
+         { MEDIA_MIMETYPE_AUDIO_AAC,
+             "audio_decoder.aac", NULL },
+@@ -216,6 +217,7 @@ const char *GetComponentRole(bool isEncoder, const char *mime) {
+             "audio_decoder.trial", NULL },
+         { MEDIA_MIMETYPE_VIDEO_FFMPEG,
+             "video_decoder.trial", NULL },
++#endif
+     };
+ 
+     static const size_t kNumMimeToRole =
+-- 
+2.30.2
+

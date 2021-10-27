@@ -1,0 +1,32 @@
+From 029bd5ade81317a1c5383a4a86be35a331c762d5 Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Mon, 18 Oct 2021 17:41:41 +0200
+Subject: [PATCH 1/2] some changes
+
+---
+ BoardConfig.mk | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+index 2487960..dbb749e 100644
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -50,7 +50,7 @@ TARGET_USERIMAGES_USE_EXT4 := true
+ DEVICE_MANIFEST_FILE := $(DEVICE_PATH)/manifest.xml
+ ifeq ($(filter x86 x86_64,$(TARGET_CPU_ABI)),)
+ ifneq ($(PLATFORM_SDK_VERSION),28)
+-PRODUCT_EXTRA_VNDK_VERSIONS := 28
++#PRODUCT_EXTRA_VNDK_VERSIONS := 28
+ endif
+ endif
+ 
+@@ -67,3 +67,5 @@ BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+ 
+ # Disable scudo
+ MALLOC_SVELTE := true
++
++TARGET_USERIMAGES_SPARSE_EXT_DISABLED := true
+\ No newline at end of file
+-- 
+2.30.2
+

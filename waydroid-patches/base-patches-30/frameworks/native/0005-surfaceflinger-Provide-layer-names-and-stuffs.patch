@@ -1,0 +1,240 @@
+From b5d690a7a7520f91818d04ff5259788c8b5eb42f Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Tue, 24 Aug 2021 22:45:23 +0430
+Subject: [PATCH 05/12] surfaceflinger: Provide layer names and stuffs
+
+Change-Id: Ie384cd6766fc1fc3910f23aa3e6823b0eb32c584
+---
+ libs/vr/libvrflinger/Android.bp               |  1 +
+ services/surfaceflinger/Android.bp            |  2 ++
+ .../CompositionEngine/Android.bp              |  1 +
+ .../CompositionEngine/src/OutputLayer.cpp     |  6 ++++++
+ .../DisplayHardware/ComposerHal.cpp           | 20 +++++++++++++++++++
+ .../DisplayHardware/ComposerHal.h             | 13 ++++++++++++
+ .../surfaceflinger/DisplayHardware/HWC2.cpp   |  6 ++++++
+ .../surfaceflinger/DisplayHardware/HWC2.h     |  6 ++++++
+ 8 files changed, 55 insertions(+)
+
+diff --git a/libs/vr/libvrflinger/Android.bp b/libs/vr/libvrflinger/Android.bp
+index abc64bde5a..35db9abd38 100644
+--- a/libs/vr/libvrflinger/Android.bp
++++ b/libs/vr/libvrflinger/Android.bp
+@@ -60,6 +60,7 @@ sharedLibraries = [
+     "libhidlbase",
+     "libfmq",
+     "libpdx_default_transport",
++    "vendor.waydroid.display@1.0",
+ ]
+ 
+ headerLibraries = [
+diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
+index 14eb7cff91..199b65cc6b 100644
+--- a/services/surfaceflinger/Android.bp
++++ b/services/surfaceflinger/Android.bp
+@@ -62,6 +62,7 @@ cc_defaults {
+         "libinput",
+         "libutils",
+         "libSurfaceFlingerProp",
++        "vendor.waydroid.display@1.0",
+     ],
+     // VrComposer is not used when building surfaceflinger for vendors
+     target: {
+@@ -101,6 +102,7 @@ cc_defaults {
+         "android.hardware.power@1.3",
+         "libhidlbase",
+         "libtimestats",
++        "vendor.waydroid.display@1.0",
+     ],
+     // TODO (marissaw): this library is not used by surfaceflinger. This is here so
+     // the library compiled in a way that is accessible to system partition when running
+diff --git a/services/surfaceflinger/CompositionEngine/Android.bp b/services/surfaceflinger/CompositionEngine/Android.bp
+index d205a19df9..1673168db9 100644
+--- a/services/surfaceflinger/CompositionEngine/Android.bp
++++ b/services/surfaceflinger/CompositionEngine/Android.bp
+@@ -24,6 +24,7 @@ cc_defaults {
+         "libtimestats",
+         "libui",
+         "libutils",
++        "vendor.waydroid.display@1.0",
+     ],
+     static_libs: [
+         "libmath",
+diff --git a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+index ebf651ee8a..e062bf7b68 100644
+--- a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+@@ -383,6 +383,12 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
+               outputDependentState.z, to_string(error).c_str(), static_cast<int32_t>(error));
+     }
+ 
++    if (auto error = hwcLayer->setLayerName(getLayerFE().getDebugName());
++            error != hal::Error::NONE) {
++            ALOGE("[%s] Failed to set layer name: %s (%d)", getLayerFE().getDebugName(),
++                  to_string(error).c_str(), static_cast<int32_t>(error));
++    }
++
+     // Solid-color layers should always use an identity transform.
+     const auto bufferTransform = requestedCompositionType != hal::Composition::SOLID_COLOR
+             ? outputDependentState.bufferTransform
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
+index a3f1b52378..107e34cc5f 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
+@@ -260,6 +260,8 @@ void Composer::registerCallback(const sp<IComposerCallback>& callback)
+     if (!ret.isOk()) {
+         ALOGE("failed to register IComposerCallback");
+     }
++
++    mWaydroidDisplay = IWaydroidDisplay::getService();
+ }
+ 
+ bool Composer::isRemote() {
+@@ -349,6 +351,7 @@ Error Composer::createLayer(Display display, Layer* outLayer)
+ 
+ Error Composer::destroyLayer(Display display, Layer layer)
+ {
++    mLayersZMap.erase(layer);
+     auto ret = mClient->destroyLayer(display, layer);
+     return unwrapRet(ret);
+ }
+@@ -603,6 +606,8 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
+ 
+     const native_handle_t* handle = nullptr;
+     if (target.get()) {
++        if (mWaydroidDisplay)
++            mWaydroidDisplay->setTargetLayerHandleInfo(target->getPixelFormat(), target->getStride());
+         handle = target->getNativeBuffer()->handle;
+     }
+ 
+@@ -736,6 +741,9 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
+ 
+     const native_handle_t* handle = nullptr;
+     if (buffer.get()) {
++        if (mWaydroidDisplay)
++            mWaydroidDisplay->setLayerHandleInfo(mLayersZMap[layer], buffer->getPixelFormat(),
++                                              buffer->getStride());
+         handle = buffer->getNativeBuffer()->handle;
+     }
+ 
+@@ -847,6 +855,7 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
+     mWriter.selectDisplay(display);
+     mWriter.selectLayer(layer);
+     mWriter.setLayerZOrder(z);
++    mLayersZMap[layer] = z;
+     return Error::NONE;
+ }
+ 
+@@ -1360,6 +1369,17 @@ Error Composer::getClientTargetProperty(
+     return Error::NONE;
+ }
+ 
++Error Composer::setLayerName(Display, Layer layer, std::string name) {
++    if (!mWaydroidDisplay) {
++        return Error::UNSUPPORTED;
++    }
++    if (mLayersNameMap[mLayersZMap[layer]] != name) {
++        mLayersNameMap[mLayersZMap[layer]] = name;
++        return mWaydroidDisplay->setLayerName(mLayersZMap[layer], name);
++    } else
++        return Error::NONE;
++}
++
+ CommandReader::~CommandReader()
+ {
+     resetData();
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.h b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+index 00ef782ef7..41e6586fdf 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.h
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+@@ -33,6 +33,7 @@
+ #include <android/hardware/graphics/common/1.1/types.h>
+ #include <android/hardware/graphics/composer/2.4/IComposer.h>
+ #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
++#include <vendor/waydroid/display/1.0/IWaydroidDisplay.h>
+ #include <composer-command-buffer/2.4/ComposerCommandBuffer.h>
+ #include <gui/HdrMetadata.h>
+ #include <math/mat4.h>
+@@ -47,6 +48,8 @@ namespace android {
+ 
+ namespace Hwc2 {
+ 
++using ::vendor::waydroid::display::V1_0::IWaydroidDisplay;
++
+ #if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
+ using frameworks::vr::composer::V2_0::IVrComposerClient;
+ #endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
+@@ -216,6 +219,9 @@ public:
+             Display display, Layer layer, const std::vector<PerFrameMetadataBlob>& metadata) = 0;
+     virtual Error setDisplayBrightness(Display display, float brightness) = 0;
+ 
++    // WaydroidDisplay HAL 1.0
++    virtual Error setLayerName(Display display, Layer layer, std::string name) = 0;
++
+     // Composer HAL 2.4
+     virtual bool isVsyncPeriodSwitchSupported() = 0;
+     virtual Error getDisplayCapabilities(Display display,
+@@ -489,6 +495,9 @@ public:
+             Display display,
+             IComposerClient::ClientTargetProperty* outClientTargetProperty) override;
+ 
++    // WaydroidDisplay HAL 1.0
++    Error setLayerName(Display display, Layer layer, std::string name) override;
++
+ private:
+ #if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
+     class CommandWriter : public CommandWriterBase {
+@@ -535,6 +544,10 @@ private:
+     // When true, the we attach to the vr_hwcomposer service instead of the
+     // hwcomposer. This allows us to redirect surfaces to 3d surfaces in vr.
+     const bool mIsUsingVrComposer;
++
++    sp<IWaydroidDisplay> mWaydroidDisplay;
++    std::map<Layer, int32_t> mLayersZMap;
++    std::map<int32_t, std::string> mLayersNameMap;
+ };
+ 
+ } // namespace impl
+diff --git a/services/surfaceflinger/DisplayHardware/HWC2.cpp b/services/surfaceflinger/DisplayHardware/HWC2.cpp
+index 08559bd939..ebee967d7e 100644
+--- a/services/surfaceflinger/DisplayHardware/HWC2.cpp
++++ b/services/surfaceflinger/DisplayHardware/HWC2.cpp
+@@ -1004,6 +1004,12 @@ Error Layer::setLayerGenericMetadata(const std::string& name, bool mandatory,
+     return static_cast<Error>(intError);
+ }
+ 
++Error Layer::setLayerName(std::string name)
++{
++    auto intError = mComposer.setLayerName(mDisplayId, mId, name);
++    return static_cast<Error>(intError);
++}
++
+ } // namespace impl
+ } // namespace HWC2
+ } // namespace android
+diff --git a/services/surfaceflinger/DisplayHardware/HWC2.h b/services/surfaceflinger/DisplayHardware/HWC2.h
+index 6819ff43d2..b9a75ce536 100644
+--- a/services/surfaceflinger/DisplayHardware/HWC2.h
++++ b/services/surfaceflinger/DisplayHardware/HWC2.h
+@@ -389,6 +389,9 @@ public:
+     // Composer HAL 2.4
+     [[clang::warn_unused_result]] virtual hal::Error setLayerGenericMetadata(
+             const std::string& name, bool mandatory, const std::vector<uint8_t>& value) = 0;
++
++    // WaydroidDisplay HAL 1.0
++    [[clang::warn_unused_result]] virtual hal::Error setLayerName(std::string name) = 0;
+ };
+ 
+ namespace impl {
+@@ -431,6 +434,9 @@ public:
+     hal::Error setLayerGenericMetadata(const std::string& name, bool mandatory,
+                                        const std::vector<uint8_t>& value) override;
+ 
++    // WaydroidDisplay HAL 1.0
++    hal::Error setLayerName(std::string name) override;
++
+ private:
+     // These are references to data owned by HWC2::Device, which will outlive
+     // this HWC2::Layer, so these references are guaranteed to be valid for
+-- 
+2.30.2
+

@@ -1,0 +1,91 @@
+From eace61059291dcf0a4b523fbcb09cee69156b053 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sun, 12 Sep 2021 11:55:30 +0800
+Subject: [PATCH 6/6] Power: Add proper suspender
+
+Change-Id: I7bf3efc6ac97e4c106c3cc2815fbb773cda5d57e
+---
+ .../server/power/PowerManagerService.java     | 32 +++++++++++++------
+ 1 file changed, 23 insertions(+), 9 deletions(-)
+
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index 3a2f3a21..3e02eb8b 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -115,6 +115,7 @@ import com.android.server.power.batterysaver.BatterySaverStateMachine;
+ import com.android.server.power.batterysaver.BatterySavingStats;
+ 
+ import lineageos.providers.LineageSettings;
++import lineageos.waydroid.Hardware;
+ 
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+@@ -268,6 +269,7 @@ public final class PowerManagerService extends SystemService
+     private final Clock mClock;
+     private final Injector mInjector;
+ 
++    private Hardware mWaydroidHardware = null;
+     private LightsManager mLightsManager;
+     private BatteryManagerInternal mBatteryManagerInternal;
+     private DisplayManagerInternal mDisplayManagerInternal;
+@@ -1039,6 +1041,9 @@ public final class PowerManagerService extends SystemService
+                 org.lineageos.platform.internal.R.dimen
+                         .config_keyboardBrightnessSettingDefaultFloat);
+ 
++        if (Hardware.getService() != null)
++            mWaydroidHardware = Hardware.getInstance(context);
++
+         synchronized (mLock) {
+             mWakeLockSuspendBlocker =
+                     mInjector.createSuspendBlocker(this, "PowerManagerService.WakeLocks");
+@@ -1728,9 +1733,9 @@ public final class PowerManagerService extends SystemService
+                     + ", uid=" + uid);
+         }
+ 
+-        if (eventTime < mLastSleepTime || eventTime < mLastWakeTime || !mSystemReady) {
+-            return false;
+-        }
++        // if (eventTime < mLastSleepTime || eventTime < mLastWakeTime || !mSystemReady) {
++        //     return false;
++        // }
+ 
+         Trace.traceBegin(Trace.TRACE_TAG_POWER, "userActivity");
+         try {
+@@ -1812,10 +1817,10 @@ public final class PowerManagerService extends SystemService
+             Slog.d(TAG, "wakeUpNoUpdateLocked: eventTime=" + eventTime + ", uid=" + reasonUid);
+         }
+ 
+-        if (eventTime < mLastSleepTime || getWakefulnessLocked() == WAKEFULNESS_AWAKE
+-                || mForceSuspendActive || !mSystemReady) {
+-            return false;
+-        }
++        // if (eventTime < mLastSleepTime || getWakefulnessLocked() == WAKEFULNESS_AWAKE
++        //         || mForceSuspendActive || !mSystemReady) {
++        //     return false;
++        // }
+ 
+         Trace.asyncTraceBegin(Trace.TRACE_TAG_POWER, TRACE_SCREEN_ON, 0);
+ 
+@@ -2759,8 +2764,17 @@ public final class PowerManagerService extends SystemService
+                 } else if (shouldNapAtBedTimeLocked()) {
+                     changed = napNoUpdateLocked(time, Process.SYSTEM_UID);
+                 } else {
+-                    changed = goToSleepNoUpdateLocked(time,
+-                            PowerManager.GO_TO_SLEEP_REASON_TIMEOUT, 0, Process.SYSTEM_UID);
++                    //changed = goToSleepNoUpdateLocked(time,
++                    //        PowerManager.GO_TO_SLEEP_REASON_TIMEOUT, 0, Process.SYSTEM_UID);
++                    final boolean suspend = SystemProperties.get("persist.waydroid.suspend", "false").equals("true");
++                    final boolean no_open_wins = SystemProperties.get("waydroid.open_windows", "-1").equals("0");
++                    if (mWaydroidHardware != null && suspend && no_open_wins && ((dirty & DIRTY_WAKE_LOCKS) == 0)) {
++                        wakeUpNoUpdateLocked(SystemClock.uptimeMillis(),
++                            PowerManager.WAKE_REASON_UNKNOWN,
++                            "android.server.power:DREAM_FINISHED", Process.SYSTEM_UID,
++                            mContext.getOpPackageName(), Process.SYSTEM_UID);
++                        mWaydroidHardware.suspend();
++                    }
+                 }
+             }
+         }
+-- 
+2.30.2
+

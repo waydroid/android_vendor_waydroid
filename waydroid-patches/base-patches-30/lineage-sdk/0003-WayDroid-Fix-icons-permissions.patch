@@ -1,0 +1,42 @@
+From f515bee9dca10d0ac419110671267b0af9ca4ddb Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 27 Aug 2021 22:53:49 +0800
+Subject: [PATCH 3/3] WayDroid: Fix icons permissions
+
+Change-Id: Ic073a730970feddb9cf0ddccfd75f2e24b48ca6f
+---
+ .../java/org/lineageos/platform/internal/WayDroidService.java | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index ff5b33a..35bad4b 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -78,7 +78,6 @@ public class WayDroidService extends LineageSystemService {
+         } else {
+             Log.w(TAG, "No context available");
+         }
+-        publishBinderService(LineageContextConstants.WAYDROID_PLATFORM_SERVICE, mPlatformService);
+     }
+ 
+     @Override
+@@ -88,6 +87,7 @@ public class WayDroidService extends LineageSystemService {
+ 
+     @Override
+     public void onStart() {
++        publishBinderService(LineageContextConstants.WAYDROID_PLATFORM_SERVICE, mPlatformService);
+         if (mContext != null) {
+             if (UserMonitor.getService() != null)
+                 mUM = UserMonitor.getInstance(mContext);
+@@ -150,6 +150,8 @@ public class WayDroidService extends LineageSystemService {
+                 }
+             }
+         }
++        imageFile.setReadable(true, false);
++        imageFile.setWritable(true, false);
+     }
+ 
+     private Bitmap drawableToBitmap(Drawable drawable) {
+-- 
+2.30.2
+

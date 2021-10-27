@@ -1,0 +1,227 @@
+From bdcbaec97611a119e97a733b63faa2555b51121c Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 4 Jun 2021 16:27:09 +0430
+Subject: [PATCH 11/12] EventHub: Add wayland inputs support
+
+---
+ services/inputflinger/reader/EventHub.cpp | 117 +++++++++++++++-------
+ 1 file changed, 82 insertions(+), 35 deletions(-)
+
+diff --git a/services/inputflinger/reader/EventHub.cpp b/services/inputflinger/reader/EventHub.cpp
+index 27fb9dc0a0..7e748c8aa9 100644
+--- a/services/inputflinger/reader/EventHub.cpp
++++ b/services/inputflinger/reader/EventHub.cpp
+@@ -28,8 +28,6 @@
+ #include <sys/epoll.h>
+ #include <sys/inotify.h>
+ #include <sys/ioctl.h>
+-#include <sys/stat.h>
+-#include <sys/types.h>
+ #include <sys/limits.h>
+ #include <unistd.h>
+ 
+@@ -283,7 +281,24 @@ static void ensureProcessCanBlockSuspend() {
+ 
+ const int EventHub::EPOLL_MAX_EVENTS;
+ 
+-#define INPUT_PIPE_NAME "/dev/input/wayland_events"
++enum {
++    WL_INPUT_TOUCH,
++    WL_INPUT_KEYBOARD,
++    WL_INPUT_POINTER,
++    WL_INPUT_TOTAL
++};
++
++static const char *INPUT_PIPE_NAME[WL_INPUT_TOTAL] = {
++    "/dev/input/wl_touch_events",
++    "/dev/input/wl_keyboard_events",
++    "/dev/input/wl_pointer_events"
++};
++
++static const char *INPUT_TYPE_NAME[WL_INPUT_TOTAL] = {
++    "wayland_touch",
++    "wayland_keyboard",
++    "wayland_pointer"
++};
+ 
+ EventHub::EventHub(void)
+       : mBuiltInKeyboardId(NO_BUILT_IN_KEYBOARD),
+@@ -302,8 +317,6 @@ EventHub::EventHub(void)
+     mEpollFd = epoll_create1(EPOLL_CLOEXEC);
+     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
+ 
+-    mkfifo(INPUT_PIPE_NAME, 0777);
+-
+     mINotifyFd = inotify_init();
+     mInputWd = inotify_add_watch(mINotifyFd, DEVICE_PATH, IN_DELETE | IN_CREATE);
+     LOG_ALWAYS_FATAL_IF(mInputWd < 0, "Could not register INotify for %s: %s", DEVICE_PATH,
+@@ -403,13 +416,13 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
+         Device* device = getDeviceLocked(deviceId);
+         if (device && device->hasValidFd() && test_bit(axis, device->absBitmask)) {
+             struct input_absinfo info;
+-#if 0
+-            if (ioctl(device->fd, EVIOCGABS(axis), &info)) {
+-                ALOGW("Error reading absolute controller %d for device %s fd %d, errno=%d", axis,
+-                      device->identifier.name.c_str(), device->fd, errno);
+-                return -errno;
+-            }
+-#endif
++            if (device->identifier.location != "wayland") {
++                if (ioctl(device->fd, EVIOCGABS(axis), &info)) {
++                    ALOGW("Error reading absolute controller %d for device %s fd %d, errno=%d", axis,
++                          device->identifier.name.c_str(), device->fd, errno);
++                    return -errno;
++                }
++            } else {
+ 
+             if (property_get("waydroid.display_width", property, nullptr) > 0) {
+                 width = atoi(property);
+@@ -452,6 +465,7 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
+             info.flat = 0;
+             info.fuzz = 0;
+             info.resolution = 1;
++}
+ 
+             if (info.minimum != info.maximum) {
+                 outAxisInfo->valid = true;
+@@ -1179,7 +1193,6 @@ void EventHub::scanDevicesLocked() {
+ }
+ 
+ // ----------------------------------------------------------------------------
+-#if 0
+ static bool containsNonZeroByte(const uint8_t* array, uint32_t startIndex, uint32_t endIndex) {
+     const uint8_t* end = array + endIndex;
+     array += startIndex;
+@@ -1199,7 +1212,7 @@ static const int32_t GAMEPAD_KEYCODES[] = {
+         AKEYCODE_BUTTON_THUMBL, AKEYCODE_BUTTON_THUMBR,                       //
+         AKEYCODE_BUTTON_START,  AKEYCODE_BUTTON_SELECT, AKEYCODE_BUTTON_MODE, //
+ };
+-#endif
++
+ status_t EventHub::registerFdForEpoll(int fd) {
+     // TODO(b/121395353) - consider adding EPOLLRDHUP
+     struct epoll_event eventItem = {};
+@@ -1270,7 +1283,9 @@ void EventHub::unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& vide
+ }
+ 
+ status_t EventHub::openDeviceLocked(const char* devicePath) {
+-    //char buffer[80];
++    char buffer[80];
++    int inputType = 0;
++    bool isWayland = false;
+ 
+     ALOGV("Opening device: %s", devicePath);
+ 
+@@ -1280,15 +1295,24 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
+         return -1;
+     }
+ 
++    for (inputType = 0; inputType < WL_INPUT_TOTAL; inputType++) {
++        if (strcmp(devicePath, INPUT_PIPE_NAME[inputType]) == 0) {
++            isWayland = true;
++            break;
++        }
++    }
++
+     InputDeviceIdentifier identifier;
+-    identifier.name = "wayland";
++
++if (isWayland) {
++    identifier.name = INPUT_TYPE_NAME[inputType];
+     identifier.bus = BUS_VIRTUAL;
+     identifier.product = 1;
+     identifier.vendor = 1;
+     identifier.version = 1;
+     identifier.location = "wayland";
+-    identifier.uniqueId = "wayland";
+-#if 0
++    identifier.uniqueId = INPUT_TYPE_NAME[inputType];
++} else {
+     // Get device name.
+     if (ioctl(fd, EVIOCGNAME(sizeof(buffer) - 1), &buffer) < 1) {
+         ALOGE("Could not get device name for %s: %s", devicePath, strerror(errno));
+@@ -1342,7 +1366,7 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
+         buffer[sizeof(buffer) - 1] = '\0';
+         identifier.uniqueId = buffer;
+     }
+-#endif
++}
+     // Fill in the descriptor.
+     assignDescriptorLocked(identifier);
+ 
+@@ -1366,7 +1390,7 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
+     // Load the configuration file for the device.
+     loadConfigurationLocked(device);
+ 
+-#if 0
++if (! isWayland) {
+     // Figure out the kinds of events the device reports.
+     ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(device->keyBitmask)), device->keyBitmask);
+     ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(device->absBitmask)), device->absBitmask);
+@@ -1529,25 +1553,48 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
+         device->controllerNumber = getNextControllerNumberLocked(device);
+         setLedForControllerLocked(device);
+     }
+-#endif
+ 
+-    device->classes |= INPUT_DEVICE_CLASS_TOUCH_MT;
++} else {
++
++    if (inputType == WL_INPUT_TOUCH) {
++        device->classes |= INPUT_DEVICE_CLASS_TOUCH_MT;
+ 
+-    //device->propBitmask = 0;
+-    set_bit(INPUT_PROP_DIRECT, device->propBitmask);
++        set_bit(INPUT_PROP_DIRECT, device->propBitmask);
+ 
+-    set_bit(ABS_MT_POSITION_X, device->absBitmask);
+-    set_bit(ABS_MT_POSITION_Y, device->absBitmask);
+-    set_bit(ABS_MT_TOUCH_MAJOR, device->absBitmask);
+-    set_bit(ABS_MT_TOUCH_MINOR, device->absBitmask);
+-    set_bit(ABS_MT_ORIENTATION, device->absBitmask);
+-    set_bit(ABS_MT_TRACKING_ID, device->absBitmask);
+-    set_bit(ABS_MT_PRESSURE, device->absBitmask);
+-    set_bit(ABS_MT_SLOT, device->absBitmask);
++        set_bit(ABS_MT_POSITION_X, device->absBitmask);
++        set_bit(ABS_MT_POSITION_Y, device->absBitmask);
++        set_bit(ABS_MT_TOUCH_MAJOR, device->absBitmask);
++        set_bit(ABS_MT_TOUCH_MINOR, device->absBitmask);
++        set_bit(ABS_MT_ORIENTATION, device->absBitmask);
++        set_bit(ABS_MT_TRACKING_ID, device->absBitmask);
++        set_bit(ABS_MT_PRESSURE, device->absBitmask);
++        set_bit(ABS_MT_SLOT, device->absBitmask);
++
++        set_bit(ABS_X, device->absBitmask);
++        set_bit(ABS_Y, device->absBitmask);
++        set_bit(ABS_PRESSURE, device->absBitmask);
++    } else if (inputType == WL_INPUT_KEYBOARD) {
++        device->classes |= INPUT_DEVICE_CLASS_KEYBOARD;
+ 
+-    set_bit(ABS_X, device->absBitmask);
+-    set_bit(ABS_Y, device->absBitmask);
+-    set_bit(ABS_PRESSURE, device->absBitmask);
++        set_bit(BTN_MISC, device->keyBitmask);
++        set_bit(KEY_OK, device->keyBitmask);
++
++        // Load the keymap for the device.
++        loadKeyMapLocked(device);
++    } else if (inputType == WL_INPUT_POINTER) {
++        device->classes |= INPUT_DEVICE_CLASS_CURSOR;
++
++        set_bit(INPUT_PROP_POINTER, device->propBitmask);
++
++        set_bit(ABS_X, device->absBitmask);
++        set_bit(ABS_Y, device->absBitmask);
++        set_bit(BTN_MOUSE, device->keyBitmask);
++        set_bit(REL_X, device->relBitmask);
++        set_bit(REL_Y, device->relBitmask);
++        set_bit(REL_HWHEEL, device->relBitmask);
++        set_bit(REL_WHEEL, device->relBitmask);
++    }
++}
+ 
+     // Find a matching video device by comparing device names
+     // This should be done before registerDeviceForEpollLocked, so that both fds are added to epoll
+-- 
+2.30.2
+

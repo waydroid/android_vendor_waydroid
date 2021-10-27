@@ -1,0 +1,104 @@
+From c11dd8b19b747a0aaa9e8875bac639ffdcc9e9f4 Mon Sep 17 00:00:00 2001
+From: Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>
+Date: Mon, 26 Nov 2012 15:02:39 -0200
+Subject: [PATCH 01/12] (halium) binder: don't use android's check permission
+ feature
+
+Change-Id: I70946811c0af9899c46b4217f662bb41503b36e8
+Signed-off-by: Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>
+Signed-off-by: Ondrej Kubik <ondrej.kubik@canonical.com>
+(cherry picked from commit 00a0316b7d4d82437d733479fe7a0890a8f28fe7)
+---
+ cmds/servicemanager/ServiceManager.cpp |  5 +++--
+ libs/binder/IServiceManager.cpp        | 11 ++++++++++-
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/cmds/servicemanager/ServiceManager.cpp b/cmds/servicemanager/ServiceManager.cpp
+index e80c3210f0..0836b2e78f 100644
+--- a/cmds/servicemanager/ServiceManager.cpp
++++ b/cmds/servicemanager/ServiceManager.cpp
+@@ -183,9 +183,10 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
+     auto ctx = mAccess->getCallingContext();
+ 
+     // apps cannot add services
+-    if (multiuser_get_app_id(ctx.uid) >= AID_APP) {
++    // Halium: allow phablet
++    /*if (multiuser_get_app_id(ctx.uid) >= AID_APP) {
+         return Status::fromExceptionCode(Status::EX_SECURITY);
+-    }
++    }*/
+ 
+     if (!mAccess->canAdd(ctx, name)) {
+         return Status::fromExceptionCode(Status::EX_SECURITY);
+diff --git a/libs/binder/IServiceManager.cpp b/libs/binder/IServiceManager.cpp
+index a9f2d73951..5030cbb3fb 100644
+--- a/libs/binder/IServiceManager.cpp
++++ b/libs/binder/IServiceManager.cpp
+@@ -34,6 +34,7 @@
+ #include <cutils/properties.h>
+ #endif
+ 
++
+ #include "Static.h"
+ 
+ #include <unistd.h>
+@@ -131,6 +132,8 @@ static String16 _permission("permission");
+ 
+ bool checkCallingPermission(const String16& permission, int32_t* outPid, int32_t* outUid)
+ {
++    return true;
++
+     IPCThreadState* ipcState = IPCThreadState::self();
+     pid_t pid = ipcState->getCallingPid();
+     uid_t uid = ipcState->getCallingUid();
+@@ -141,6 +144,8 @@ bool checkCallingPermission(const String16& permission, int32_t* outPid, int32_t
+ 
+ bool checkPermission(const String16& permission, pid_t pid, uid_t uid)
+ {
++    return true;
++
+     static Mutex gPermissionControllerLock;
+     static sp<IPermissionController> gPermissionController;
+ 
+@@ -206,6 +211,7 @@ ServiceManagerShim::ServiceManagerShim(const sp<AidlServiceManager>& impl)
+  : mTheRealServiceManager(impl)
+ {}
+ 
++
+ sp<IBinder> ServiceManagerShim::getService(const String16& name) const
+ {
+     static bool gSystemBootCompleted = false;
+@@ -216,6 +222,7 @@ sp<IBinder> ServiceManagerShim::getService(const String16& name) const
+     const bool isVendorService =
+         strcmp(ProcessState::self()->getDriverName().c_str(), "/dev/vndbinder") == 0;
+     const long timeout = uptimeMillis() + 5000;
++
+     // Vendor code can't access system properties
+     if (!gSystemBootCompleted && !isVendorService) {
+ #ifdef __ANDROID__
+@@ -258,6 +265,7 @@ status_t ServiceManagerShim::addService(const String16& name, const sp<IBinder>&
+     Status status = mTheRealServiceManager->addService(
+         String8(name).c_str(), service, allowIsolated, dumpsysPriority);
+     return status.exceptionCode();
++
+ }
+ 
+ Vector<String16> ServiceManagerShim::listServices(int dumpsysPriority)
+@@ -271,6 +279,7 @@ Vector<String16> ServiceManagerShim::listServices(int dumpsysPriority)
+     res.setCapacity(ret.size());
+     for (const std::string& name : ret) {
+         res.push(String16(name.c_str()));
++
+     }
+     return res;
+ }
+@@ -356,4 +365,4 @@ bool ServiceManagerShim::isDeclared(const String16& name) {
+     return declared;
+ }
+ 
+-} // namespace android
++} // namespace android
+\ No newline at end of file
+-- 
+2.30.2
+

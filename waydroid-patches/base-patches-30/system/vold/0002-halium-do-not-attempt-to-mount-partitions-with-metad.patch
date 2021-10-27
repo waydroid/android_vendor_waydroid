@@ -1,0 +1,40 @@
+From 165a0a93b5b1d60e5aa202193755a723313caca2 Mon Sep 17 00:00:00 2001
+From: TheKit <nekit1000@gmail.com>
+Date: Sun, 3 Oct 2021 00:45:17 +0300
+Subject: [PATCH 2/4] (halium) do not attempt to mount partitions with metadata
+ encryption
+
+Change-Id: I77b72f49301879e960d7a8992c2736ccd5cc7096
+---
+ MetadataCrypt.cpp     | 4 ++++
+ wait_for_keymaster.rc | 2 +-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/MetadataCrypt.cpp b/MetadataCrypt.cpp
+index 1920073..e79afa9 100644
+--- a/MetadataCrypt.cpp
++++ b/MetadataCrypt.cpp
+@@ -272,6 +272,10 @@ static bool parse_options(const std::string& options_string, CryptoOptions* opti
+ bool fscrypt_mount_metadata_encrypted(const std::string& blk_device, const std::string& mount_point,
+                                       bool needs_encrypt) {
+     LOG(DEBUG) << "fscrypt_mount_metadata_encrypted: " << mount_point << " " << needs_encrypt;
++
++    // Disabled for Halium
++    return false;
++
+     auto encrypted_state = android::base::GetProperty("ro.crypto.state", "");
+     if (encrypted_state != "" && encrypted_state != "encrypted") {
+         LOG(DEBUG) << "fscrypt_enable_crypto got unexpected starting state: " << encrypted_state;
+diff --git a/wait_for_keymaster.rc b/wait_for_keymaster.rc
+index 9e83a93..ecc2582 100644
+--- a/wait_for_keymaster.rc
++++ b/wait_for_keymaster.rc
+@@ -1,4 +1,4 @@
+-service wait_for_keymaster /system/bin/wait_for_keymaster
++service wait_for_keymaster /system/bin/wait_for_keymaster_DISABLED
+     user root
+     group root system
+     priority -20
+-- 
+2.30.2
+

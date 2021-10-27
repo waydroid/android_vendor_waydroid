@@ -1,0 +1,124 @@
+From b893457cbb6e4d62b8ea65f3a4bf82dff41dd79d Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Tue, 26 Oct 2021 09:39:45 +0200
+Subject: [PATCH 09/12] build dumpsys and service cmds for the host
+
+Change-Id: I0439b831f7089d99672c9056fa7ac50273957203
+---
+ cmds/dumpsys/Android.bp        | 3 ++-
+ cmds/dumpsys/main.cpp          | 6 +++++-
+ cmds/service/Android.bp        | 2 ++
+ cmds/service/service.cpp       | 3 +++
+ libs/binder/IPCThreadState.cpp | 1 +
+ services/utils/Android.bp      | 1 +
+ 6 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/cmds/dumpsys/Android.bp b/cmds/dumpsys/Android.bp
+index f99588ffc8..f568e2f5bb 100644
+--- a/cmds/dumpsys/Android.bp
++++ b/cmds/dumpsys/Android.bp
+@@ -40,6 +40,7 @@ cc_library_static {
+ 
+ cc_binary {
+     name: "dumpsys",
++    host_supported: true,
+ 
+     defaults: ["dumpsys_defaults"],
+ 
+@@ -59,4 +60,4 @@ cc_binary {
+     srcs: [
+         "main.cpp",
+     ],
+-}
++}
+\ No newline at end of file
+diff --git a/cmds/dumpsys/main.cpp b/cmds/dumpsys/main.cpp
+index fa4cc97b91..a20091bb18 100644
+--- a/cmds/dumpsys/main.cpp
++++ b/cmds/dumpsys/main.cpp
+@@ -20,6 +20,7 @@
+ 
+ #include "dumpsys.h"
+ 
++#include <binder/ProcessState.h>
+ #include <binder/IServiceManager.h>
+ 
+ #include <iostream>
+@@ -29,13 +30,16 @@ using namespace android;
+ 
+ int main(int argc, char* const argv[]) {
+     signal(SIGPIPE, SIG_IGN);
++    if(const char* driver = getenv("BINDER_DRIVER")){
++        ProcessState::initWithDriver(driver);
++    }
+     sp<IServiceManager> sm = defaultServiceManager();
+     fflush(stdout);
+     if (sm == nullptr) {
+         ALOGE("Unable to get default service manager!");
+         std::cerr << "dumpsys: Unable to get default service manager!" << std::endl;
+         return 20;
+-    }
++    } 
+ 
+     Dumpsys dumpsys(sm.get());
+     return dumpsys.main(argc, argv);
+diff --git a/cmds/service/Android.bp b/cmds/service/Android.bp
+index a5b1ac5c5f..9efbf9cf82 100644
+--- a/cmds/service/Android.bp
++++ b/cmds/service/Android.bp
+@@ -1,5 +1,6 @@
+ cc_binary {
+     name: "service",
++    host_supported: true,
+ 
+     srcs: ["service.cpp"],
+ 
+@@ -13,6 +14,7 @@ cc_binary {
+         "-DXP_UNIX",
+         "-Wall",
+         "-Werror",
++        "-Wno-unused-result"
+     ],
+ }
+ 
+diff --git a/cmds/service/service.cpp b/cmds/service/service.cpp
+index 18b6b58a9e..389cb1efb2 100644
+--- a/cmds/service/service.cpp
++++ b/cmds/service/service.cpp
+@@ -96,6 +96,9 @@ int main(int argc, char* const argv[])
+ #ifdef VENDORSERVICES
+     ProcessState::initWithDriver("/dev/vndbinder");
+ #endif
++    if(const char* driver = getenv("BINDER_DRIVER")){
++        ProcessState::initWithDriver(driver);
++    }
+     sp<IServiceManager> sm = defaultServiceManager();
+     fflush(stdout);
+     if (sm == nullptr) {
+diff --git a/libs/binder/IPCThreadState.cpp b/libs/binder/IPCThreadState.cpp
+index 74d4704b5a..5f6ebe2687 100644
+--- a/libs/binder/IPCThreadState.cpp
++++ b/libs/binder/IPCThreadState.cpp
+@@ -13,6 +13,7 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
++//#define LOG_NDEBUG 0
+ 
+ #define LOG_TAG "IPCThreadState"
+ 
+diff --git a/services/utils/Android.bp b/services/utils/Android.bp
+index f3d2bc9766..9c883a5bed 100644
+--- a/services/utils/Android.bp
++++ b/services/utils/Android.bp
+@@ -18,6 +18,7 @@
+ cc_library_static {
+     name: "libserviceutils",
+ 
++    host_supported: true,
+     vendor_available: true,
+ 
+     cflags: [
+-- 
+2.30.2
+

@@ -1,0 +1,718 @@
+From 93897495aa495299607e64422fadc270cc64d2f9 Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Sun, 18 Oct 2020 00:31:45 +0700
+Subject: [PATCH 4/6] (anbox) init: start inside LXC container without SELinux
+
+---
+ init/Android.bp           |  2 ++
+ init/first_stage_init.cpp | 36 ++++++++++++++++++++----------
+ init/init.cpp             | 46 +++++++++++++++++++++++++++++++++++----
+ init/property_service.cpp | 24 ++++++++++++--------
+ init/service.cpp          | 10 +++++----
+ init/subcontext.cpp       | 11 ++++++++--
+ init/util.cpp             | 35 ++++++++++++++++++++++-------
+ 7 files changed, 125 insertions(+), 39 deletions(-)
+
+diff --git a/init/Android.bp b/init/Android.bp
+index f292d68..711d737 100644
+--- a/init/Android.bp
++++ b/init/Android.bp
+@@ -90,6 +90,7 @@ cc_defaults {
+         "-Wall",
+         "-Wextra",
+         "-Wno-unused-parameter",
++        "-Wno-unused-function",
+         "-Werror",
+         "-Wthread-safety",
+         "-DALLOW_FIRST_STAGE_CONSOLE=0",
+@@ -335,6 +336,7 @@ cc_binary {
+         "-Wall",
+         "-Wextra",
+         "-Wno-unused-parameter",
++        "-Wno-unused-function",
+         "-Werror",
+     ],
+     static_libs: [
+diff --git a/init/first_stage_init.cpp b/init/first_stage_init.cpp
+index 0215576..936a77a 100644
+--- a/init/first_stage_init.cpp
++++ b/init/first_stage_init.cpp
+@@ -95,6 +95,7 @@ void FreeRamdisk(DIR* dir, dev_t dev) {
+ }
+ 
+ bool ForceNormalBoot(const std::string& cmdline) {
++
+     return cmdline.find("androidboot.force_normal_boot=1") != std::string::npos;
+ }
+ 
+@@ -189,12 +190,14 @@ int FirstStageMain(int argc, char** argv) {
+     CHECKCALL(setenv("PATH", _PATH_DEFPATH, 1));
+     // Get the basic filesystem setup we need put together in the initramdisk
+     // on / and then we'll let the rc file figure out the rest.
+-    CHECKCALL(mount("tmpfs", "/dev", "tmpfs", MS_NOSUID, "mode=0755"));
+-    CHECKCALL(mkdir("/dev/pts", 0755));
++
++    // Disabled for Anbox, mounted by host system instead
++    //CHECKCALL(mount("tmpfs", "/dev", "tmpfs", MS_NOSUID, "mode=0755"));
++    //CHECKCALL(mkdir("/dev/pts", 0755));
+     CHECKCALL(mkdir("/dev/socket", 0755));
+-    CHECKCALL(mount("devpts", "/dev/pts", "devpts", 0, NULL));
++    //CHECKCALL(mount("devpts", "/dev/pts", "devpts", 0, NULL));
+ #define MAKE_STR(x) __STRING(x)
+-    CHECKCALL(mount("proc", "/proc", "proc", 0, "hidepid=2,gid=" MAKE_STR(AID_READPROC)));
++    //CHECKCALL(mount("proc", "/proc", "proc", 0, "hidepid=2,gid=" MAKE_STR(AID_READPROC)));
+ #undef MAKE_STR
+     // Don't expose the raw commandline to unprivileged processes.
+     CHECKCALL(chmod("/proc/cmdline", 0440));
+@@ -202,8 +205,9 @@ int FirstStageMain(int argc, char** argv) {
+     android::base::ReadFileToString("/proc/cmdline", &cmdline);
+     gid_t groups[] = {AID_READPROC};
+     CHECKCALL(setgroups(arraysize(groups), groups));
+-    CHECKCALL(mount("sysfs", "/sys", "sysfs", 0, NULL));
+-    CHECKCALL(mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL));
++    // Disabled for Anbox
++    //CHECKCALL(mount("sysfs", "/sys", "sysfs", 0, NULL));
++    //CHECKCALL(mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL));
+ 
+     CHECKCALL(mknod("/dev/kmsg", S_IFCHR | 0600, makedev(1, 11)));
+ 
+@@ -215,8 +219,11 @@ int FirstStageMain(int argc, char** argv) {
+     CHECKCALL(mknod("/dev/urandom", S_IFCHR | 0666, makedev(1, 9)));
+ 
+     // This is needed for log wrapper, which gets called before ueventd runs.
+-    CHECKCALL(mknod("/dev/ptmx", S_IFCHR | 0666, makedev(5, 2)));
+-    CHECKCALL(mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3)));
++    // Can be created by LXC on Anbox
++    //CHECKCALL(mknod("/dev/ptmx", S_IFCHR | 0666, makedev(5, 2)));
++    //CHECKCALL(mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3)));
++    mknod("/dev/ptmx", S_IFCHR | 0666, makedev(5, 2));
++    mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3));
+ 
+     // These below mounts are done in first stage init so that first stage mount can mount
+     // subdirectories of /mnt/{vendor,product}/.  Other mounts, not required by first stage mount,
+@@ -232,6 +239,7 @@ int FirstStageMain(int argc, char** argv) {
+     // part of the product partition, e.g. because they are mounted read-write.
+     CHECKCALL(mkdir("/mnt/product", 0755));
+ 
++
+     // /debug_ramdisk is used to preserve additional files from the debug ramdisk
+     CHECKCALL(mount("tmpfs", "/debug_ramdisk", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,
+                     "mode=0755,uid=0,gid=0"));
+@@ -299,9 +307,10 @@ int FirstStageMain(int argc, char** argv) {
+         }
+     }
+ 
+-    if (!DoFirstStageMount()) {
++    // Disabled for Anbox
++    /*if (!DoFirstStageMount()) {
+         LOG(FATAL) << "Failed to mount required partitions early ...";
+-    }
++    }*/
+ 
+     struct stat new_root_info;
+     if (stat("/", &new_root_info) != 0) {
+@@ -318,8 +327,11 @@ int FirstStageMain(int argc, char** argv) {
+     setenv(kEnvFirstStageStartedAt, std::to_string(start_time.time_since_epoch().count()).c_str(),
+            1);
+ 
++
+     const char* path = "/system/bin/init";
+-    const char* args[] = {path, "selinux_setup", nullptr};
++    // Anbox: skip selinux_setup
++    //const char* args[] = {path, "selinux_setup", nullptr};
++    const char* args[] = {path, "second_stage", nullptr};
+     auto fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
+     dup2(fd, STDOUT_FILENO);
+     dup2(fd, STDERR_FILENO);
+@@ -334,4 +346,4 @@ int FirstStageMain(int argc, char** argv) {
+ }
+ 
+ }  // namespace init
+-}  // namespace android
++}  // namespace android
+\ No newline at end of file
+diff --git a/init/init.cpp b/init/init.cpp
+index ae8d23f..b5ba354 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -19,6 +19,7 @@
+ #include <dirent.h>
+ #include <fcntl.h>
+ #include <pthread.h>
++
+ #include <signal.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -55,6 +56,7 @@
+ #include <processgroup/setup.h>
+ #include <selinux/android.h>
+ 
++
+ #include "action_parser.h"
+ #include "builtins.h"
+ #include "epoll.h"
+@@ -97,6 +99,7 @@ namespace init {
+ 
+ static int property_triggers_enabled = 0;
+ 
++
+ static int signal_fd = -1;
+ static int property_fd = -1;
+ 
+@@ -284,6 +287,7 @@ static void LoadBootScripts(ActionManager& action_manager, ServiceList& service_
+         if (!parser.ParseConfig("/product/etc/init")) {
+             late_import_paths.emplace_back("/product/etc/init");
+         }
++
+         if (!parser.ParseConfig("/odm/etc/init")) {
+             late_import_paths.emplace_back("/odm/etc/init");
+         }
+@@ -296,6 +300,7 @@ static void LoadBootScripts(ActionManager& action_manager, ServiceList& service_
+ }
+ 
+ void PropertyChanged(const std::string& name, const std::string& value) {
++
+     // If the property is sys.powerctl, we bypass the event queue and immediately handle it.
+     // This is to ensure that init will always and immediately shutdown/reboot, regardless of
+     // if there are other pending events to process or if init is waiting on an exec service or
+@@ -304,11 +309,13 @@ void PropertyChanged(const std::string& name, const std::string& value) {
+     // commands to be executed.
+     if (name == "sys.powerctl") {
+         trigger_shutdown(value);
++
+     }
+ 
+     if (property_triggers_enabled) {
+         ActionManager::GetInstance().QueuePropertyChange(name, value);
+         WakeMainInitThread();
++
+     }
+ 
+     prop_waiter_state.CheckAndResetWait(name, value);
+@@ -365,6 +372,7 @@ enum class ControlTarget {
+ 
+ using ControlMessageFunction = std::function<Result<void>(Service*)>;
+ 
++
+ static const std::map<std::string, ControlMessageFunction, std::less<>>& GetControlMessageMap() {
+     // clang-format off
+     static const std::map<std::string, ControlMessageFunction, std::less<>> control_message_functions = {
+@@ -375,6 +383,7 @@ static const std::map<std::string, ControlMessageFunction, std::less<>>& GetCont
+         {"start",             DoControlStart},
+         {"stop",              DoControlStop},
+         {"restart",           DoControlRestart},
++
+     };
+     // clang-format on
+ 
+@@ -384,6 +393,7 @@ static const std::map<std::string, ControlMessageFunction, std::less<>>& GetCont
+ static bool HandleControlMessage(std::string_view message, const std::string& name,
+                                  pid_t from_pid) {
+     std::string cmdline_path = StringPrintf("proc/%d/cmdline", from_pid);
++
+     std::string process_cmdline;
+     if (ReadFileToString(cmdline_path, &process_cmdline)) {
+         std::replace(process_cmdline.begin(), process_cmdline.end(), '\0', ' ');
+@@ -403,6 +413,7 @@ static bool HandleControlMessage(std::string_view message, const std::string& na
+     if (service == nullptr) {
+         LOG(ERROR) << "Control message: Could not find '" << name << "' for ctl." << message
+                    << " from pid: " << from_pid << " (" << process_cmdline << ")";
++
+         return false;
+     }
+ 
+@@ -451,6 +462,7 @@ static void HandleControlMessages() {
+         bool success = HandleControlMessage(control_message.message, control_message.name,
+                                             control_message.pid);
+ 
++
+         uint32_t response = success ? PROP_SUCCESS : PROP_ERROR_HANDLE_CONTROL_MESSAGE;
+         if (control_message.fd != -1) {
+             TEMP_FAILURE_RETRY(send(control_message.fd, &response, sizeof(response), 0));
+@@ -462,11 +474,13 @@ static void HandleControlMessages() {
+     if (!pending_control_messages.empty()) {
+         WakeMainInitThread();
+     }
++
+ }
+ 
+ static Result<void> wait_for_coldboot_done_action(const BuiltinArguments& args) {
+     if (!prop_waiter_state.StartWaiting(kColdBootDoneProp, "true")) {
+         LOG(FATAL) << "Could not wait for '" << kColdBootDoneProp << "'";
++
+     }
+ 
+     return {};
+@@ -483,11 +497,13 @@ static Result<void> SetupCgroupsAction(const BuiltinArguments&) {
+     return {};
+ }
+ 
++
+ static void export_oem_lock_status() {
+     if (!android::base::GetBoolProperty("ro.oem_unlock_supported", false)) {
+         return;
+     }
+     ImportKernelCmdline([](const std::string& key, const std::string& value) {
++
+         if (key == "androidboot.verifiedbootstate") {
+             SetProperty("ro.boot.flash.locked", value == "orange" ? "0" : "1");
+         }
+@@ -495,6 +511,7 @@ static void export_oem_lock_status() {
+ }
+ 
+ static Result<void> property_enable_triggers_action(const BuiltinArguments& args) {
++
+     /* Enable property triggers. */
+     property_triggers_enabled = 1;
+     return {};
+@@ -506,6 +523,7 @@ static Result<void> queue_property_triggers_action(const BuiltinArguments& args)
+     return {};
+ }
+ 
++
+ // Set the UDC controller for the ConfigFS USB Gadgets.
+ // Read the UDC controller in use from "/sys/class/udc".
+ // In case of multiple UDC controllers select the first one.
+@@ -633,6 +651,7 @@ void HandleKeychord(const std::vector<int>& keycodes) {
+     }
+ }
+ 
++
+ static void UmountDebugRamdisk() {
+     if (umount("/debug_ramdisk") != 0) {
+         PLOG(ERROR) << "Failed to umount /debug_ramdisk";
+@@ -643,6 +662,7 @@ static void MountExtraFilesystems() {
+ #define CHECKCALL(x) \
+     if ((x) != 0) PLOG(FATAL) << #x " failed.";
+ 
++
+     // /apex is used to mount APEXes
+     CHECKCALL(mount("tmpfs", "/apex", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,
+                     "mode=0755,uid=0,gid=0"));
+@@ -665,12 +685,14 @@ static void RecordStageBoottimes(const boot_clock::time_point& second_stage_star
+     int64_t selinux_start_time_ns = -1;
+     if (auto selinux_start_time_str = getenv(kEnvSelinuxStartedAt); selinux_start_time_str) {
+         android::base::ParseInt(selinux_start_time_str, &selinux_start_time_ns);
++
+     }
+     unsetenv(kEnvSelinuxStartedAt);
+ 
+     if (selinux_start_time_ns == -1) return;
+     if (first_stage_start_time_ns == -1) return;
+ 
++
+     SetProperty("ro.boottime.init.first_stage",
+                 std::to_string(selinux_start_time_ns - first_stage_start_time_ns));
+     SetProperty("ro.boottime.init.selinux",
+@@ -684,6 +706,7 @@ void SendLoadPersistentPropertiesMessage() {
+     if (auto result = SendMessage(property_fd, init_message); !result.ok()) {
+         LOG(ERROR) << "Failed to send load persistent properties message: " << result.error();
+     }
++
+ }
+ 
+ int SecondStageMain(int argc, char** argv) {
+@@ -725,12 +748,17 @@ int SecondStageMain(int argc, char** argv) {
+     // Indicate that booting is in progress to background fw loaders, etc.
+     close(open("/dev/.booting", O_WRONLY | O_CREAT | O_CLOEXEC, 0000));
+ 
++
++
++
++
+     // See if need to load debug props to allow adb root, when the device is unlocked.
+     const char* force_debuggable_env = getenv("INIT_FORCE_DEBUGGABLE");
+     bool load_debug_prop = false;
+     if (force_debuggable_env && AvbHandle::IsDeviceUnlocked()) {
+         load_debug_prop = "true"s == force_debuggable_env;
+     }
++
+     unsetenv("INIT_FORCE_DEBUGGABLE");
+ 
+     // Umount the debug ramdisk so property service doesn't read .prop files from there, when it
+@@ -766,6 +794,7 @@ int SecondStageMain(int argc, char** argv) {
+     // Make the time that init stages started available for bootstat to log.
+     RecordStageBoottimes(start_time);
+ 
++
+     // Set libavb version for Framework-only OTA match in Treble build.
+     if (const char* avb_version = getenv("INIT_AVB_VERSION"); avb_version != nullptr) {
+         SetProperty("ro.boot.avb_version", avb_version);
+@@ -801,6 +830,7 @@ int SecondStageMain(int argc, char** argv) {
+     auto is_installed = android::gsi::IsGsiInstalled() ? "1" : "0";
+     SetProperty(gsi::kGsiInstalledProp, is_installed);
+ 
++
+     am.QueueBuiltinAction(SetupCgroupsAction, "SetupCgroups");
+     am.QueueBuiltinAction(SetKptrRestrictAction, "SetKptrRestrict");
+     am.QueueBuiltinAction(TestPerfEventSelinuxAction, "TestPerfEventSelinux");
+@@ -809,8 +839,10 @@ int SecondStageMain(int argc, char** argv) {
+     // Queue an action that waits for coldboot done so we know ueventd has set up all of /dev...
+     am.QueueBuiltinAction(wait_for_coldboot_done_action, "wait_for_coldboot_done");
+     // ... so that we can start queuing up actions that require stuff from /dev.
+-    am.QueueBuiltinAction(MixHwrngIntoLinuxRngAction, "MixHwrngIntoLinuxRng");
+-    am.QueueBuiltinAction(SetMmapRndBitsAction, "SetMmapRndBits");
++    // Disabled for Anbox
++    //am.QueueBuiltinAction(MixHwrngIntoLinuxRngAction, "MixHwrngIntoLinuxRng");
++    //am.QueueBuiltinAction(SetMmapRndBitsAction, "SetMmapRndBits");
++
+     Keychords keychords;
+     am.QueueBuiltinAction(
+             [&epoll, &keychords](const BuiltinArguments& args) -> Result<void> {
+@@ -822,12 +854,16 @@ int SecondStageMain(int argc, char** argv) {
+             },
+             "KeychordInit");
+ 
++
+     // Trigger all the boot actions to get us started.
+     am.QueueEventTrigger("init");
+ 
++
+     // Repeat mix_hwrng_into_linux_rng in case /dev/hw_random or /dev/random
+     // wasn't ready immediately after wait_for_coldboot_done
+-    am.QueueBuiltinAction(MixHwrngIntoLinuxRngAction, "MixHwrngIntoLinuxRng");
++    // Disabled for Anbox
++    // am.QueueBuiltinAction(MixHwrngIntoLinuxRngAction, "MixHwrngIntoLinuxRng");
++
+ 
+     // Don't mount filesystems or start core system services in charger mode.
+     std::string bootmode = GetProperty("ro.bootmode", "");
+@@ -849,12 +885,14 @@ int SecondStageMain(int argc, char** argv) {
+         auto shutdown_command = shutdown_state.CheckShutdown();
+         if (shutdown_command) {
+             HandlePowerctlMessage(*shutdown_command);
++
+         }
+ 
+         if (!(prop_waiter_state.MightBeWaiting() || Service::is_exec_service_running())) {
+             am.ExecuteOneCommand();
+         }
+         if (!IsShuttingDown()) {
++
+             auto next_process_action_time = HandleProcessActions();
+ 
+             // If there's a process that needs restarting, wake up in time for that.
+@@ -892,4 +930,4 @@ int SecondStageMain(int argc, char** argv) {
+ }
+ 
+ }  // namespace init
+-}  // namespace android
++}  // namespace android
+\ No newline at end of file
+diff --git a/init/property_service.cpp b/init/property_service.cpp
+index 42dd5af..4b515d4 100644
+--- a/init/property_service.cpp
++++ b/init/property_service.cpp
+@@ -132,7 +132,8 @@ void StopSendingMessages() {
+ }
+ 
+ bool CanReadProperty(const std::string& source_context, const std::string& name) {
+-    const char* target_context = nullptr;
++    // Disabled for Anbox
++    /*const char* target_context = nullptr;
+     property_info_area->GetPropertyInfo(name.c_str(), &target_context, nullptr);
+ 
+     PropertyAuditData audit_data;
+@@ -143,12 +144,14 @@ bool CanReadProperty(const std::string& source_context, const std::string& name)
+     audit_data.cr = &cr;
+ 
+     return selinux_check_access(source_context.c_str(), target_context, "file", "read",
+-                                &audit_data) == 0;
++                                &audit_data) == 0;*/
++    return true;
+ }
+ 
+ static bool CheckMacPerms(const std::string& name, const char* target_context,
+                           const char* source_context, const ucred& cr) {
+-    if (!target_context || !source_context) {
++    // Disabled for Anbox
++    /*if (!target_context || !source_context) {
+         return false;
+     }
+ 
+@@ -160,7 +163,8 @@ static bool CheckMacPerms(const std::string& name, const char* target_context,
+     bool has_access = (selinux_check_access(source_context, target_context, "property_service",
+                                             "set", &audit_data) == 0);
+ 
+-    return has_access;
++    return has_access;*/
++    return true;
+ }
+ 
+ static uint32_t PropertySet(const std::string& name, const std::string& value, std::string* error) {
+@@ -551,11 +555,12 @@ static void handle_property_set_fd() {
+         prop_name[PROP_NAME_MAX-1] = 0;
+         prop_value[PROP_VALUE_MAX-1] = 0;
+ 
+-        std::string source_context;
+-        if (!socket.GetSourceContext(&source_context)) {
++        std::string source_context = "";
++        // Disabled for Anbox
++        /*if (!socket.GetSourceContext(&source_context)) {
+             PLOG(ERROR) << "Unable to set property '" << prop_name << "': getpeercon() failed";
+             return;
+-        }
++        }*/
+ 
+         const auto& cr = socket.cred();
+         std::string error;
+@@ -580,11 +585,12 @@ static void handle_property_set_fd() {
+         }
+ 
+         std::string source_context;
+-        if (!socket.GetSourceContext(&source_context)) {
++        // Disabled for Anbox
++        /*if (!socket.GetSourceContext(&source_context)) {
+             PLOG(ERROR) << "Unable to set property '" << name << "': getpeercon() failed";
+             socket.SendUint32(PROP_ERROR_PERMISSION_DENIED);
+             return;
+-        }
++        }*/
+ 
+         const auto& cr = socket.cred();
+         std::string error;
+diff --git a/init/service.cpp b/init/service.cpp
+index d6f913c..ec25684 100644
+--- a/init/service.cpp
++++ b/init/service.cpp
+@@ -242,9 +242,10 @@ void Service::SetProcessAttributesAndCaps() {
+     }
+ 
+     if (!seclabel_.empty()) {
+-        if (setexeccon(seclabel_.c_str()) < 0) {
++        // Disabled for Anbox
++        /*if (setexeccon(seclabel_.c_str()) < 0) {
+             PLOG(FATAL) << "cannot setexeccon('" << seclabel_ << "') for " << name_;
+-        }
++        }*/
+     }
+ 
+     if (capabilities_) {
+@@ -450,7 +451,8 @@ Result<void> Service::Start() {
+     }
+ 
+     std::string scon;
+-    if (!seclabel_.empty()) {
++    // Disabled for Anbox
++    /*if (!seclabel_.empty()) {
+         scon = seclabel_;
+     } else {
+         auto result = ComputeContextFromExecutable(args_[0]);
+@@ -458,7 +460,7 @@ Result<void> Service::Start() {
+             return result.error();
+         }
+         scon = *result;
+-    }
++    }*/
+ 
+     if (!AreRuntimeApexesReady() && !pre_apexd_) {
+         // If this service is started before the Runtime and ART APEXes get
+diff --git a/init/subcontext.cpp b/init/subcontext.cpp
+index 9d4ea8c..f115535 100644
+--- a/init/subcontext.cpp
++++ b/init/subcontext.cpp
+@@ -51,6 +51,7 @@ using android::base::unique_fd;
+ 
+ namespace android {
+ namespace init {
++
+ namespace {
+ 
+ std::string shutdown_command;
+@@ -182,6 +183,7 @@ int SubcontextMain(int argc, char** argv, const BuiltinFunctionMap* function_map
+ 
+     trigger_shutdown = [](const std::string& command) { shutdown_command = command; };
+ 
++
+     auto subcontext_process = SubcontextProcess(function_map, context, init_fd);
+     // Restore prio before main loop
+     setpriority(PRIO_PROCESS, 0, 0);
+@@ -212,7 +214,8 @@ void Subcontext::Fork() {
+ 
+         // We don't switch contexts if we're running the unit tests.  We don't use std::optional,
+         // since we still need a real context string to pass to the builtin functions.
+-        if (context_ != kTestContext) {
++        // Disabled in LXC container
++        if (false /*context_ != kTestContext*/) {
+             if (setexeccon(context_.c_str()) < 0) {
+                 PLOG(FATAL) << "Could not set execcon for '" << context_ << "'";
+             }
+@@ -330,6 +333,7 @@ Result<std::vector<std::string>> Subcontext::ExpandArgs(const std::vector<std::s
+ }
+ 
+ void InitializeSubcontext() {
++
+     if (SelinuxGetVendorAndroidVersion() >= __ANDROID_API_P__) {
+         subcontext.reset(
+                 new Subcontext(std::vector<std::string>{"/vendor", "/odm"}, kVendorContext));
+@@ -344,16 +348,19 @@ bool SubcontextChildReap(pid_t pid) {
+     if (subcontext->pid() == pid) {
+         if (!subcontext_terminated_by_shutdown) {
+             subcontext->Restart();
++
+         }
+         return true;
+     }
++
+     return false;
+ }
+ 
+ void SubcontextTerminate() {
+     subcontext_terminated_by_shutdown = true;
+     kill(subcontext->pid(), SIGTERM);
++
+ }
+ 
+ }  // namespace init
+-}  // namespace android
++}  // namespace android
+\ No newline at end of file
+diff --git a/init/util.cpp b/init/util.cpp
+index bed0ffc..080d4e2 100644
+--- a/init/util.cpp
++++ b/init/util.cpp
+@@ -52,6 +52,7 @@
+ #include "host_init_stubs.h"
+ #endif
+ 
++
+ using android::base::boot_clock;
+ using android::base::StartsWith;
+ using namespace std::literals::string_literals;
+@@ -92,59 +93,71 @@ Result<uid_t> DecodeUid(const std::string& name) {
+  */
+ Result<int> CreateSocket(const std::string& name, int type, bool passcred, mode_t perm, uid_t uid,
+                          gid_t gid, const std::string& socketcon) {
+-    if (!socketcon.empty()) {
++    // Disabled for Anbox
++    /*if (!socketcon.empty()) {
+         if (setsockcreatecon(socketcon.c_str()) == -1) {
+             return ErrnoError() << "setsockcreatecon(\"" << socketcon << "\") failed";
++
+         }
+-    }
++    }*/
+ 
+     android::base::unique_fd fd(socket(PF_UNIX, type, 0));
+     if (fd < 0) {
+         return ErrnoError() << "Failed to open socket '" << name << "'";
++
+     }
+ 
+-    if (!socketcon.empty()) setsockcreatecon(nullptr);
++    // Disabled for Anbox
++    /*if (!socketcon.empty()) setsockcreatecon(nullptr);*/
+ 
+     struct sockaddr_un addr;
+     memset(&addr, 0 , sizeof(addr));
+     addr.sun_family = AF_UNIX;
+     snprintf(addr.sun_path, sizeof(addr.sun_path), ANDROID_SOCKET_DIR "/%s", name.c_str());
+ 
++
+     if ((unlink(addr.sun_path) != 0) && (errno != ENOENT)) {
+         return ErrnoError() << "Failed to unlink old socket '" << name << "'";
++
+     }
+ 
+-    std::string secontext;
++    // Disabled for Anbox
++    /*std::string secontext;
+     if (SelabelLookupFileContext(addr.sun_path, S_IFSOCK, &secontext) && !secontext.empty()) {
+         setfscreatecon(secontext.c_str());
+-    }
++    }*/
+ 
+     if (passcred) {
+         int on = 1;
+         if (setsockopt(fd, SOL_SOCKET, SO_PASSCRED, &on, sizeof(on))) {
+             return ErrnoError() << "Failed to set SO_PASSCRED '" << name << "'";
++
+         }
+     }
+ 
+     int ret = bind(fd, (struct sockaddr *) &addr, sizeof (addr));
+     int savederrno = errno;
+ 
+-    if (!secontext.empty()) {
++    // Disabled for Anbox
++    /*if (!secontext.empty()) {
+         setfscreatecon(nullptr);
+-    }
++    }*/
+ 
+     auto guard = android::base::make_scope_guard([&addr] { unlink(addr.sun_path); });
+ 
+     if (ret) {
+         errno = savederrno;
+         return ErrnoError() << "Failed to bind socket '" << name << "'";
++
+     }
+ 
+     if (lchown(addr.sun_path, uid, gid)) {
+         return ErrnoError() << "Failed to lchown socket '" << addr.sun_path << "'";
++
+     }
+     if (fchmodat(AT_FDCWD, addr.sun_path, perm, AT_SYMLINK_NOFOLLOW)) {
+         return ErrnoError() << "Failed to fchmodat socket '" << addr.sun_path << "'";
++
+     }
+ 
+     LOG(INFO) << "Created socket '" << addr.sun_path << "'"
+@@ -154,6 +167,7 @@ Result<int> CreateSocket(const std::string& name, int type, bool passcred, mode_
+ 
+     guard.Disable();
+     return fd.release();
++
+ }
+ 
+ Result<std::string> ReadFile(const std::string& path) {
+@@ -239,6 +253,7 @@ int wait_for_file(const char* filename, std::chrono::nanoseconds timeout) {
+ }
+ 
+ void ImportKernelCmdline(const std::function<void(const std::string&, const std::string&)>& fn) {
++
+     std::string cmdline;
+     android::base::ReadFileToString("/proc/cmdline", &cmdline);
+ 
+@@ -283,6 +298,7 @@ Result<std::string> ExpandProps(const std::string& src) {
+ 
+     std::string dst;
+ 
++
+     /* - variables can either be $x.y or ${x.y}, in case they are only part
+      *   of the string.
+      * - will accept $$ as a literal $.
+@@ -318,6 +334,7 @@ Result<std::string> ExpandProps(const std::string& src) {
+             if (!end) {
+                 // failed to find closing brace, abort.
+                 return Error() << "unexpected end of string in '" << src << "', looking for }";
++
+             }
+             prop_name = std::string(c, end);
+             c = end + 1;
+@@ -340,6 +357,7 @@ Result<std::string> ExpandProps(const std::string& src) {
+ 
+         if (prop_name.empty()) {
+             return Error() << "invalid zero-length property name in '" << src << "'";
++
+         }
+ 
+         std::string prop_val = android::base::GetProperty(prop_name, "");
+@@ -363,6 +381,7 @@ static std::string init_android_dt_dir() {
+     std::string android_dt_dir = kDefaultAndroidDtDir;
+     // The platform may specify a custom Android DT path in kernel cmdline
+     ImportKernelCmdline([&](const std::string& key, const std::string& value) {
++
+         if (key == "androidboot.android_dt_dir") {
+             android_dt_dir = value;
+         }
+@@ -727,4 +746,4 @@ bool IsRecoveryMode() {
+ }
+ 
+ }  // namespace init
+-}  // namespace android
++}  // namespace android
+\ No newline at end of file
+-- 
+2.30.2
+

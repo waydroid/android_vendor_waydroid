@@ -1,0 +1,31 @@
+From a53c0d17c352d24e32b2a1685364d24c37493abe Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Fri, 22 Oct 2021 12:48:23 +0200
+Subject: [PATCH 2/2] changes to make it run
+
+---
+ BoardConfig.mk | 4 +++-
+ fstab.waydroid | 0
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+ create mode 100644 fstab.waydroid
+
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+index dbb749e..9dff2b9 100644
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -68,4 +68,6 @@ BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+ # Disable scudo
+ MALLOC_SVELTE := true
+ 
+-TARGET_USERIMAGES_SPARSE_EXT_DISABLED := true
+\ No newline at end of file
++TARGET_USERIMAGES_SPARSE_EXT_DISABLED := true
++
++PRODUCT_COPY_FILES +=  device/waydroid/waydroid/fstab.waydroid:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.waydroid
+\ No newline at end of file
+diff --git a/fstab.waydroid b/fstab.waydroid
+new file mode 100644
+index 0000000..e69de29
+-- 
+2.30.2
+

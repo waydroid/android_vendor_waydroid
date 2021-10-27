@@ -1,0 +1,31 @@
+From 637c76082fd3e4b63f951ffb0fbe6bccab513fe9 Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Wed, 20 Oct 2021 19:24:30 +0200
+Subject: [PATCH 11/13] media: fix enable dithering for RGB565 conversion
+
+Change-Id: I48cc0b44729a957e4346143005120ffb2ba1cff9
+---
+ media/libstagefright/colorconversion/ColorConverter.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/media/libstagefright/colorconversion/ColorConverter.cpp b/media/libstagefright/colorconversion/ColorConverter.cpp
+index 77ab5e3..da5ca35 100644
+--- a/media/libstagefright/colorconversion/ColorConverter.cpp
++++ b/media/libstagefright/colorconversion/ColorConverter.cpp
+@@ -356,11 +356,11 @@ status_t ColorConverter::convertYUV420PlanarUseLibYUV(
+                 isMesa = true;
+         if (isMesa) {
+             libyuv::I420ToRGB565Dither(src_y, src.mStride, src_u, src.mStride / 2, src_v, src.mStride / 2,
+-                    (uint8 *)dst_ptr, dst.mStride, NULL, src.cropWidth(), src.cropHeight());
++                    (uint8_t *)dst_ptr, dst.mStride, NULL, src.cropWidth(), src.cropHeight());
+         } else {
+             DECLARE_YUV2RGBFUNC(func, RGB565);
+             (*func)(src_y, src.mStride, src_u, src.mStride / 2, src_v, src.mStride / 2,
+-                    (uint8 *)dst_ptr, dst.mStride, src.cropWidth(), src.cropHeight());
++                    (uint8_t *)dst_ptr, dst.mStride, src.cropWidth(), src.cropHeight());
+         }
+         break;
+     }
+-- 
+2.30.2
+

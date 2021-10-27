@@ -1,0 +1,41 @@
+From 53a4d47307086691bb98a7655ee44cffae22b4af Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Wed, 20 Oct 2021 19:46:11 +0200
+Subject: [PATCH 3/6] disable app dir isolation using selinux
+
+Change-Id: Ifc0495a4795ab64f646abd4987819fa367b304f4
+---
+ core/jni/Android.bp                         | 1 +
+ core/jni/com_android_internal_os_Zygote.cpp | 4 ++--
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/core/jni/Android.bp b/core/jni/Android.bp
+index 0797b18f..42228084 100644
+--- a/core/jni/Android.bp
++++ b/core/jni/Android.bp
+@@ -18,6 +18,7 @@ cc_library_shared {
+         "-Wno-error=deprecated-declarations",
+         "-Wunused",
+         "-Wunreachable-code",
++        "-Wno-unused-function"
+     ],
+ 
+     cppflags: ["-Wno-conversion-null"],
+diff --git a/core/jni/com_android_internal_os_Zygote.cpp b/core/jni/com_android_internal_os_Zygote.cpp
+index a95ae24b..f44a369b 100644
+--- a/core/jni/com_android_internal_os_Zygote.cpp
++++ b/core/jni/com_android_internal_os_Zygote.cpp
+@@ -1644,8 +1644,8 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids,
+   // Isolated process / webview / app zygote should be gated by SELinux and file permission
+   // so they can't even traverse CE / DE directories.
+   if (mount_data_dirs) {
+-    isolateAppData(env, pkg_data_info_list, whitelisted_data_info_list,
+-            uid, process_name, managed_nice_name, fail_fn);
++    //isolateAppData(env, pkg_data_info_list, whitelisted_data_info_list,
++    //        uid, process_name, managed_nice_name, fail_fn);
+     isolateJitProfile(env, pkg_data_info_list, uid, process_name, managed_nice_name, fail_fn);
+   }
+   // MOUNT_EXTERNAL_INSTALLER, MOUNT_EXTERNAL_PASS_THROUGH, MOUNT_EXTERNAL_ANDROID_WRITABLE apps
+-- 
+2.30.2
+

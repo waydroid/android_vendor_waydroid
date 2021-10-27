@@ -1,0 +1,139 @@
+From d028dff272ab0b42d3e7a5bf5a3f13eed9807661 Mon Sep 17 00:00:00 2001
+From: Simon Fels <morphis@gravedo.de>
+Date: Mon, 22 Aug 2016 21:59:22 +0200
+Subject: [PATCH 12/12] inputflinger: add absolute event support for cursor
+
+Don't log event codes for cursor position changes
+
+Disable moving the pointer via relative move events which we don't have
+
+Revert changing pointer presentation
+---
+ .../reader/mapper/CursorInputMapper.cpp       | 40 +++++++++++++++++++
+ .../reader/mapper/CursorInputMapper.h         | 21 ++++++++++
+ 2 files changed, 61 insertions(+)
+
+diff --git a/services/inputflinger/reader/mapper/CursorInputMapper.cpp b/services/inputflinger/reader/mapper/CursorInputMapper.cpp
+index 887ab53c76..6f9fb1b5c8 100644
+--- a/services/inputflinger/reader/mapper/CursorInputMapper.cpp
++++ b/services/inputflinger/reader/mapper/CursorInputMapper.cpp
+@@ -56,6 +56,38 @@ void CursorMotionAccumulator::finishSync() {
+     clearRelativeAxes();
+ }
+ 
++// --- CursorPositionAccumulator ---
++
++CursorPositionAccumulator::CursorPositionAccumulator() {
++    clearPosition();
++}
++
++void CursorPositionAccumulator::reset(InputDeviceContext& deviceContext) {
++    clearPosition();
++}
++
++void CursorPositionAccumulator::clearPosition() {
++    mX = 0;
++    mY = 0;
++}
++
++void CursorPositionAccumulator::process(const RawEvent* rawEvent) {
++    if (rawEvent->type == EV_ABS) {
++        switch (rawEvent->code) {
++        case ABS_X:
++            mX = rawEvent->value;
++            break;
++        case ABS_Y:
++            mY = rawEvent->value;
++            break;
++        }
++    }
++}
++
++void CursorPositionAccumulator::finishSync() {
++    clearPosition();
++}
++
+ // --- CursorInputMapper ---
+ 
+ CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext)
+@@ -247,6 +279,7 @@ void CursorInputMapper::reset(nsecs_t when) {
+ 
+     mCursorButtonAccumulator.reset(getDeviceContext());
+     mCursorMotionAccumulator.reset(getDeviceContext());
++    mCursorPositionAccumulator.reset(getDeviceContext());
+     mCursorScrollAccumulator.reset(getDeviceContext());
+ 
+     InputMapper::reset(when);
+@@ -255,6 +288,7 @@ void CursorInputMapper::reset(nsecs_t when) {
+ void CursorInputMapper::process(const RawEvent* rawEvent) {
+     mCursorButtonAccumulator.process(rawEvent);
+     mCursorMotionAccumulator.process(rawEvent);
++    mCursorPositionAccumulator.process(rawEvent);
+     mCursorScrollAccumulator.process(rawEvent);
+ 
+     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
+@@ -318,9 +352,11 @@ void CursorInputMapper::sync(nsecs_t when) {
+         if (moved || scrolled || buttonsChanged) {
+             mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_POINTER);
+ 
++#if 0
+             if (moved) {
+                 mPointerController->move(deltaX, deltaY);
+             }
++#endif
+ 
+             if (buttonsChanged) {
+                 mPointerController->setButtonState(currentButtonState);
+@@ -329,6 +365,10 @@ void CursorInputMapper::sync(nsecs_t when) {
+             mPointerController->unfade(PointerControllerInterface::TRANSITION_IMMEDIATE);
+         }
+ 
++        mPointerController->setPosition(mCursorPositionAccumulator.getX(),
++                                        mCursorPositionAccumulator.getY());
++
++
+         mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
+         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+diff --git a/services/inputflinger/reader/mapper/CursorInputMapper.h b/services/inputflinger/reader/mapper/CursorInputMapper.h
+index f65ac3934a..8c87cbf8b9 100644
+--- a/services/inputflinger/reader/mapper/CursorInputMapper.h
++++ b/services/inputflinger/reader/mapper/CursorInputMapper.h
+@@ -51,6 +51,26 @@ private:
+     void clearRelativeAxes();
+ };
+ 
++/* Keeps track of cursor position. */
++
++class CursorPositionAccumulator {
++public:
++    CursorPositionAccumulator();
++    void reset(InputDeviceContext& deviceContext);
++
++    void process(const RawEvent* rawEvent);
++    void finishSync();
++
++    inline int32_t getX() const { return mX; }
++    inline int32_t getY() const { return mY; }
++
++private:
++    int32_t mX;
++    int32_t mY;
++
++    void clearPosition();
++};
++
+ class CursorInputMapper : public InputMapper {
+ public:
+     explicit CursorInputMapper(InputDeviceContext& deviceContext);
+@@ -87,6 +107,7 @@ private:
+ 
+     CursorButtonAccumulator mCursorButtonAccumulator;
+     CursorMotionAccumulator mCursorMotionAccumulator;
++    CursorPositionAccumulator mCursorPositionAccumulator;
+     CursorScrollAccumulator mCursorScrollAccumulator;
+ 
+     int32_t mSource;
+-- 
+2.30.2
+
