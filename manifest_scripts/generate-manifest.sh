@@ -52,6 +52,14 @@ if [ -f build/make/core/version_defaults.mk ]; then
         manifests_url="${manifests_url}-28"
         manifests_path="${manifests_path}-28"
     fi
+    if grep -q "PLATFORM_SDK_VERSION := 29" build/make/core/version_defaults.mk; then
+        manifests_url="${manifests_url}"
+        manifests_path="${manifests_path}"
+    fi
+    if grep -q "PLATFORM_SDK_VERSION := 30" build/make/core/version_defaults.mk; then
+        manifests_url="${manifests_url}-30"
+        manifests_path="${manifests_path}-30"
+    fi
 fi
 
 echo -e ${reset}""${reset}
