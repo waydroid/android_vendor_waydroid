@@ -1,7 +1,7 @@
-From 5efc6f7d1ce249fb03b16cb99b7a9f105cc6b880 Mon Sep 17 00:00:00 2001
+From 37f29accae786c9c8d4dd2efb0de3e9e855c880e Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Thu, 17 Jun 2021 01:39:59 +0800
-Subject: [PATCH 2/6] Zygote: Disable seccomp
+Subject: [PATCH 02/24] Zygote: Disable seccomp
 
 Change-Id: Ia29148f887a6fdcbc65803a4dec1a881b353df95
 ---
@@ -9,7 +9,7 @@ Change-Id: Ia29148f887a6fdcbc65803a4dec1a881b353df95
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/core/jni/com_android_internal_os_Zygote.cpp b/core/jni/com_android_internal_os_Zygote.cpp
-index f0b41b03..a95ae24b 100644
+index f0b41b03223..a95ae24bf4f 100644
 --- a/core/jni/com_android_internal_os_Zygote.cpp
 +++ b/core/jni/com_android_internal_os_Zygote.cpp
 @@ -631,7 +631,7 @@ static void PreApplicationInit() {
@@ -40,5 +40,5 @@ index f0b41b03..a95ae24b 100644
    // Must be called before losing the permission to set scheduler policy.
    SetSchedulerPolicy(fail_fn, is_top_app);
 -- 
-2.30.2
+2.25.1
 

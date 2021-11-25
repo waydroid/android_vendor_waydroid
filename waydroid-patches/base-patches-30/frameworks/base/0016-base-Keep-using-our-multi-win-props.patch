@@ -1,0 +1,67 @@
+From 805450ec7305d0e06d8ea9dd8adc47eb12417a9a Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Tue, 7 Sep 2021 10:03:35 +0800
+Subject: [PATCH 16/24] base: Keep using our multi-win props
+
+Change-Id: I8adc8dbebb4558813ff7a160cbd368a68ed01009
+---
+ core/java/com/android/internal/policy/PhoneWindow.java          | 2 +-
+ .../com/android/systemui/shared/plugins/PluginManagerImpl.java  | 2 +-
+ .../SystemUI/src/com/android/systemui/BoringdroidConfig.java    | 2 +-
+ .../core/java/com/android/server/wm/WindowManagerService.java   | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/core/java/com/android/internal/policy/PhoneWindow.java b/core/java/com/android/internal/policy/PhoneWindow.java
+index f3d8aee178d..fb3bb0d8346 100644
+--- a/core/java/com/android/internal/policy/PhoneWindow.java
++++ b/core/java/com/android/internal/policy/PhoneWindow.java
+@@ -374,7 +374,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
+         boolean forceResizable = Settings.Global.getInt(context.getContentResolver(),
+                 DEVELOPMENT_FORCE_RESIZABLE_ACTIVITIES, 0) != 0;
+         // region @boringdroidd
+-        forceResizable |= SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
++        forceResizable |= SystemProperties.getBoolean("persist.waydroid.multi_windows", false);
+         // endregion
+         mSupportsPictureInPicture = forceResizable || context.getPackageManager().hasSystemFeature(
+                 PackageManager.FEATURE_PICTURE_IN_PICTURE);
+diff --git a/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java b/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
+index 1ee8ec0f532..4e854db5767 100644
+--- a/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
++++ b/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
+@@ -96,7 +96,7 @@ public class PluginManagerImpl extends BroadcastReceiver implements PluginManage
+         // region @boringdroid
+         // We enable the plugin manager despite of the debuggable flag.
+         // isDebuggable = debuggable;
+-        isDebuggable = SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
++        isDebuggable = SystemProperties.getBoolean("persist.waydroid.multi_windows", false);
+         // endregion
+         mWhitelistedPlugins.addAll(Arrays.asList(initializer.getWhitelistedPlugins(mContext)));
+         mPluginPrefs = new PluginPrefs(mContext);
+diff --git a/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java b/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java
+index d4aff777d93..994bea0dd7c 100644
+--- a/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java
++++ b/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java
+@@ -20,5 +20,5 @@ import android.os.SystemProperties;
+ 
+ public class BoringdroidConfig {
+     public static boolean IS_SYSTEMUI_PLUGIN_ENABLED =
+-            SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
++            SystemProperties.getBoolean("persist.waydroid.multi_windows", false);
+ }
+\ No newline at end of file
+diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
+index 2a21d7bd3a1..fead78d4723 100644
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -8343,7 +8343,7 @@ public class WindowManagerService extends IWindowManager.Stub
+             return WindowConfiguration.WINDOWING_MODE_UNDEFINED;
+         }
+         // We only enable freeform when systemui plugin enabled.
+-        if (!SystemProperties.getBoolean("persist.sys.pcmode.enabled", false)) {
++        if (!SystemProperties.getBoolean("persist.waydroid.multi_windows", false)) {
+             return WindowConfiguration.WINDOWING_MODE_UNDEFINED;
+         }
+         // If the package is in the multi window black list, it will run in default
+-- 
+2.25.1
+

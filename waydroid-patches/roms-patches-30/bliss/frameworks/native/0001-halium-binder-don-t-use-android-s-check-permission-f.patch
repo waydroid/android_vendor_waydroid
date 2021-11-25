@@ -1,0 +1,56 @@
+From c550929cbe490215003cc2960cc4789679e1c658 Mon Sep 17 00:00:00 2001
+From: Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>
+Date: Mon, 26 Nov 2012 15:02:39 -0200
+Subject: [PATCH] (halium) binder: don't use android's check permission feature
+
+Change-Id: I70946811c0af9899c46b4217f662bb41503b36e8
+Signed-off-by: Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>
+Signed-off-by: Ondrej Kubik <ondrej.kubik@canonical.com>
+(cherry picked from commit 00a0316b7d4d82437d733479fe7a0890a8f28fe7)
+---
+ cmds/servicemanager/ServiceManager.cpp | 5 +++--
+ libs/binder/IServiceManager.cpp        | 4 ++++
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/cmds/servicemanager/ServiceManager.cpp b/cmds/servicemanager/ServiceManager.cpp
+index e80c3210f0..0836b2e78f 100644
+--- a/cmds/servicemanager/ServiceManager.cpp
++++ b/cmds/servicemanager/ServiceManager.cpp
+@@ -183,9 +183,10 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
+     auto ctx = mAccess->getCallingContext();
+ 
+     // apps cannot add services
+-    if (multiuser_get_app_id(ctx.uid) >= AID_APP) {
++    // Halium: allow phablet
++    /*if (multiuser_get_app_id(ctx.uid) >= AID_APP) {
+         return Status::fromExceptionCode(Status::EX_SECURITY);
+-    }
++    }*/
+ 
+     if (!mAccess->canAdd(ctx, name)) {
+         return Status::fromExceptionCode(Status::EX_SECURITY);
+diff --git a/libs/binder/IServiceManager.cpp b/libs/binder/IServiceManager.cpp
+index 218970a1b2..5b162080ce 100644
+--- a/libs/binder/IServiceManager.cpp
++++ b/libs/binder/IServiceManager.cpp
+@@ -131,6 +131,8 @@ static String16 _permission("permission");
+ 
+ bool checkCallingPermission(const String16& permission, int32_t* outPid, int32_t* outUid)
+ {
++    return true;
++
+     IPCThreadState* ipcState = IPCThreadState::self();
+     pid_t pid = ipcState->getCallingPid();
+     uid_t uid = ipcState->getCallingUid();
+@@ -141,6 +143,8 @@ bool checkCallingPermission(const String16& permission, int32_t* outPid, int32_t
+ 
+ bool checkPermission(const String16& permission, pid_t pid, uid_t uid)
+ {
++    return true;
++
+     static Mutex gPermissionControllerLock;
+     static sp<IPermissionController> gPermissionController;
+ 
+-- 
+2.25.1
+

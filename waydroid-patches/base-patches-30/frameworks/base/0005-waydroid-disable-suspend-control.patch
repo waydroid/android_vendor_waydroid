@@ -1,7 +1,7 @@
-From f526b814e1c9ecdf78a1aa5e578ae883d3f929df Mon Sep 17 00:00:00 2001
+From 1b92c975f06efc25af5f385b570bf6890d9c4db0 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Sun, 15 Nov 2020 00:24:46 +0700
-Subject: [PATCH 5/6] (waydroid) disable suspend control
+Subject: [PATCH 05/24] (waydroid) disable suspend control
 
 Change-Id: I1c8cbb5980efc063fae25597b3c6e927a682c1ca
 ---
@@ -9,7 +9,7 @@ Change-Id: I1c8cbb5980efc063fae25597b3c6e927a682c1ca
  1 file changed, 6 insertions(+), 4 deletions(-)
 
 diff --git a/services/core/jni/com_android_server_power_PowerManagerService.cpp b/services/core/jni/com_android_server_power_PowerManagerService.cpp
-index 61d53351..53515745 100644
+index 61d53351af5..53515745693 100644
 --- a/services/core/jni/com_android_server_power_PowerManagerService.cpp
 +++ b/services/core/jni/com_android_server_power_PowerManagerService.cpp
 @@ -454,8 +454,9 @@ sp<ISuspendControlService> getSuspendControl() {
@@ -38,5 +38,5 @@ index 61d53351..53515745 100644
  }
  
 -- 
-2.30.2
+2.25.1
 

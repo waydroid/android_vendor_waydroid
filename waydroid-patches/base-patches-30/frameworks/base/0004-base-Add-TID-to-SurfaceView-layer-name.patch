@@ -1,7 +1,7 @@
-From 406d65abe2551a4f62e587e23fe02593e1ba9009 Mon Sep 17 00:00:00 2001
+From 4c2288082344fd2dfc3f4bdd9936b2089a0065f5 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Wed, 8 Sep 2021 11:10:51 +0800
-Subject: [PATCH 4/6] base: Add TID to SurfaceView layer name
+Subject: [PATCH 04/24] base: Add TID to SurfaceView layer name
 
 Change-Id: Ic607a646287829b05e0e90501f8fa8d5ab94a6b1
 ---
@@ -10,7 +10,7 @@ Change-Id: Ic607a646287829b05e0e90501f8fa8d5ab94a6b1
  2 files changed, 3 insertions(+), 4 deletions(-)
 
 diff --git a/core/java/android/view/SurfaceControl.java b/core/java/android/view/SurfaceControl.java
-index 87b2f4b4..87dc983d 100644
+index 87b2f4b46df..87dc983d9d8 100644
 --- a/core/java/android/view/SurfaceControl.java
 +++ b/core/java/android/view/SurfaceControl.java
 @@ -1439,8 +1439,7 @@ public final class SurfaceControl implements Parcelable {
@@ -24,7 +24,7 @@ index 87b2f4b4..87dc983d 100644
  
      /**
 diff --git a/core/java/android/view/SurfaceView.java b/core/java/android/view/SurfaceView.java
-index f937bc9e..01c6f971 100644
+index f937bc9e84a..01c6f97117c 100644
 --- a/core/java/android/view/SurfaceView.java
 +++ b/core/java/android/view/SurfaceView.java
 @@ -990,7 +990,7 @@ public class SurfaceView extends View implements ViewRootImpl.SurfaceChangedCall
@@ -46,5 +46,5 @@ index f937bc9e..01c6f971 100644
                          .setOpaque(true)
                          .setColorLayer()
 -- 
-2.30.2
+2.25.1
 

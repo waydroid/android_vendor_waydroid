@@ -1,7 +1,7 @@
-From eace61059291dcf0a4b523fbcb09cee69156b053 Mon Sep 17 00:00:00 2001
+From 6a3c0ee071d832acb35d6955356362ea9ac1dc61 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Sun, 12 Sep 2021 11:55:30 +0800
-Subject: [PATCH 6/6] Power: Add proper suspender
+Subject: [PATCH 06/24] Power: Add proper suspender
 
 Change-Id: I7bf3efc6ac97e4c106c3cc2815fbb773cda5d57e
 ---
@@ -9,7 +9,7 @@ Change-Id: I7bf3efc6ac97e4c106c3cc2815fbb773cda5d57e
  1 file changed, 23 insertions(+), 9 deletions(-)
 
 diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
-index 3a2f3a21..3e02eb8b 100644
+index 3a2f3a211c8..3e02eb8bef7 100644
 --- a/services/core/java/com/android/server/power/PowerManagerService.java
 +++ b/services/core/java/com/android/server/power/PowerManagerService.java
 @@ -115,6 +115,7 @@ import com.android.server.power.batterysaver.BatterySaverStateMachine;
@@ -87,5 +87,5 @@ index 3a2f3a21..3e02eb8b 100644
              }
          }
 -- 
-2.30.2
+2.25.1
 
