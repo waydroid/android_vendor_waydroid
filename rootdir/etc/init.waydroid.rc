@@ -44,3 +44,11 @@ service vendor.camera-provider-2-4 /vendor/bin/hw/android.hardware.camera.provid
     capabilities SYS_NICE
     oneshot
     writepid /dev/cpuset/camera-daemon/tasks /dev/stune/top-app/tasks
+
+service vendor-qti-media-c2-hal-1-0 /vendor_extra/bin/hw/vendor.qti.media.c2@1.0-service
+    override
+    class hal
+    user mediacodec
+    group mediadrm camera drmrpc system
+    ioprio rt 4
+    writepid /dev/cpuset/foreground/tasks
