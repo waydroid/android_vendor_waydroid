@@ -22,6 +22,10 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PACKAGES += \
     init.waydroid.rc
 
+# Dummy libnfc-nci.conf
+PRODUCT_PACKAGES += \
+    libnfc-nci.conf
+
 # Properties
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/waydroid.prop:$(TARGET_COPY_OUT_VENDOR)/waydroid.prop
