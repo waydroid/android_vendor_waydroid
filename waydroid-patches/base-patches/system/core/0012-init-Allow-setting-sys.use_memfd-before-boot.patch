@@ -1,0 +1,39 @@
+From 3aca2b5406c5e37211261c59856179e6fe081e85 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 8 Feb 2022 21:36:17 +0100
+Subject: [PATCH] init: Allow setting sys.use_memfd before boot
+
+Change-Id: I24ef1f5cbeb320fcd7bd5ea162562640eda7f95e
+---
+ rootdir/init.rc | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 86aabd0fe..2cf86074e 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -628,15 +628,16 @@ on post-fs-data
+     # Set indication (checked by vold) that we have finished this action
+     #setprop vold.post_fs_data_done 1
+ 
+-    # sys.memfd_use set to false by default, which keeps it disabled
+-    # until it is confirmed that apps and vendor processes don't make
+-    # IOCTLs on ashmem fds any more.
+-    setprop sys.use_memfd false
+-
+     # Set fscklog permission
+     chown root system /dev/fscklogs/log
+     chmod 0770 /dev/fscklogs/log
+ 
++# sys.memfd_use set to false by default, which keeps it disabled
++# until it is confirmed that apps and vendor processes don't make
++# IOCTLs on ashmem fds any more.
++on post-fs-data && property:sys.use_memfd=""
++    setprop sys.use_memfd false
++
+ # It is recommended to put unnecessary data/ initialization from post-fs-data
+ # to start-zygote in device's init.rc to unblock zygote start.
+ on zygote-start && property:ro.crypto.state=unencrypted
+-- 
+2.34.1
+
