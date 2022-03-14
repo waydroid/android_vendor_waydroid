@@ -1,0 +1,81 @@
+From e7f6c0231c159715b7ddd0ee5dbb6de30b7625e5 Mon Sep 17 00:00:00 2001
+From: TheKit <nekit1000@gmail.com>
+Date: Sun, 7 Mar 2021 17:13:31 +0200
+Subject: [PATCH] (halium) disable SELinux checks in ServiceManager
+
+Change-Id: Ida8e91453db58b1123468931c94d4a40d273b0b3
+---
+ cmds/servicemanager/service_manager.c | 24 +++++++++++++++---------
+ 1 file changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/cmds/servicemanager/service_manager.c b/cmds/servicemanager/service_manager.c
+index 6b340a8d3..e90d640eb 100644
+--- a/cmds/servicemanager/service_manager.c
++++ b/cmds/servicemanager/service_manager.c
+@@ -61,9 +61,12 @@ int str16eq(const uint16_t *a, const char *b)
+ static char *service_manager_context;
+ static struct selabel_handle* sehandle;
+ 
+-static bool check_mac_perms(pid_t spid, uid_t uid, const char *tctx, const char *perm, const char *name)
++static bool check_mac_perms(__attribute__ ((unused)) pid_t spid, __attribute__ ((unused)) uid_t uid, __attribute__ ((unused)) const char *tctx, __attribute__ ((unused)) const char *perm, __attribute__ ((unused)) const char *name)
+ {
+-    char *sctx = NULL;
++    // Disabled for Halium
++    bool allowed = true;
++
++    /*char *sctx = NULL;
+     const char *class = "service_manager";
+     bool allowed;
+     struct audit_data ad;
+@@ -80,7 +83,7 @@ static bool check_mac_perms(pid_t spid, uid_t uid, const char *tctx, const char
+     int result = selinux_check_access(sctx, tctx, class, perm, (void *) &ad);
+     allowed = (result == 0);
+ 
+-    freecon(sctx);
++    freecon(sctx);*/
+     return allowed;
+ }
+ 
+@@ -94,7 +97,8 @@ static bool check_mac_perms_from_lookup(pid_t spid, uid_t uid, const char *perm,
+     bool allowed;
+     char *tctx = NULL;
+ 
+-    if (!sehandle) {
++    // Disabled for Halium
++    /*if (!sehandle) {
+         ALOGE("SELinux: Failed to find sehandle. Aborting service_manager.\n");
+         abort();
+     }
+@@ -102,7 +106,7 @@ static bool check_mac_perms_from_lookup(pid_t spid, uid_t uid, const char *perm,
+     if (selabel_lookup(sehandle, &tctx, name, 0) != 0) {
+         ALOGE("SELinux: No match for %s in service_contexts.\n", name);
+         return false;
+-    }
++    }*/
+ 
+     allowed = check_mac_perms(spid, uid, tctx, perm, name);
+     freecon(tctx);
+@@ -413,14 +417,16 @@ int main(int argc, char** argv)
+ #endif
+     selinux_status_open(true);
+ 
+-    if (sehandle == NULL) {
++    // Disabled for Halium
++    /*if (sehandle == NULL) {
+         ALOGE("SELinux: Failed to acquire sehandle. Aborting.\n");
+         abort();
+-    }
++    }*/
+ 
+     if (getcon(&service_manager_context) != 0) {
+-        ALOGE("SELinux: Failed to acquire service_manager context. Aborting.\n");
+-        abort();
++        // Disabled for Halium
++        /*ALOGE("SELinux: Failed to acquire service_manager context. Aborting.\n");
++        abort();*/
+     }
+ 
+ 
+-- 
+2.25.1
+
