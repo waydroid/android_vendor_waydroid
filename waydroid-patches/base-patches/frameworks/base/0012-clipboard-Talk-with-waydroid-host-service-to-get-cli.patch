@@ -1,16 +1,16 @@
-From 3d9350d4c04d63869f240c8810a45e1b1fd4434f Mon Sep 17 00:00:00 2001
-From: Simon Fels <morphis@gravedo.de>
-Date: Sun, 15 Jan 2017 12:35:43 +0100
+From 9d18ffbafabfdbb774e452274bda3b0385391f2c Mon Sep 17 00:00:00 2001
+From: jingjiezhuang <jingjie.zhuang@igg.com>
+Date: Tue, 19 Apr 2022 18:42:12 +0800
 Subject: [PATCH] clipboard: Talk with waydroid host service to get clipboard
  synchronized
 
 Change-Id: Ia038dae3393dc4887ac9477aff642541ffc230a3
 ---
- .../server/clipboard/ClipboardService.java    | 33 +++++++++++++++++++
- 1 file changed, 33 insertions(+)
+ .../server/clipboard/ClipboardService.java    | 23 +++++++++++++++++++
+ 1 file changed, 23 insertions(+)
 
 diff --git a/services/core/java/com/android/server/clipboard/ClipboardService.java b/services/core/java/com/android/server/clipboard/ClipboardService.java
-index b279b370c61..899c9728b38 100644
+index ed3a223b5dd7..f50d6c87a990 100644
 --- a/services/core/java/com/android/server/clipboard/ClipboardService.java
 +++ b/services/core/java/com/android/server/clipboard/ClipboardService.java
 @@ -68,6 +68,8 @@ import java.io.RandomAccessFile;
@@ -52,42 +52,32 @@ index b279b370c61..899c9728b38 100644
              }
          }
  
-@@ -389,6 +400,17 @@ public class ClipboardService extends SystemService {
+@@ -389,6 +400,14 @@ public class ClipboardService extends SystemService {
                      return null;
                  }
                  addActiveOwnerLocked(intendingUid, pkg);
 +                if (mWaydroidClipboard != null) {
 +                    String waydroidPaste = mWaydroidClipboard.getClipboardData();
-+                    if (getClipboard(intendingUserId).primaryClip != null && getClipboard(intendingUserId).primaryClip.getItemCount() > 0) {
-+                        ClipData.Item item = getClipboard(intendingUserId).primaryClip.getItemAt(0);
-+                        String itemText = item.getText().toString();
-+                        if (itemText != waydroidPaste) {
-+                            ClipData data = ClipData.newPlainText("", waydroidPaste);
-+                            setPrimaryClipInternal(getClipboard(intendingUserId), data, intendingUserId);
-+                        }
-+                    }
++                    ClipData clip =
++                        new ClipData("host clipboard",
++                                     new String[]{"text/plain"},
++                                     new ClipData.Item(waydroidPaste));
++                    return clip;
 +                }
                  return getClipboard(intendingUserId).primaryClip;
              }
          }
-@@ -420,6 +442,17 @@ public class ClipboardService extends SystemService {
+@@ -420,6 +439,10 @@ public class ClipboardService extends SystemService {
                          || isDeviceLocked(intendingUserId)) {
                      return false;
                  }
 +                if (mWaydroidClipboard != null) {
 +                    String waydroidPaste = mWaydroidClipboard.getClipboardData();
-+                    if (getClipboard(intendingUserId).primaryClip != null && getClipboard(intendingUserId).primaryClip.getItemCount() > 0) {
-+                        ClipData.Item item = getClipboard(intendingUserId).primaryClip.getItemAt(0);
-+                        String itemText = item.getText().toString();
-+                        if (itemText != waydroidPaste) {
-+                            ClipData data = ClipData.newPlainText("", waydroidPaste);
-+                            setPrimaryClipInternal(getClipboard(intendingUserId), data, intendingUserId);
-+                        }
-+                    }
++                    return !waydroidPaste.isEmpty();
 +                }
                  return getClipboard(intendingUserId).primaryClip != null;
              }
          }
 -- 
-2.25.1
+2.35.1
 
