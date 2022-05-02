@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Thu, 26 Aug 2021 13:52:27 +0800
+Subject: [PATCH] lineage: Add more build types
+
+Change-Id: I6cf73bdd7bcf7fde9687d3fd96fde8dcfd01841a
+---
+ config/common.mk | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/config/common.mk b/config/common.mk
+index 204da24..574d9db 100644
+--- a/config/common.mk
++++ b/config/common.mk
+@@ -205,10 +205,19 @@ ifndef LINEAGE_BUILDTYPE
+ endif
+ 
+ # Filter out random types, so it'll reset to UNOFFICIAL
+-ifeq ($(filter RELEASE NIGHTLY SNAPSHOT EXPERIMENTAL,$(LINEAGE_BUILDTYPE)),)
++ifeq ($(filter RELEASE NIGHTLY SNAPSHOT EXPERIMENTAL VANILLA FOSS GAPPS,$(LINEAGE_BUILDTYPE)),)
+     LINEAGE_BUILDTYPE :=
+ endif
+ 
++ifeq ($(LINEAGE_BUILDTYPE), GAPPS)
++    WITH_GMS := true
++    WITH_GMS_MINIMAL := true
++endif
++
++ifeq ($(LINEAGE_BUILDTYPE), FOSS)
++    $(call inherit-product-if-exists, vendor/foss/foss.mk)
++endif
++
+ ifdef LINEAGE_BUILDTYPE
+     ifneq ($(LINEAGE_BUILDTYPE), SNAPSHOT)
+         ifdef LINEAGE_EXTRAVERSION
+@@ -220,10 +229,7 @@ ifdef LINEAGE_BUILDTYPE
+             LINEAGE_EXTRAVERSION := -$(LINEAGE_EXTRAVERSION)
+         endif
+     else
+-        ifndef LINEAGE_EXTRAVERSION
+-            # Force build type to EXPERIMENTAL, SNAPSHOT mandates a tag
+-            LINEAGE_BUILDTYPE := EXPERIMENTAL
+-        else
++        ifdef LINEAGE_EXTRAVERSION
+             # Remove leading dash from LINEAGE_EXTRAVERSION
+             LINEAGE_EXTRAVERSION := $(shell echo $(LINEAGE_EXTRAVERSION) | sed 's/-//')
+             # Add leading dash to LINEAGE_EXTRAVERSION

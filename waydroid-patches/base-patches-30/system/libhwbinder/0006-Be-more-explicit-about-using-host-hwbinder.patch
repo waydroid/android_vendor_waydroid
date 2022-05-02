@@ -1,0 +1,211 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Sat, 24 Apr 2021 19:56:48 +0700
+Subject: [PATCH] Be more explicit about using host hwbinder
+
+Add methods to IInterface and BpHwBinder to check if host hwbinder
+should be used.
+---
+ Binder.cpp                    |  7 +++++++
+ BpHwBinder.cpp                |  5 +++++
+ Debug.cpp                     |  3 ++-
+ IInterface.cpp                | 11 +++++++++++
+ Parcel.cpp                    |  9 +++++++--
+ ProcessState.cpp              | 10 +++++-----
+ include/hwbinder/BpHwBinder.h |  1 +
+ include/hwbinder/IBinder.h    |  1 +
+ include/hwbinder/IInterface.h |  1 +
+ include/hwbinder/Parcel.h     |  1 +
+ 10 files changed, 41 insertions(+), 8 deletions(-)
+
+diff --git a/Binder.cpp b/Binder.cpp
+index 9edd27b..33b0a32 100644
+--- a/Binder.cpp
++++ b/Binder.cpp
+@@ -51,6 +51,13 @@ BpHwBinder* IBinder::remoteBinder()
+     return nullptr;
+ }
+ 
++bool IBinder::isHostHwBinder()
++{
++    auto binder = remoteBinder();
++    if (binder == nullptr) return false;
++    return binder->isHostHwBinder();
++}
++
+ bool IBinder::checkSubclass(const void* /*subclassID*/) const
+ {
+     return false;
+diff --git a/BpHwBinder.cpp b/BpHwBinder.cpp
+index f479f64..9c449b0 100644
+--- a/BpHwBinder.cpp
++++ b/BpHwBinder.cpp
+@@ -266,6 +266,11 @@ BpHwBinder* BpHwBinder::remoteBinder()
+     return this;
+ }
+ 
++bool BpHwBinder::isHostHwBinder()
++{
++    return mIsHostHwBinder;
++}
++
+ BpHwBinder::~BpHwBinder()
+ {
+     ALOGV("Destroying BpHwBinder %p handle %d\n", this, mHandle);
+diff --git a/Debug.cpp b/Debug.cpp
+index 4464032..540bb85 100644
+--- a/Debug.cpp
++++ b/Debug.cpp
+@@ -301,7 +301,8 @@ void printHexData(int32_t indent, const void *buf, size_t length,
+ }
+ 
+ ssize_t getHWBinderKernelReferences(size_t count, uintptr_t* buf) {
+-    sp<ProcessState> proc = ProcessState::selfOrNull();
++    const bool useHostHwBinder = false;
++    sp<ProcessState> proc = ProcessState::selfOrNull(useHostHwBinder);
+     if (proc.get() == nullptr) {
+         return 0;
+     }
+diff --git a/IInterface.cpp b/IInterface.cpp
+index ca8ad93..76aaa83 100644
+--- a/IInterface.cpp
++++ b/IInterface.cpp
+@@ -17,6 +17,7 @@
+ #define LOG_TAG "hw-IInterface"
+ #include <utils/Log.h>
+ #include <hwbinder/IInterface.h>
++#include <hwbinder/BpHwBinder.h>
+ 
+ namespace android {
+ namespace hardware {
+@@ -44,6 +45,16 @@ sp<IBinder> IInterface::asBinder(const sp<IInterface>& iface)
+     return iface->onAsBinder();
+ }
+ 
++// static
++bool IInterface::isHostHwBinder(const IInterface* iface)
++{
++    if (iface == nullptr) return false;
++    auto remoteBinder = const_cast<IInterface*>(iface)->onAsBinder()->remoteBinder();
++    if (remoteBinder == nullptr) return false;
++
++    return remoteBinder->isHostHwBinder();
++}
++
+ 
+ // ---------------------------------------------------------------------------
+ 
+diff --git a/Parcel.cpp b/Parcel.cpp
+index dd619c7..3d7ed39 100644
+--- a/Parcel.cpp
++++ b/Parcel.cpp
+@@ -249,8 +249,14 @@ status_t unflatten_binder(const sp<ProcessState>& proc,
+ // ---------------------------------------------------------------------------
+ 
+ Parcel::Parcel()
++    : Parcel(false)
+ {
+-    LOG_ALLOC("Parcel %p: constructing", this);
++}
++
++Parcel::Parcel(bool useHostHwBinder)
++{
++    LOG_ALLOC("Parcel %p: constructing, useHostHwBinder=%d", this, useHostHwBinder);
++    mIsHost = useHostHwBinder;
+     initState();
+ }
+ 
+@@ -2001,7 +2007,6 @@ void Parcel::initState()
+     mAllowFds = true;
+     mOwner = nullptr;
+     clearCache();
+-    mIsHost = false;
+ 
+     // racing multiple init leads only to multiple identical write
+     if (gMaxFds == 0) {
+diff --git a/ProcessState.cpp b/ProcessState.cpp
+index 83ec3d9..cecb183 100644
+--- a/ProcessState.cpp
++++ b/ProcessState.cpp
+@@ -49,20 +49,20 @@ namespace hardware {
+ class PoolThread : public Thread
+ {
+ public:
+-    explicit PoolThread(bool isMain)
+-        : mIsMain(isMain)
++    explicit PoolThread(bool isMain, bool isHostHwBinder)
++        : mIsMain(isMain), mIsHostHwBinder(isHostHwBinder)
+     {
+     }
+ 
+ protected:
+     virtual bool threadLoop()
+     {
+-        IPCThreadState::self()->joinThreadPool(mIsMain);
+-        IPCThreadState::selfForHost()->joinThreadPool(mIsMain);
++        IPCThreadState::self(mIsHostHwBinder)->joinThreadPool(mIsMain);
+         return false;
+     }
+ 
+     const bool mIsMain;
++    const bool mIsHostHwBinder;
+ };
+ 
+ sp<ProcessState> ProcessState::self()
+@@ -385,7 +385,7 @@ void ProcessState::spawnPooledThread(bool isMain)
+     if (mThreadPoolStarted) {
+         String8 name = makeBinderThreadName();
+         ALOGV("Spawning new pooled thread, name=%s\n", name.string());
+-        sp<Thread> t = new PoolThread(isMain);
++        sp<Thread> t = new PoolThread(isMain, mIsHost);
+         t->run(name.string());
+     }
+ }
+diff --git a/include/hwbinder/BpHwBinder.h b/include/hwbinder/BpHwBinder.h
+index c58b638..f3e9cc1 100644
+--- a/include/hwbinder/BpHwBinder.h
++++ b/include/hwbinder/BpHwBinder.h
+@@ -54,6 +54,7 @@ public:
+     virtual void        detachObject(const void* objectID);
+ 
+     virtual BpHwBinder*   remoteBinder();
++            bool        isHostHwBinder();
+ 
+             void        sendObituary();
+                         // This refcount includes:
+diff --git a/include/hwbinder/IBinder.h b/include/hwbinder/IBinder.h
+index bc1f733..7690e38 100644
+--- a/include/hwbinder/IBinder.h
++++ b/include/hwbinder/IBinder.h
+@@ -134,6 +134,7 @@ public:
+ 
+     virtual BHwBinder*        localBinder();
+     virtual BpHwBinder*       remoteBinder();
++    virtual bool              isHostHwBinder();
+ 
+ protected:
+     virtual          ~IBinder();
+diff --git a/include/hwbinder/IInterface.h b/include/hwbinder/IInterface.h
+index 7e13957..8484277 100644
+--- a/include/hwbinder/IInterface.h
++++ b/include/hwbinder/IInterface.h
+@@ -30,6 +30,7 @@ public:
+             IInterface();
+             static sp<IBinder>  asBinder(const IInterface*);
+             static sp<IBinder>  asBinder(const sp<IInterface>&);
++            static bool         isHostHwBinder(const IInterface* iface);
+ protected:
+     virtual                     ~IInterface();
+     virtual IBinder*            onAsBinder() = 0;
+diff --git a/include/hwbinder/Parcel.h b/include/hwbinder/Parcel.h
+index 409ae86..fc2bbe2 100644
+--- a/include/hwbinder/Parcel.h
++++ b/include/hwbinder/Parcel.h
+@@ -52,6 +52,7 @@ class Parcel {
+ public:
+ 
+                         Parcel();
++                        Parcel(bool useHostHwBinder);
+                         ~Parcel();
+ 
+     const uint8_t*      data() const;

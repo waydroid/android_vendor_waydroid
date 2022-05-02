@@ -1,0 +1,596 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sat, 10 Apr 2021 21:59:58 +0430
+Subject: [PATCH] hwbinder: Add support for host_hwbinder driver
+
+Select host_hwbinder by passing argument instead of global variable
+---
+ BpHwBinder.cpp                    |  23 ++++---
+ IPCThreadState.cpp                | 108 +++++++++++++++++++++++-------
+ Parcel.cpp                        |   5 +-
+ ProcessState.cpp                  |  64 +++++++++++++-----
+ Static.cpp                        |   1 +
+ include/hwbinder/BpHwBinder.h     |   3 +-
+ include/hwbinder/IPCThreadState.h |  13 ++--
+ include/hwbinder/Parcel.h         |   3 +-
+ include/hwbinder/ProcessState.h   |  12 ++--
+ include/hwbinder/Static.h         |   2 +
+ 10 files changed, 170 insertions(+), 64 deletions(-)
+
+diff --git a/BpHwBinder.cpp b/BpHwBinder.cpp
+index 81ce7cc..21b0ad2 100644
+--- a/BpHwBinder.cpp
++++ b/BpHwBinder.cpp
+@@ -87,16 +87,17 @@ void BpHwBinder::ObjectManager::kill()
+ 
+ // ---------------------------------------------------------------------------
+ 
+-BpHwBinder::BpHwBinder(int32_t handle)
++BpHwBinder::BpHwBinder(int32_t handle, bool isHostHwBinder)
+     : mHandle(handle)
+     , mAlive(1)
+     , mObitsSent(0)
+     , mObituaries(nullptr)
++    , mIsHostHwBinder(isHostHwBinder)
+ {
+     ALOGV("Creating BpHwBinder %p handle %d\n", this, mHandle);
+ 
+     extendObjectLifetime(OBJECT_LIFETIME_WEAK);
+-    IPCThreadState::self()->incWeakHandle(handle, this);
++    IPCThreadState::self(mIsHostHwBinder)->incWeakHandle(handle, this);
+ }
+ 
+ status_t BpHwBinder::transact(
+@@ -104,7 +105,7 @@ status_t BpHwBinder::transact(
+ {
+     // Once a binder has died, it will never come back to life.
+     if (mAlive) {
+-        status_t status = IPCThreadState::self()->transact(
++        status_t status = IPCThreadState::self(mIsHostHwBinder)->transact(
+             mHandle, code, data, reply, flags);
+ 
+         if (status == ::android::OK && callback != nullptr) {
+@@ -140,7 +141,7 @@ status_t BpHwBinder::linkToDeath(
+                 }
+                 ALOGV("Requesting death notification: %p handle %d\n", this, mHandle);
+                 getWeakRefs()->incWeak(this);
+-                IPCThreadState* self = IPCThreadState::self();
++                IPCThreadState* self = IPCThreadState::self(mIsHostHwBinder);
+                 self->requestDeathNotification(mHandle, this);
+                 self->flushCommands();
+             }
+@@ -174,7 +175,7 @@ status_t BpHwBinder::unlinkToDeath(
+             mObituaries->removeAt(i);
+             if (mObituaries->size() == 0) {
+                 ALOGV("Clearing death notification: %p handle %d\n", this, mHandle);
+-                IPCThreadState* self = IPCThreadState::self();
++                IPCThreadState* self = IPCThreadState::self(mIsHostHwBinder);
+                 self->clearDeathNotification(mHandle, this);
+                 self->flushCommands();
+                 delete mObituaries;
+@@ -199,7 +200,7 @@ void BpHwBinder::sendObituary()
+     Vector<Obituary>* obits = mObituaries;
+     if(obits != nullptr) {
+         ALOGV("Clearing sent death notification: %p handle %d\n", this, mHandle);
+-        IPCThreadState* self = IPCThreadState::self();
++        IPCThreadState* self = IPCThreadState::self(mIsHostHwBinder);
+         self->clearDeathNotification(mHandle, this);
+         self->flushCommands();
+         mObituaries = nullptr;
+@@ -224,7 +225,7 @@ void BpHwBinder::sendObituary()
+ // -1 in case of failure.
+ ssize_t BpHwBinder::getNodeStrongRefCount()
+ {
+-    return ProcessState::self()->getStrongRefCountForNodeByHandle(mHandle);
++    return ProcessState::self(mIsHostHwBinder)->getStrongRefCountForNodeByHandle(mHandle);
+ }
+ 
+ void BpHwBinder::reportOneDeath(const Obituary& obit)
+@@ -267,7 +268,7 @@ BpHwBinder::~BpHwBinder()
+ {
+     ALOGV("Destroying BpHwBinder %p handle %d\n", this, mHandle);
+ 
+-    IPCThreadState* ipc = IPCThreadState::self();
++    IPCThreadState* ipc = IPCThreadState::self(mIsHostHwBinder);
+ 
+     if (ipc) {
+         ipc->expungeHandle(mHandle, this);
+@@ -278,7 +279,7 @@ BpHwBinder::~BpHwBinder()
+ void BpHwBinder::onFirstRef()
+ {
+     ALOGV("onFirstRef BpHwBinder %p handle %d\n", this, mHandle);
+-    IPCThreadState* ipc = IPCThreadState::self();
++    IPCThreadState* ipc = IPCThreadState::self(mIsHostHwBinder);
+     if (ipc) ipc->incStrongHandle(mHandle, this);
+ }
+ 
+@@ -288,7 +289,7 @@ void BpHwBinder::onLastStrongRef(const void* /*id*/)
+     IF_ALOGV() {
+         printRefs();
+     }
+-    IPCThreadState* ipc = IPCThreadState::self();
++    IPCThreadState* ipc = IPCThreadState::self(mIsHostHwBinder);
+     if (ipc) {
+         ipc->decStrongHandle(mHandle);
+         ipc->flushCommands();
+@@ -318,7 +319,7 @@ void BpHwBinder::onLastStrongRef(const void* /*id*/)
+ bool BpHwBinder::onIncStrongAttempted(uint32_t /*flags*/, const void* /*id*/)
+ {
+     ALOGV("onIncStrongAttempted BpHwBinder %p handle %d\n", this, mHandle);
+-    IPCThreadState* ipc = IPCThreadState::self();
++    IPCThreadState* ipc = IPCThreadState::self(mIsHostHwBinder);
+     return ipc ? ipc->attemptIncStrongHandle(mHandle) == NO_ERROR : false;
+ }
+ 
+diff --git a/IPCThreadState.cpp b/IPCThreadState.cpp
+index 2f4464d..e294f93 100644
+--- a/IPCThreadState.cpp
++++ b/IPCThreadState.cpp
+@@ -276,17 +276,23 @@ static const void* printCommand(TextOutput& out, const void* _cmd)
+ 
+ static pthread_mutex_t gTLSMutex = PTHREAD_MUTEX_INITIALIZER;
+ static std::atomic<bool> gHaveTLS = false;
++static std::atomic<bool> gHostHaveTLS = false;
+ static pthread_key_t gTLS = 0;
++static pthread_key_t gHostTLS = 0;
+ static std::atomic<bool> gShutdown = false;
++static std::atomic<bool> gHostShutdown = false;
+ 
+-IPCThreadState* IPCThreadState::self()
++IPCThreadState* IPCThreadState::self(bool isHost)
+ {
+-    if (gHaveTLS.load(std::memory_order_acquire)) {
++    if (isHost) {
++        return IPCThreadState::selfForHost();
++    }
+ restart:
++    if (gHaveTLS.load(std::memory_order_acquire)) {
+         const pthread_key_t k = gTLS;
+         IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
+         if (st) return st;
+-        return new IPCThreadState;
++        return new IPCThreadState(isHost);
+     }
+ 
+     // Racey, heuristic test for simultaneous shutdown.
+@@ -310,29 +316,83 @@ restart:
+     goto restart;
+ }
+ 
+-IPCThreadState* IPCThreadState::selfOrNull()
++IPCThreadState* IPCThreadState::selfForHost()
+ {
+-    if (gHaveTLS.load(std::memory_order_acquire)) {
+-        const pthread_key_t k = gTLS;
++    const bool isHost = true;
++restart:
++    if (gHostHaveTLS.load(std::memory_order_acquire)) {
++        const pthread_key_t k = gHostTLS;
+         IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
+-        return st;
++        if (st) return st;
++        return new IPCThreadState(isHost);
+     }
+-    return nullptr;
++
++    if (gHostShutdown.load(std::memory_order_acquire)) {
++        ALOGW("Calling IPCThreadState::self() during shutdown is dangerous, expect a crash.\n");
++        return nullptr;
++    }
++
++    pthread_mutex_lock(&gTLSMutex);
++    if (!gHostHaveTLS) {
++        int key_create_value = pthread_key_create(&gHostTLS, threadDestructor);
++        if (key_create_value != 0) {
++            pthread_mutex_unlock(&gTLSMutex);
++            ALOGW("IPCThreadState::self() unable to create TLS key, expect a crash: %s\n",
++                    strerror(key_create_value));
++            return nullptr;
++        }
++        gHostHaveTLS.store(true, std::memory_order_release);
++    }
++    pthread_mutex_unlock(&gTLSMutex);
++    goto restart;
+ }
+ 
+-void IPCThreadState::shutdown()
++IPCThreadState* IPCThreadState::selfOrNull(bool isHost)
+ {
+-    gShutdown.store(true, std::memory_order_relaxed);
++    if (isHost) {
++        if (gHostHaveTLS.load(std::memory_order_acquire)) {
++            const pthread_key_t k = gHostTLS;
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
++            return st;
++        }
++    } else {
++        if (gHaveTLS.load(std::memory_order_acquire)) {
++            const pthread_key_t k = gTLS;
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
++            return st;
++        }
++    }
++    return nullptr;
++}
+ 
+-    if (gHaveTLS.load(std::memory_order_acquire)) {
+-        // XXX Need to wait for all thread pool threads to exit!
+-        IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gTLS);
+-        if (st) {
+-            delete st;
+-            pthread_setspecific(gTLS, nullptr);
++void IPCThreadState::shutdown(bool isHost)
++{
++    if (isHost) {
++        gHostShutdown.store(true, std::memory_order_relaxed);
++
++        if (gHostHaveTLS.load(std::memory_order_acquire)) {
++            // XXX Need to wait for all thread pool threads to exit!
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gHostTLS);
++            if (st) {
++                delete st;
++                pthread_setspecific(gHostTLS, nullptr);
++            }
++            pthread_key_delete(gHostTLS);
++            gHostHaveTLS.store(false, std::memory_order_release);
++        }
++    } else {
++        gShutdown.store(true, std::memory_order_relaxed);
++
++        if (gHaveTLS.load(std::memory_order_acquire)) {
++            // XXX Need to wait for all thread pool threads to exit!
++            IPCThreadState* st = (IPCThreadState*)pthread_getspecific(gTLS);
++            if (st) {
++                delete st;
++                pthread_setspecific(gTLS, nullptr);
++            }
++            pthread_key_delete(gTLS);
++            gHaveTLS.store(false, std::memory_order_release);
+         }
+-        pthread_key_delete(gTLS);
+-        gHaveTLS.store(false, std::memory_order_release);
+     }
+ }
+ 
+@@ -768,15 +828,16 @@ status_t IPCThreadState::clearDeathNotification(int32_t handle, BpHwBinder* prox
+     return NO_ERROR;
+ }
+ 
+-IPCThreadState::IPCThreadState()
++IPCThreadState::IPCThreadState(bool isHost)
+     : mProcess(ProcessState::self()),
+       mServingStackPointer(nullptr),
+       mStrictModePolicy(0),
+       mLastTransactionBinderFlags(0),
+       mIsLooper(false),
+       mIsPollingThread(false),
+-      mCallRestriction(mProcess->mCallRestriction) {
+-    pthread_setspecific(gTLS, this);
++      mCallRestriction(mProcess->mCallRestriction),
++      mIsHost(isHost) {
++    pthread_setspecific(mIsHost ? gHostTLS : gTLS, this);
+     clearCaller();
+     mIn.setDataCapacity(256);
+     mOut.setDataCapacity(256);
+@@ -1309,7 +1370,8 @@ void IPCThreadState::threadDestructor(void *st)
+ void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
+                                 size_t /*dataSize*/,
+                                 const binder_size_t* /*objects*/,
+-                                size_t /*objectsSize*/, void* /*cookie*/)
++                                size_t /*objectsSize*/, void* /*cookie*/,
++                                bool isHost)
+ {
+     //ALOGI("Freeing parcel %p", &parcel);
+     IF_LOG_COMMANDS() {
+@@ -1317,7 +1379,7 @@ void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
+     }
+     ALOG_ASSERT(data != nullptr, "Called with NULL data");
+     if (parcel != nullptr) parcel->closeFileDescriptors();
+-    IPCThreadState* state = self();
++    IPCThreadState* state = self(isHost);
+     state->mOut.writeInt32(BC_FREE_BUFFER);
+     state->mOut.writePointer((uintptr_t)data);
+ }
+diff --git a/Parcel.cpp b/Parcel.cpp
+index 2c6bf5d..e397de5 100644
+--- a/Parcel.cpp
++++ b/Parcel.cpp
+@@ -1725,7 +1725,7 @@ void Parcel::freeDataNoInit()
+     if (mOwner) {
+         LOG_ALLOC("Parcel %p: freeing other owner data", this);
+         //ALOGI("Freeing data ref of %p (pid=%d)", this, getpid());
+-        mOwner(this, mData, mDataSize, mObjects, mObjectsSize, mOwnerCookie);
++        mOwner(this, mData, mDataSize, mObjects, mObjectsSize, mOwnerCookie, mIsHost);
+     } else {
+         LOG_ALLOC("Parcel %p: freeing allocated data", this);
+         releaseObjects();
+@@ -1873,7 +1873,7 @@ status_t Parcel::continueWrite(size_t desired)
+             memcpy(objects, mObjects, objectsSize*sizeof(binder_size_t));
+         }
+         //ALOGI("Freeing data ref of %p (pid=%d)", this, getpid());
+-        mOwner(this, mData, mDataSize, mObjects, mObjectsSize, mOwnerCookie);
++        mOwner(this, mData, mDataSize, mObjects, mObjectsSize, mOwnerCookie, mIsHost);
+         mOwner = nullptr;
+ 
+         LOG_ALLOC("Parcel %p: taking ownership of %zu capacity", this, desired);
+@@ -1996,6 +1996,7 @@ void Parcel::initState()
+     mAllowFds = true;
+     mOwner = nullptr;
+     clearCache();
++    mIsHost = false;
+ 
+     // racing multiple init leads only to multiple identical write
+     if (gMaxFds == 0) {
+diff --git a/ProcessState.cpp b/ProcessState.cpp
+index 694efd1..6093d70 100644
+--- a/ProcessState.cpp
++++ b/ProcessState.cpp
+@@ -64,31 +64,57 @@ protected:
+     const bool mIsMain;
+ };
+ 
+-sp<ProcessState> ProcessState::self()
++sp<ProcessState> ProcessState::self(bool isHost)
+ {
+     Mutex::Autolock _l(gProcessMutex);
+-    if (gProcess != nullptr) {
++    if (isHost) {
++        if (gHostProcess != nullptr) {
++            return gHostProcess;
++        }
++        gHostProcess = new ProcessState(DEFAULT_BINDER_VM_SIZE, isHost);
++        return gHostProcess;
++    } else {
++        if (gProcess != nullptr) {
++            return gProcess;
++        }
++        gProcess = new ProcessState(DEFAULT_BINDER_VM_SIZE, isHost);
+         return gProcess;
+     }
+-    gProcess = new ProcessState(DEFAULT_BINDER_VM_SIZE);
+-    return gProcess;
+ }
+ 
+-sp<ProcessState> ProcessState::selfOrNull() {
++sp<ProcessState> ProcessState::selfOrNull(bool isHost) {
+     Mutex::Autolock _l(gProcessMutex);
+-    return gProcess;
++    if (isHost)
++        return gHostProcess;
++    else
++        return gProcess;
+ }
+ 
+-sp<ProcessState> ProcessState::initWithMmapSize(size_t mmap_size) {
++sp<ProcessState> ProcessState::initWithMmapSize(size_t mmap_size, bool isHost) {
+     Mutex::Autolock _l(gProcessMutex);
+-    if (gProcess != nullptr) {
+-        LOG_ALWAYS_FATAL_IF(mmap_size != gProcess->getMmapSize(),
+-                "ProcessState already initialized with a different mmap size.");
++    if (isHost) {
++        if (gHostProcess != nullptr) {
++            LOG_ALWAYS_FATAL_IF(mmap_size != gHostProcess->getMmapSize(),
++                    "ProcessState already initialized with a different mmap size.");
++            return gHostProcess;
++        }
++
++        gHostProcess = new ProcessState(mmap_size, isHost);
++        return gHostProcess;
++    } else {
++        if (gProcess != nullptr) {
++            LOG_ALWAYS_FATAL_IF(mmap_size != gProcess->getMmapSize(),
++                    "ProcessState already initialized with a different mmap size.");
++            return gProcess;
++        }
++
++        gProcess = new ProcessState(mmap_size, isHost);
+         return gProcess;
+     }
++}
+ 
+-    gProcess = new ProcessState(mmap_size);
+-    return gProcess;
++bool ProcessState::isHostBinder() {
++    return mIsHost;
+ }
+ 
+ void ProcessState::setContextObject(const sp<IBinder>& object)
+@@ -400,9 +426,12 @@ void ProcessState::giveThreadPoolName() {
+     androidSetThreadName( makeBinderThreadName().string() );
+ }
+ 
+-static int open_driver()
++static int open_driver(bool isHost)
+ {
+-    int fd = open("/dev/hwbinder", O_RDWR | O_CLOEXEC);
++    const char *driver = "/dev/hwbinder";
++    if (isHost)
++        driver = "/dev/host_hwbinder";
++    int fd = open(driver, O_RDWR | O_CLOEXEC);
+     if (fd >= 0) {
+         int vers = 0;
+         status_t result = ioctl(fd, BINDER_VERSION, &vers);
+@@ -422,13 +451,13 @@ static int open_driver()
+             ALOGE("Binder ioctl to set max threads failed: %s", strerror(errno));
+         }
+     } else {
+-        ALOGW("Opening '/dev/hwbinder' failed: %s\n", strerror(errno));
++        ALOGW("Opening '%s' failed: %s\n", driver, strerror(errno));
+     }
+     return fd;
+ }
+ 
+-ProcessState::ProcessState(size_t mmap_size)
+-    : mDriverFD(open_driver())
++ProcessState::ProcessState(size_t mmap_size, bool isHost)
++    : mDriverFD(open_driver(isHost))
+     , mVMStart(MAP_FAILED)
+     , mThreadCountLock(PTHREAD_MUTEX_INITIALIZER)
+     , mThreadCountDecrement(PTHREAD_COND_INITIALIZER)
+@@ -443,6 +472,7 @@ ProcessState::ProcessState(size_t mmap_size)
+     , mThreadPoolSeq(1)
+     , mMmapSize(mmap_size)
+     , mCallRestriction(CallRestriction::NONE)
++    , mIsHost(isHost)
+ {
+     if (mDriverFD >= 0) {
+         // mmap the binder, providing a chunk of virtual address space to receive transactions.
+diff --git a/Static.cpp b/Static.cpp
+index 2fb12e6..44c091b 100644
+--- a/Static.cpp
++++ b/Static.cpp
+@@ -53,6 +53,7 @@ TextOutput& alog(gLogTextOutput);
+ 
+ Mutex& gProcessMutex = *new Mutex;
+ sp<ProcessState> gProcess;
++sp<ProcessState> gHostProcess;
+ 
+ }   // namespace hardware
+ }   // namespace android
+diff --git a/include/hwbinder/BpHwBinder.h b/include/hwbinder/BpHwBinder.h
+index a5b2245..c58b638 100644
+--- a/include/hwbinder/BpHwBinder.h
++++ b/include/hwbinder/BpHwBinder.h
+@@ -28,7 +28,7 @@ namespace hardware {
+ class BpHwBinder : public IBinder
+ {
+ public:
+-                        BpHwBinder(int32_t handle);
++                        BpHwBinder(int32_t handle, bool isHostHwBinder=false);
+ 
+     inline  int32_t     handle() const { return mHandle; }
+ 
+@@ -116,6 +116,7 @@ private:
+             ObjectManager       mObjects;
+             Parcel*             mConstantData;
+     mutable String16            mDescriptorCache;
++            bool                mIsHostHwBinder;
+ };
+ 
+ } // namespace hardware
+diff --git a/include/hwbinder/IPCThreadState.h b/include/hwbinder/IPCThreadState.h
+index ca99591..ae4cfc2 100644
+--- a/include/hwbinder/IPCThreadState.h
++++ b/include/hwbinder/IPCThreadState.h
+@@ -36,8 +36,9 @@ namespace hardware {
+ class IPCThreadState
+ {
+ public:
+-    static  IPCThreadState*     self();
+-    static  IPCThreadState*     selfOrNull();  // self(), but won't instantiate
++    static  IPCThreadState*     self(bool isHost=false);
++    static  IPCThreadState*     selfOrNull(bool isHost=false);  // self(), but won't instantiate
++    static  IPCThreadState*     selfForHost();
+ 
+             sp<ProcessState>    process();
+ 
+@@ -85,7 +86,7 @@ public:
+             status_t            clearDeathNotification( int32_t handle,
+                                                         BpHwBinder* proxy);
+ 
+-    static  void                shutdown();
++    static  void                shutdown(bool isHost=false);
+ 
+             // Call blocks until the number of executing binder threads is less than
+             // the maximum number of binder threads threads allowed for this process.
+@@ -109,7 +110,7 @@ public:
+             void addPostCommandTask(const std::function<void(void)>& task);
+ 
+            private:
+-            IPCThreadState();
++            IPCThreadState(bool isHost);
+             ~IPCThreadState();
+ 
+             status_t            sendReply(const Parcel& reply, uint32_t flags);
+@@ -133,7 +134,7 @@ public:
+     static  void                freeBuffer(Parcel* parcel,
+                                            const uint8_t* data, size_t dataSize,
+                                            const binder_size_t* objects, size_t objectsSize,
+-                                           void* cookie);
++                                           void* cookie, bool isHost=false);
+ 
+     const   sp<ProcessState>    mProcess;
+             Vector<BHwBinder*>    mPendingStrongDerefs;
+@@ -155,6 +156,8 @@ public:
+             std::vector<std::function<void(void)>> mPostCommandTasks;
+ 
+             ProcessState::CallRestriction mCallRestriction;
++
++            bool                mIsHost;
+ };
+ 
+ } // namespace hardware
+diff --git a/include/hwbinder/Parcel.h b/include/hwbinder/Parcel.h
+index d3bdfe6..af05190 100644
+--- a/include/hwbinder/Parcel.h
++++ b/include/hwbinder/Parcel.h
+@@ -239,7 +239,7 @@ private:
+     typedef void        (*release_func)(Parcel* parcel,
+                                         const uint8_t* data, size_t dataSize,
+                                         const binder_size_t* objects, size_t objectsSize,
+-                                        void* cookie);
++                                        void* cookie, bool isHost);
+ 
+     uintptr_t           ipcData() const;
+     size_t              ipcDataSize() const;
+@@ -296,6 +296,7 @@ private:
+ 
+     release_func        mOwner;
+     void*               mOwnerCookie;
++    bool                mIsHost;
+ };
+ // ---------------------------------------------------------------------------
+ 
+diff --git a/include/hwbinder/ProcessState.h b/include/hwbinder/ProcessState.h
+index 91337d8..33ff593 100644
+--- a/include/hwbinder/ProcessState.h
++++ b/include/hwbinder/ProcessState.h
+@@ -35,10 +35,10 @@ class IPCThreadState;
+ class ProcessState : public virtual RefBase
+ {
+ public:
+-    static  sp<ProcessState>    self();
+-    static  sp<ProcessState>    selfOrNull();
++    static  sp<ProcessState>    self(bool isHost=false);
++    static  sp<ProcessState>    selfOrNull(bool isHost=false);
+     // Note: don't call self() or selfOrNull() before initWithMmapSize()
+-    static  sp<ProcessState>    initWithMmapSize(size_t mmapSize); // size in bytes
++    static  sp<ProcessState>    initWithMmapSize(size_t mmapSize, bool isHost=false); // size in bytes
+ 
+             void                setContextObject(const sp<IBinder>& object);
+             sp<IBinder>         getContextObject(const sp<IBinder>& caller);
+@@ -90,9 +90,11 @@ public:
+             // before any threads are spawned.
+             void setCallRestriction(CallRestriction restriction);
+ 
++            bool                isHostBinder();
++
+ private:
+     friend class IPCThreadState;
+-            explicit            ProcessState(size_t mmap_size);
++            explicit            ProcessState(size_t mmap_size, bool isHost);
+                                 ~ProcessState();
+ 
+                                 ProcessState(const ProcessState& o);
+@@ -138,6 +140,8 @@ private:
+             const size_t        mMmapSize;
+ 
+             CallRestriction     mCallRestriction;
++
++            bool                mIsHost;
+ };
+ 
+ } // namespace hardware
+diff --git a/include/hwbinder/Static.h b/include/hwbinder/Static.h
+index 4b84c89..f8ba196 100644
+--- a/include/hwbinder/Static.h
++++ b/include/hwbinder/Static.h
+@@ -31,6 +31,8 @@ extern Vector<int32_t> gTextBuffers;
+ // For ProcessState.cpp
+ extern Mutex& gProcessMutex;
+ extern sp<ProcessState> gProcess;
++extern sp<ProcessState> gHostProcess;
++extern bool gIsHost;
+ 
+ }   // namespace hardware
+ }   // namespace android

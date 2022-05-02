@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 18 Oct 2021 13:27:19 +0800
+Subject: [PATCH] core: Allow sphal to access system libs
+
+Change-Id: I420dc6aabaf17b465273e1005cfd5197a0d69d51
+---
+ contents/namespace/sphal.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contents/namespace/sphal.cc b/contents/namespace/sphal.cc
+index 17da193..abb63f7 100644
+--- a/contents/namespace/sphal.cc
++++ b/contents/namespace/sphal.cc
+@@ -53,7 +53,7 @@ Namespace BuildSphalNamespace([[maybe_unused]] const Context& ctx) {
+   ns.AddPermittedPath("/vendor_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/system/vendor/${LIB}", AsanPath::NONE);
+ 
+-  if (ctx.IsApexBinaryConfig() && !ctx.IsVndkAvailable()) {
++  if (ctx.IsApexBinaryConfig() /*&& !ctx.IsVndkAvailable()*/) {
+     // If device is legacy, let Sphal libraries access to system lib path for
+     // VNDK-SP libraries
+     ns.AddSearchPath("/system/${LIB}", AsanPath::WITH_DATA_ASAN);

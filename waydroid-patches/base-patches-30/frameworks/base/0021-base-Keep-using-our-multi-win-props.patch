@@ -1,0 +1,51 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Tue, 7 Sep 2021 10:03:35 +0800
+Subject: [PATCH] base: Keep using our multi-win props
+
+Change-Id: I8adc8dbebb4558813ff7a160cbd368a68ed01009
+---
+ core/java/com/android/internal/BoringdroidManager.java          | 2 +-
+ core/java/com/android/internal/policy/PhoneWindow.java          | 2 +-
+ .../com/android/systemui/shared/plugins/PluginManagerImpl.java  | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/core/java/com/android/internal/BoringdroidManager.java b/core/java/com/android/internal/BoringdroidManager.java
+index e4ac0a59..ec2617ec 100644
+--- a/core/java/com/android/internal/BoringdroidManager.java
++++ b/core/java/com/android/internal/BoringdroidManager.java
+@@ -35,7 +35,7 @@ import java.util.List;
+  */
+ public class BoringdroidManager {
+     public static boolean IS_SYSTEMUI_PLUGIN_ENABLED =
+-            SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
++            SystemProperties.getBoolean("persist.waydroid.multi_windows", false);
+ 
+     private static final String PACKAGE_WINDOW_BOUNDS_NAME = "package-window-bounds";
+     private static final String PACKAGE_WINDOWING_MODE_NAME = "package-windowing-mode";
+diff --git a/core/java/com/android/internal/policy/PhoneWindow.java b/core/java/com/android/internal/policy/PhoneWindow.java
+index f3d8aee1..fb3bb0d8 100644
+--- a/core/java/com/android/internal/policy/PhoneWindow.java
++++ b/core/java/com/android/internal/policy/PhoneWindow.java
+@@ -374,7 +374,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
+         boolean forceResizable = Settings.Global.getInt(context.getContentResolver(),
+                 DEVELOPMENT_FORCE_RESIZABLE_ACTIVITIES, 0) != 0;
+         // region @boringdroidd
+-        forceResizable |= SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
++        forceResizable |= SystemProperties.getBoolean("persist.waydroid.multi_windows", false);
+         // endregion
+         mSupportsPictureInPicture = forceResizable || context.getPackageManager().hasSystemFeature(
+                 PackageManager.FEATURE_PICTURE_IN_PICTURE);
+diff --git a/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java b/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
+index 40072a29..fb5cf13b 100644
+--- a/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
++++ b/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
+@@ -96,7 +96,7 @@ public class PluginManagerImpl extends BroadcastReceiver implements PluginManage
+         // region @boringdroid
+         // We enable the plugin manager despite of the debuggable flag.
+         // isDebuggable = debuggable;
+-        isDebuggable = SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
++        isDebuggable = SystemProperties.getBoolean("persist.waydroid.multi_windows", false);
+         // endregion
+         mWhitelistedPlugins.addAll(Arrays.asList(initializer.getWhitelistedPlugins(mContext)));
+         mPluginPrefs = new PluginPrefs(mContext);

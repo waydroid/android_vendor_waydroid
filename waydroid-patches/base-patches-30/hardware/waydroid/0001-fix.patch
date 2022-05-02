@@ -1,4 +1,4 @@
-From ebb1cb91c3d5d9dbcb67d5d46f00c245815dbf5b Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Madhushan Nishantha <jlmadushan@gmail.com>
 Date: Fri, 15 Oct 2021 19:59:43 +0200
 Subject: [PATCH] fix
@@ -56,6 +56,3 @@ index 5e2bec9..43d1b08 100644
      VerifyResponse response;
  
      impl_->Verify(request, &response);
--- 
-2.30.2
-

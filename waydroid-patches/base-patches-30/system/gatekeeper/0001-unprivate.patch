@@ -1,4 +1,4 @@
-From ac8ab3acf52d27d42da8d5698a0ef28d89826948 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Madhushan Nishantha <jlmadushan@gmail.com>
 Date: Sun, 24 Oct 2021 00:07:47 +0200
 Subject: [PATCH] unprivate
@@ -20,6 +20,3 @@ index 82fdbcd..86e6e87 100644
      UniquePtr<uint8_t[]> buffer;
      uint32_t length;
  };
--- 
-2.30.2
-

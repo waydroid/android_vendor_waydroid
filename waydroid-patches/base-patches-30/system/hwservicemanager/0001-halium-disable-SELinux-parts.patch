@@ -1,4 +1,4 @@
-From 37778009c8fb71ce19f87d0f07f94642f447d807 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: TheKit <nekit1000@gmail.com>
 Date: Sun, 27 Dec 2020 00:29:16 +0200
 Subject: [PATCH] (halium) disable SELinux parts
@@ -77,6 +77,3 @@ index 85d4974..b1731a2 100644
  
      if (sid == nullptr) {
          if (pid != getpid()) {
--- 
-2.30.2
-

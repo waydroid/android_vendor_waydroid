@@ -1,4 +1,4 @@
-From 23780c32cd4bc587ef0934b833ab688b06d4951d Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ziyang Zhou <ziyang.zhou@outlook.com>
 Date: Mon, 26 Apr 2021 23:09:01 +0800
 Subject: [PATCH] netd: Fix networking
@@ -20,6 +20,3 @@ index 10cedfa..16d7d1f 100644
      std::lock_guard lock(mLock);
  
      std::string buffer;
--- 
-2.30.2
-

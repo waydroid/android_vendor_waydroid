@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Simon Fels <morphis@gravedo.de>
+Date: Thu, 8 Dec 2016 17:28:54 +0100
+Subject: [PATCH] wm: Include task id in surface name for easier tracking
+
+Change-Id: Ia64c3e8ef8e4514223649417d843d7ef65e2f5ba
+---
+ .../java/com/android/server/wm/WindowStateAnimator.java   | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/wm/WindowStateAnimator.java b/services/core/java/com/android/server/wm/WindowStateAnimator.java
+index 80c84ad6..b85e87bb 100644
+--- a/services/core/java/com/android/server/wm/WindowStateAnimator.java
++++ b/services/core/java/com/android/server/wm/WindowStateAnimator.java
+@@ -514,7 +514,13 @@ class WindowStateAnimator {
+                 flags |= SurfaceControl.OPAQUE;
+             }
+ 
+-            mSurfaceController = new WindowSurfaceController(attrs.getTitle().toString(), width,
++            String name = attrs.getTitle().toString();
++            Task task = mWin.getTask();
++            if (task != null) {
++                name = String.format("TID:%d#", task.mTaskId) + name;
++            }
++
++            mSurfaceController = new WindowSurfaceController(name, width,
+                     height, format, flags, this, windowType, ownerUid);
+             mSurfaceController.setColorSpaceAgnostic((attrs.privateFlags
+                     & WindowManager.LayoutParams.PRIVATE_FLAG_COLOR_SPACE_AGNOSTIC) != 0);

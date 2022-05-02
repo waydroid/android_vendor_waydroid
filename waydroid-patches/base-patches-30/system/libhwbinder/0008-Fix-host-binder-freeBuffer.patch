@@ -1,0 +1,83 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 15 Oct 2021 23:26:28 +0330
+Subject: [PATCH] Fix host binder freeBuffer
+
+---
+ IPCThreadState.cpp        | 8 ++++----
+ Parcel.cpp                | 3 ++-
+ include/hwbinder/Parcel.h | 2 +-
+ 3 files changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/IPCThreadState.cpp b/IPCThreadState.cpp
+index 991a8ee..aabfcbc 100644
+--- a/IPCThreadState.cpp
++++ b/IPCThreadState.cpp
+@@ -924,21 +924,21 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
+                             tr.data_size,
+                             reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
+                             tr.offsets_size/sizeof(binder_size_t),
+-                            freeBuffer, this);
++                            freeBuffer, this, mIsHost);
+                     } else {
+                         err = *reinterpret_cast<const status_t*>(tr.data.ptr.buffer);
+                         freeBuffer(nullptr,
+                             reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
+                             tr.data_size,
+                             reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
+-                            tr.offsets_size/sizeof(binder_size_t), this);
++                            tr.offsets_size/sizeof(binder_size_t), this, mIsHost);
+                     }
+                 } else {
+                     freeBuffer(nullptr,
+                         reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
+                         tr.data_size,
+                         reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
+-                        tr.offsets_size/sizeof(binder_size_t), this);
++                        tr.offsets_size/sizeof(binder_size_t), this, mIsHost);
+                     continue;
+                 }
+             }
+@@ -1224,7 +1224,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
+                 reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
+                 tr.data_size,
+                 reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
+-                tr.offsets_size/sizeof(binder_size_t), freeBuffer, this);
++                tr.offsets_size/sizeof(binder_size_t), freeBuffer, this, mIsHost);
+ 
+             const void* origServingStackPointer = mServingStackPointer;
+             mServingStackPointer = &origServingStackPointer; // anything on the stack
+diff --git a/Parcel.cpp b/Parcel.cpp
+index 1a2f3be..758a76e 100644
+--- a/Parcel.cpp
++++ b/Parcel.cpp
+@@ -1634,7 +1634,7 @@ size_t Parcel::ipcBufferSize() const
+ }
+ 
+ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize,
+-    const binder_size_t* objects, size_t objectsCount, release_func relFunc, void* relCookie)
++    const binder_size_t* objects, size_t objectsCount, release_func relFunc, void* relCookie, bool isHost)
+ {
+     binder_size_t minOffset = 0;
+     freeDataNoInit();
+@@ -1650,6 +1650,7 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize,
+     clearCache();
+     mOwner = relFunc;
+     mOwnerCookie = relCookie;
++    mIsHost = isHost;
+     for (size_t i = 0; i < mObjectsSize; i++) {
+         binder_size_t offset = mObjects[i];
+         if (offset < minOffset) {
+diff --git a/include/hwbinder/Parcel.h b/include/hwbinder/Parcel.h
+index fc2bbe2..63cb687 100644
+--- a/include/hwbinder/Parcel.h
++++ b/include/hwbinder/Parcel.h
+@@ -250,7 +250,7 @@ private:
+     size_t              ipcBufferSize() const;
+     void                ipcSetDataReference(const uint8_t* data, size_t dataSize,
+                                             const binder_size_t* objects, size_t objectsCount,
+-                                            release_func relFunc, void* relCookie);
++                                            release_func relFunc, void* relCookie, bool isHost=false);
+ 
+ public:
+     void                print(TextOutput& to, uint32_t flags = 0) const;
