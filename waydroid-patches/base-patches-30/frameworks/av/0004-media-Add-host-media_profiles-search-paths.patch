@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 21 May 2021 00:59:04 +0430
+Subject: [PATCH] media: Add host media_profiles search paths
+
+---
+ media/libmedia/MediaProfiles.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/media/libmedia/MediaProfiles.cpp b/media/libmedia/MediaProfiles.cpp
+index 8be961c9fe..41ccf65022 100644
+--- a/media/libmedia/MediaProfiles.cpp
++++ b/media/libmedia/MediaProfiles.cpp
+@@ -42,8 +42,10 @@ std::array<char const*, 5> const& getXmlPaths() {
+     static std::array<std::string const, 5> const paths =
+         []() -> decltype(paths) {
+             // Directories for XML file that will be searched (in this order).
+-            constexpr std::array<char const*, 4> searchDirs = {
++            constexpr std::array<char const*, 6> searchDirs = {
+                 "product/etc/",
++                "odm_extra/etc/",
++                "vendor_extra/etc/",
+                 "odm/etc/",
+                 "vendor/etc/",
+                 "system/etc/",

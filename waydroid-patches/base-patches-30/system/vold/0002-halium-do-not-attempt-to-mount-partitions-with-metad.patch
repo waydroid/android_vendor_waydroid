@@ -1,7 +1,7 @@
-From 165a0a93b5b1d60e5aa202193755a723313caca2 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: TheKit <nekit1000@gmail.com>
 Date: Sun, 3 Oct 2021 00:45:17 +0300
-Subject: [PATCH 2/4] (halium) do not attempt to mount partitions with metadata
+Subject: [PATCH] (halium) do not attempt to mount partitions with metadata
  encryption
 
 Change-Id: I77b72f49301879e960d7a8992c2736ccd5cc7096
@@ -35,6 +35,3 @@ index 9e83a93..ecc2582 100644
      user root
      group root system
      priority -20
--- 
-2.30.2
-

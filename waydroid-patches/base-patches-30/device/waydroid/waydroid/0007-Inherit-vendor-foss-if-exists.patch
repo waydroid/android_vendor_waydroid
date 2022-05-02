@@ -1,0 +1,21 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jon West <electrikjesus@gmail.com>
+Date: Thu, 25 Nov 2021 11:14:24 -0500
+Subject: [PATCH] Inherit vendor/foss if exists
+
+---
+ device.mk | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/device.mk b/device.mk
+index 0e955fc..f5c33a7 100644
+--- a/device.mk
++++ b/device.mk
+@@ -194,3 +194,7 @@ endif
+ 
+ # Add agp-apps
+ $(call inherit-product-if-exists, vendor/prebuilts/agp-apps/agp-apps.mk)
++
++# foss apps
++$(call inherit-product-if-exists, vendor/foss/foss.mk)
++

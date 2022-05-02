@@ -1,7 +1,7 @@
-From fd79568d6d281914e568d852974722a897b1ff18 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Mon, 23 Aug 2021 22:06:52 +0430
-Subject: [PATCH 2/3] sdk: Add reboot and upgrade to waydroid.IHardware
+Subject: [PATCH] sdk: Add reboot and upgrade to waydroid.IHardware
 
 ---
  api/lineage_current.txt                       |  2 ++
@@ -66,6 +66,3 @@ index 8e56f5d..7d1b266 100644
 +    void reboot();
 +    void upgrade(String system_zip, int system_time, String vendor_zip, int vendor_time);
  }
--- 
-2.30.2
-

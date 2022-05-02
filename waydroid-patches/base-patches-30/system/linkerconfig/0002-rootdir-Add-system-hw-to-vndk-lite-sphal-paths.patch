@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sat, 25 Sep 2021 03:28:44 +0800
+Subject: [PATCH] rootdir: Add system/hw to vndk lite sphal paths
+
+Change-Id: I92ce0a3c147da7106ba29e39e120faf4b1890a4e
+---
+ contents/namespace/vndk.cc | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/contents/namespace/vndk.cc b/contents/namespace/vndk.cc
+index 3d34e69..6c9528c 100644
+--- a/contents/namespace/vndk.cc
++++ b/contents/namespace/vndk.cc
+@@ -81,6 +81,9 @@ Namespace BuildVndkNamespace([[maybe_unused]] const Context& ctx,
+     ns.AddPermittedPath("/vendor/${LIB}/egl", AsanPath::WITH_DATA_ASAN);
+     ns.AddPermittedPath("/vendor_extra/${LIB}/hw", AsanPath::WITH_DATA_ASAN);
+     ns.AddPermittedPath("/vendor_extra/${LIB}/egl", AsanPath::WITH_DATA_ASAN);
++    if (is_vndklite) {
++      ns.AddPermittedPath("/system/${LIB}/hw", AsanPath::NONE);
++    }
+     if (!is_vndklite) {
+       ns.AddPermittedPath("/system/vendor/${LIB}/hw", AsanPath::NONE);
+     }

@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jon West <electrikjesus@gmail.com>
+Date: Fri, 26 Nov 2021 15:54:52 -0500
+Subject: [PATCH] Move PRODUCT_EXTRA_VNDK_VERSIONS to device.mk
+
+---
+ BoardConfig.mk | 5 -----
+ device.mk      | 4 ++++
+ 2 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+index 6a9d648..d18b8c2 100644
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -48,11 +48,6 @@ TARGET_USERIMAGES_USE_EXT4 := true
+ 
+ # HIDL
+ DEVICE_MANIFEST_FILE := $(DEVICE_PATH)/manifest.xml
+-ifeq ($(filter x86 x86_64,$(TARGET_CPU_ABI)),)
+-ifneq ($(PLATFORM_SDK_VERSION),28)
+-PRODUCT_EXTRA_VNDK_VERSIONS := 28
+-endif
+-endif
+ 
+ # Properties
+ BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED := true
+diff --git a/device.mk b/device.mk
+index 93afe77..dbba552 100644
+--- a/device.mk
++++ b/device.mk
+@@ -183,3 +183,7 @@ PRODUCT_SOONG_NAMESPACES += \
+ # VNDK
+ PRODUCT_PACKAGES += \
+     ld.config.vndk_lite.txt
++
++ifneq ($(filter %_waydroid_x86 %_waydroid_x86_64,$(TARGET_PRODUCT)),)
++PRODUCT_EXTRA_VNDK_VERSIONS := 28
++endif

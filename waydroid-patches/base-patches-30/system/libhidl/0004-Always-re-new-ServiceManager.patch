@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Wed, 14 Apr 2021 14:19:45 +0430
+Subject: [PATCH] Always re-new ServiceManager
+
+---
+ transport/ServiceManagement.cpp | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/transport/ServiceManagement.cpp b/transport/ServiceManagement.cpp
+index d17664b..908de3f 100644
+--- a/transport/ServiceManagement.cpp
++++ b/transport/ServiceManagement.cpp
+@@ -180,11 +180,13 @@ sp<IServiceManager1_2> defaultServiceManager1_2(bool useHostHwBinder) {
+ 
+     {
+         std::lock_guard<std::mutex> _l(gDefaultServiceManagerLock);
+-        if (gDefaultServiceManager != nullptr) {
+-            return gDefaultServiceManager;
+-        }
++        gDefaultServiceManager = nullptr;
++            //if (gDefaultServiceManager != nullptr) {
++            //    return gDefaultServiceManager;
++            //}
+ 
+-        if (access(useHostHwBinder ? "/dev/host_hwbinder" : "/dev/hwbinder", F_OK|R_OK|W_OK) != 0) {
++            if (access(useHostHwBinder ? "/dev/host_hwbinder" : "/dev/hwbinder", F_OK | R_OK | W_OK) != 0)
++        {
+             // HwBinder not available on this device or not accessible to
+             // this process.
+             return nullptr;

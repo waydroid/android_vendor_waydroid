@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jon West <electrikjesus@gmail.com>
+Date: Thu, 25 Nov 2021 11:14:07 -0500
+Subject: [PATCH] Inherit agp apps if exist
+
+---
+ device.mk | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/device.mk b/device.mk
+index 94b88eb..0e955fc 100644
+--- a/device.mk
++++ b/device.mk
+@@ -191,3 +191,6 @@ PRODUCT_PACKAGES += \
+ ifneq ($(filter %_waydroid_x86 %_waydroid_x86_64,$(TARGET_PRODUCT)),)
+ PRODUCT_EXTRA_VNDK_VERSIONS := 28
+ endif
++
++# Add agp-apps
++$(call inherit-product-if-exists, vendor/prebuilts/agp-apps/agp-apps.mk)

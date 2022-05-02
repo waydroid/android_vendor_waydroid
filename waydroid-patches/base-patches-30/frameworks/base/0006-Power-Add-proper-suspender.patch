@@ -1,15 +1,15 @@
-From 6a3c0ee071d832acb35d6955356362ea9ac1dc61 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Sun, 12 Sep 2021 11:55:30 +0800
-Subject: [PATCH 06/24] Power: Add proper suspender
+Subject: [PATCH] Power: Add proper suspender
 
 Change-Id: I7bf3efc6ac97e4c106c3cc2815fbb773cda5d57e
 ---
- .../server/power/PowerManagerService.java     | 32 +++++++++++++------
- 1 file changed, 23 insertions(+), 9 deletions(-)
+ .../server/power/PowerManagerService.java     | 26 ++++++++++++++-----
+ 1 file changed, 20 insertions(+), 6 deletions(-)
 
 diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
-index 3a2f3a211c8..3e02eb8bef7 100644
+index 0b3b91b4..c8bb9bf1 100644
 --- a/services/core/java/com/android/server/power/PowerManagerService.java
 +++ b/services/core/java/com/android/server/power/PowerManagerService.java
 @@ -115,6 +115,7 @@ import com.android.server.power.batterysaver.BatterySaverStateMachine;
@@ -43,11 +43,10 @@ index 3a2f3a211c8..3e02eb8bef7 100644
          }
  
 -        if (eventTime < mLastSleepTime || eventTime < mLastWakeTime || !mSystemReady) {
--            return false;
++        /*if (eventTime < mLastSleepTime || eventTime < mLastWakeTime || !mSystemReady) {
+             return false;
 -        }
-+        // if (eventTime < mLastSleepTime || eventTime < mLastWakeTime || !mSystemReady) {
-+        //     return false;
-+        // }
++        }*/
  
          Trace.traceBegin(Trace.TRACE_TAG_POWER, "userActivity");
          try {
@@ -56,17 +55,15 @@ index 3a2f3a211c8..3e02eb8bef7 100644
          }
  
 -        if (eventTime < mLastSleepTime || getWakefulnessLocked() == WAKEFULNESS_AWAKE
--                || mForceSuspendActive || !mSystemReady) {
--            return false;
++        /*if (eventTime < mLastSleepTime || getWakefulnessLocked() == WAKEFULNESS_AWAKE
+                 || mForceSuspendActive || !mSystemReady) {
+             return false;
 -        }
-+        // if (eventTime < mLastSleepTime || getWakefulnessLocked() == WAKEFULNESS_AWAKE
-+        //         || mForceSuspendActive || !mSystemReady) {
-+        //     return false;
-+        // }
++        }*/
  
          Trace.asyncTraceBegin(Trace.TRACE_TAG_POWER, TRACE_SCREEN_ON, 0);
  
-@@ -2759,8 +2764,17 @@ public final class PowerManagerService extends SystemService
+@@ -2765,8 +2770,17 @@ public final class PowerManagerService extends SystemService
                  } else if (shouldNapAtBedTimeLocked()) {
                      changed = napNoUpdateLocked(time, Process.SYSTEM_UID);
                  } else {
@@ -86,6 +83,3 @@ index 3a2f3a211c8..3e02eb8bef7 100644
                  }
              }
          }
--- 
-2.25.1
-

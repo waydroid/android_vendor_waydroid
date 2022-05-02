@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jon West <electrikjesus@gmail.com>
+Date: Thu, 25 Nov 2021 11:13:24 -0500
+Subject: [PATCH] Add vndservicemanager package for binder IPC
+
+---
+ device.mk | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/device.mk b/device.mk
+index dbba552..94b88eb 100644
+--- a/device.mk
++++ b/device.mk
+@@ -184,6 +184,10 @@ PRODUCT_SOONG_NAMESPACES += \
+ PRODUCT_PACKAGES += \
+     ld.config.vndk_lite.txt
+ 
++# Binder IPC
++PRODUCT_PACKAGES += \
++    vndservicemanager
++
+ ifneq ($(filter %_waydroid_x86 %_waydroid_x86_64,$(TARGET_PRODUCT)),)
+ PRODUCT_EXTRA_VNDK_VERSIONS := 28
+ endif

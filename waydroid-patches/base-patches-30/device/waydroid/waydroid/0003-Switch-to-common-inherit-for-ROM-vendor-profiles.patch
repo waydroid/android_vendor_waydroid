@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jon West <electrikjesus@gmail.com>
+Date: Thu, 25 Nov 2021 11:12:00 -0500
+Subject: [PATCH] Switch to common inherit for ROM vendor profiles
+
+---
+ device.mk | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/device.mk b/device.mk
+index e14c274..93afe77 100644
+--- a/device.mk
++++ b/device.mk
+@@ -19,8 +19,9 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base.mk)
+ $(call inherit-product, $(SRC_TARGET_DIR)/product/product_launched_with_p.mk)
+ 
+ # Inherit some common ROM stuff
+-$(call inherit-product-if-exists, vendor/lineage/config/common_full_tablet_wifionly.mk)
+-$(call inherit-product-if-exists, vendor/bliss/config/common_full_tablet_wifionly.mk)
++# Call common ROM configs
++$(call inherit-product-if-exists, $(shell find vendor/ -type f -name common.mk))
++$(call inherit-product-if-exists, $(shell find vendor/ -type f -name common_full_tablet_wifionly.mk))
+ 
+ # Audio HAL
+ PRODUCT_PACKAGES += \

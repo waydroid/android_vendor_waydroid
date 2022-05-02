@@ -1,7 +1,7 @@
-From f515bee9dca10d0ac419110671267b0af9ca4ddb Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Fri, 27 Aug 2021 22:53:49 +0800
-Subject: [PATCH 3/3] WayDroid: Fix icons permissions
+Subject: [PATCH] WayDroid: Fix icons permissions
 
 Change-Id: Ic073a730970feddb9cf0ddccfd75f2e24b48ca6f
 ---
@@ -37,6 +37,3 @@ index ff5b33a..35bad4b 100644
      }
  
      private Bitmap drawableToBitmap(Drawable drawable) {
--- 
-2.30.2
-

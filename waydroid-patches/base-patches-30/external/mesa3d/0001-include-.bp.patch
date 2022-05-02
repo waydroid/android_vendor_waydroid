@@ -1,4 +1,4 @@
-From b3e9dee68597e4e80b92388523e034fbdd55056e Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Madhushan Nishantha <jlmadushan@gmail.com>
 Date: Mon, 18 Oct 2021 17:40:30 +0200
 Subject: [PATCH] include *.bp
@@ -24,7 +24,7 @@ Change-Id: Iad43b83193f6bc43fd186420eaecfe054783a543
 
 diff --git a/Android.bp b/Android.bp
 new file mode 100644
-index 00000000000..915445f50c4
+index 0000000..915445f
 --- /dev/null
 +++ b/Android.bp
 @@ -0,0 +1,177 @@
@@ -207,7 +207,7 @@ index 00000000000..915445f50c4
 +//}
 diff --git a/Android.gen.bp b/Android.gen.bp
 new file mode 100644
-index 00000000000..b34aeec193a
+index 0000000..b34aeec
 --- /dev/null
 +++ b/Android.gen.bp
 @@ -0,0 +1,5 @@
@@ -218,7 +218,7 @@ index 00000000000..b34aeec193a
 +}
 diff --git a/src/Android.bp b/src/Android.bp
 new file mode 100644
-index 00000000000..741022da520
+index 0000000..741022d
 --- /dev/null
 +++ b/src/Android.bp
 @@ -0,0 +1,31 @@
@@ -255,7 +255,7 @@ index 00000000000..741022da520
 +}
 diff --git a/src/intel/Android.bp b/src/intel/Android.bp
 new file mode 100644
-index 00000000000..3d4339bf01d
+index 0000000..3d4339b
 --- /dev/null
 +++ b/src/intel/Android.bp
 @@ -0,0 +1,129 @@
@@ -391,7 +391,7 @@ index 00000000000..3d4339bf01d
 \ No newline at end of file
 diff --git a/src/mesa/Android.bp b/src/mesa/Android.bp
 new file mode 100644
-index 00000000000..75c00acf385
+index 0000000..75c00ac
 --- /dev/null
 +++ b/src/mesa/Android.bp
 @@ -0,0 +1,82 @@
@@ -479,7 +479,7 @@ index 00000000000..75c00acf385
 +}
 diff --git a/src/mesa/Android.libmesa_glsl_utils.mk b/src/mesa/Android.libmesa_glsl_utils.mk
 deleted file mode 100644
-index 66b6ef13a61..00000000000
+index 66b6ef1..0000000
 --- a/src/mesa/Android.libmesa_glsl_utils.mk
 +++ /dev/null
 @@ -1,74 +0,0 @@
@@ -558,7 +558,7 @@ index 66b6ef13a61..00000000000
 -include $(MESA_COMMON_MK)
 -include $(BUILD_HOST_STATIC_LIBRARY)
 diff --git a/src/mesa/Android.mk b/src/mesa/Android.mk
-index a740c2d2220..ffa8360df25 100644
+index a740c2d..ffa8360 100644
 --- a/src/mesa/Android.mk
 +++ b/src/mesa/Android.mk
 @@ -20,7 +20,7 @@
@@ -572,7 +572,7 @@ index a740c2d2220..ffa8360df25 100644
  include $(LOCAL_PATH)/Android.libmesa_sse41.mk
 diff --git a/src/mesa/Android.sources.bp b/src/mesa/Android.sources.bp
 new file mode 100644
-index 00000000000..0e3d255658d
+index 0000000..0e3d255
 --- /dev/null
 +++ b/src/mesa/Android.sources.bp
 @@ -0,0 +1,9 @@
@@ -585,6 +585,3 @@ index 00000000000..0e3d255658d
 +        "main/sse_minmax.c",
 +    ],
 +}
--- 
-2.30.2
-

@@ -1,0 +1,157 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Wed, 6 Oct 2021 14:53:52 +0800
+Subject: [PATCH] rootdir: Add odm_extra to ld paths
+
+Change-Id: I5bc70bb151250a646fd3c327f40c1788bf130fdb
+---
+ contents/configuration/baseconfig.cc      | 1 +
+ contents/configuration/legacy.cc          | 1 +
+ contents/namespace/rs.cc                  | 3 +++
+ contents/namespace/sphal.cc               | 2 ++
+ contents/namespace/systemdefault.cc       | 1 +
+ contents/namespace/unrestricteddefault.cc | 1 +
+ contents/namespace/vendordefault.cc       | 4 ++++
+ contents/namespace/vndk.cc                | 4 +++-
+ 8 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/contents/configuration/baseconfig.cc b/contents/configuration/baseconfig.cc
+index 88f8529..d2353af 100644
+--- a/contents/configuration/baseconfig.cc
++++ b/contents/configuration/baseconfig.cc
+@@ -66,6 +66,7 @@ android::linkerconfig::modules::Configuration CreateBaseConfiguration(
+       {Var("PRODUCT") + "/bin/", "product"},
+ 
+       {"/odm/bin/", "vendor"},
++      {"/odm_extra/bin/", "vendor"},
+       {"/vendor/bin/", "vendor"},
+       {"/vendor_extra/bin/", "vendor"},
+       {"/data/nativetest/odm", "vendor"},
+diff --git a/contents/configuration/legacy.cc b/contents/configuration/legacy.cc
+index 379a72a..debb963 100644
+--- a/contents/configuration/legacy.cc
++++ b/contents/configuration/legacy.cc
+@@ -40,6 +40,7 @@ android::linkerconfig::modules::Configuration CreateLegacyConfiguration(
+       {"/vendor", "legacy"},
+       {"/vendor_extra", "legacy"},
+       {"/odm", "legacy"},
++      {"/odm_extra", "legacy"},
+       {"/sbin", "legacy"},
+       // Except for /postinstall, where only /system and /product are searched
+       {"/postinstall", "postinstall"},
+diff --git a/contents/namespace/rs.cc b/contents/namespace/rs.cc
+index 5b612af..2c1a9ff 100644
+--- a/contents/namespace/rs.cc
++++ b/contents/namespace/rs.cc
+@@ -32,16 +32,19 @@ Namespace BuildRsNamespace([[maybe_unused]] const Context& ctx) {
+       "rs", /*is_isolated=*/!ctx.IsUnrestrictedSection(), /*is_visible=*/true);
+ 
+   ns.AddSearchPath("/odm/${LIB}/vndk-sp", AsanPath::WITH_DATA_ASAN);
++  ns.AddSearchPath("/odm_extra/${LIB}/vndk-sp", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor/${LIB}/vndk-sp", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor_extra/${LIB}/vndk-sp", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath(
+       "/apex/com.android.vndk.v" + Var("VENDOR_VNDK_VERSION") + "/${LIB}",
+       AsanPath::SAME_PATH);
+   ns.AddSearchPath("/odm/${LIB}", AsanPath::WITH_DATA_ASAN);
++  ns.AddSearchPath("/odm_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+ 
+   ns.AddPermittedPath("/odm/${LIB}", AsanPath::WITH_DATA_ASAN);
++  ns.AddPermittedPath("/odm_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/vendor/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/vendor_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/system/vendor/${LIB}", AsanPath::NONE);
+diff --git a/contents/namespace/sphal.cc b/contents/namespace/sphal.cc
+index 2d4d0a8..17da193 100644
+--- a/contents/namespace/sphal.cc
++++ b/contents/namespace/sphal.cc
+@@ -39,6 +39,7 @@ Namespace BuildSphalNamespace([[maybe_unused]] const Context& ctx) {
+                /*is_isolated=*/!ctx.IsUnrestrictedSection(),
+                /*is_visible=*/true);
+   ns.AddSearchPath("/odm/${LIB}", AsanPath::WITH_DATA_ASAN);
++  ns.AddSearchPath("/odm_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor/${LIB}/egl", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor/${LIB}/hw", AsanPath::NONE);
+@@ -47,6 +48,7 @@ Namespace BuildSphalNamespace([[maybe_unused]] const Context& ctx) {
+   ns.AddSearchPath("/vendor_extra/${LIB}/hw", AsanPath::NONE);
+ 
+   ns.AddPermittedPath("/odm/${LIB}", AsanPath::WITH_DATA_ASAN);
++  ns.AddPermittedPath("/odm_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/vendor/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/vendor_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/system/vendor/${LIB}", AsanPath::NONE);
+diff --git a/contents/namespace/systemdefault.cc b/contents/namespace/systemdefault.cc
+index 8348534..8c631e5 100644
+--- a/contents/namespace/systemdefault.cc
++++ b/contents/namespace/systemdefault.cc
+@@ -51,6 +51,7 @@ Namespace BuildSystemDefaultNamespace([[maybe_unused]] const Context& ctx) {
+     ns.AddSearchPath("/vendor/${LIB}", AsanPath::WITH_DATA_ASAN);
+     ns.AddSearchPath("/vendor_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+     ns.AddSearchPath("/odm/${LIB}", AsanPath::WITH_DATA_ASAN);
++    ns.AddSearchPath("/odm_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   }
+ 
+   if (is_fully_treblelized) {
+diff --git a/contents/namespace/unrestricteddefault.cc b/contents/namespace/unrestricteddefault.cc
+index 2dfcb74..ec044b3 100644
+--- a/contents/namespace/unrestricteddefault.cc
++++ b/contents/namespace/unrestricteddefault.cc
+@@ -32,6 +32,7 @@ Namespace BuildUnrestrictedDefaultNamespace([[maybe_unused]] const Context& ctx)
+   ns.AddSearchPath("/system/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath(Var("SYSTEM_EXT") + "/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/odm/${LIB}", AsanPath::WITH_DATA_ASAN);
++  ns.AddSearchPath("/odm_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath("/vendor_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   ns.AddSearchPath(Var("PRODUCT") + "/${LIB}", AsanPath::WITH_DATA_ASAN);
+diff --git a/contents/namespace/vendordefault.cc b/contents/namespace/vendordefault.cc
+index 6a37cd3..ea79b3e 100644
+--- a/contents/namespace/vendordefault.cc
++++ b/contents/namespace/vendordefault.cc
+@@ -68,10 +68,13 @@ Namespace BuildVendorDefaultNamespace([[maybe_unused]] const Context& ctx) {
+       "default", /*is_isolated=*/!is_vndklite, /*is_visible=*/!is_vndklite);
+ 
+   ns.AddSearchPath("/odm/${LIB}", AsanPath::WITH_DATA_ASAN);
++  ns.AddSearchPath("/odm_extra/${LIB}", AsanPath::WITH_DATA_ASAN);
+   // Allow loosen restriction between vndk and private platform libraries
+   if (is_vndklite) {
+     ns.AddSearchPath("/odm/${LIB}/vndk", AsanPath::WITH_DATA_ASAN);
+     ns.AddSearchPath("/odm/${LIB}/vndk-sp", AsanPath::WITH_DATA_ASAN);
++    ns.AddSearchPath("/odm_extra/${LIB}/vndk", AsanPath::WITH_DATA_ASAN);
++    ns.AddSearchPath("/odm_extra/${LIB}/vndk-sp", AsanPath::WITH_DATA_ASAN);
+   }
+ 
+   ns.AddSearchPath("/vendor/${LIB}", AsanPath::WITH_DATA_ASAN);
+@@ -101,6 +104,7 @@ Namespace BuildVendorDefaultNamespace([[maybe_unused]] const Context& ctx) {
+   ns.AddSearchPath("/vendor_extra/${LIB}/egl", AsanPath::WITH_DATA_ASAN);
+ 
+   ns.AddPermittedPath("/odm", AsanPath::WITH_DATA_ASAN);
++  ns.AddPermittedPath("/odm_extra", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/vendor", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/vendor_extra", AsanPath::WITH_DATA_ASAN);
+   ns.AddPermittedPath("/system/vendor", AsanPath::NONE);
+diff --git a/contents/namespace/vndk.cc b/contents/namespace/vndk.cc
+index 6c9528c..262c37e 100644
+--- a/contents/namespace/vndk.cc
++++ b/contents/namespace/vndk.cc
+@@ -59,7 +59,7 @@ Namespace BuildVndkNamespace([[maybe_unused]] const Context& ctx,
+     vndk_version = Var("PRODUCT_VNDK_VERSION");
+   } else {
+     // default for vendor
+-    lib_paths = {"/odm/${LIB}/", "/vendor/${LIB}/", "/vendor_extra/${LIB}/"};
++    lib_paths = {"/odm/${LIB}/", "/odm_extra/${LIB}/", "/vendor/${LIB}/", "/vendor_extra/${LIB}/"};
+     vndk_version = Var("VENDOR_VNDK_VERSION");
+   }
+ 
+@@ -77,6 +77,8 @@ Namespace BuildVndkNamespace([[maybe_unused]] const Context& ctx,
+     // It is for vendor sp-hal
+     ns.AddPermittedPath("/odm/${LIB}/hw", AsanPath::WITH_DATA_ASAN);
+     ns.AddPermittedPath("/odm/${LIB}/egl", AsanPath::WITH_DATA_ASAN);
++    ns.AddPermittedPath("/odm_extra/${LIB}/hw", AsanPath::WITH_DATA_ASAN);
++    ns.AddPermittedPath("/odm_extra/${LIB}/egl", AsanPath::WITH_DATA_ASAN);
+     ns.AddPermittedPath("/vendor/${LIB}/hw", AsanPath::WITH_DATA_ASAN);
+     ns.AddPermittedPath("/vendor/${LIB}/egl", AsanPath::WITH_DATA_ASAN);
+     ns.AddPermittedPath("/vendor_extra/${LIB}/hw", AsanPath::WITH_DATA_ASAN);

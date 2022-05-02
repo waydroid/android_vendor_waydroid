@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Madhushan Nishantha <jlmadushan@gmail.com>
+Date: Fri, 5 Nov 2021 11:15:40 +0100
+Subject: [PATCH] clerkey and iHD hardware video decoding
+
+---
+ device.mk | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/device.mk b/device.mk
+index b8b044e..e14c274 100644
+--- a/device.mk
++++ b/device.mk
+@@ -70,14 +70,16 @@ PRODUCT_PACKAGES += \
+ ifneq ($(TARGET_USE_MESA),false)
+ PRODUCT_PACKAGES += \
+     gralloc.gbm \
+-    libGLES_mesa
++    libGLES_mesa \
++    iHD_drv_video
+ endif
+ 
+ # DRM
+ PRODUCT_PACKAGES += \
+     android.hardware.drm@1.0-impl \
+     android.hardware.drm@1.0-service \
+-    android.hardware.drm@1.2-service.clearkey
++    android.hardware.drm@1.2-service.clearkey \
++    android.hardware.drm@1.3-service.clearkey
+ 
+ # Gatekeeper
+ PRODUCT_PACKAGES += \
