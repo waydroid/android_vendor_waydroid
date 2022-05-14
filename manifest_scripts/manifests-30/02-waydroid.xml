@@ -25,4 +25,7 @@
   <!-- BoringDroid -->
   <project path="vendor/prebuilts/bdapps" name="boringdroid/vendor_prebuilts_bdapps" remote="ghub" revision="refs/heads/boringdroid-10.0.0" />
 
+  <!-- Webview -->
+  <project path="external/chromium-webview/prebuilt/x86_64" name="LineageOS/android/android_external_chromium-webview_prebuilt_x86_64" clone-depth="1" remote="gitlab" revision="main" />
+
 </manifest>
