@@ -6,10 +6,11 @@ Subject: [PATCH] netd: Fix networking
 Change-Id: Ia750206a3f1498627f3e34986808b23577cad1c9
 ---
  server/IptablesRestoreController.cpp | 1 +
- 1 file changed, 1 insertion(+)
+ server/TrafficController.cpp         | 6 ++++--
+ 2 files changed, 5 insertions(+), 2 deletions(-)
 
 diff --git a/server/IptablesRestoreController.cpp b/server/IptablesRestoreController.cpp
-index 10cedfa..16d7d1f 100644
+index 10cedfa3..16d7d1ff 100644
 --- a/server/IptablesRestoreController.cpp
 +++ b/server/IptablesRestoreController.cpp
 @@ -346,6 +346,7 @@ bool IptablesRestoreController::drainAndWaitForAck(const std::unique_ptr<Iptable
@@ -20,3 +21,27 @@ index 10cedfa..16d7d1f 100644
      std::lock_guard lock(mLock);
  
      std::string buffer;
+diff --git a/server/TrafficController.cpp b/server/TrafficController.cpp
+index 7badb9fc..7c37e555 100644
+--- a/server/TrafficController.cpp
++++ b/server/TrafficController.cpp
+@@ -864,7 +864,9 @@ Status TrafficController::swapActiveStatsMap() {
+     if (!oldConfiguration.ok()) {
+         ALOGE("Cannot read the old configuration from map: %s",
+               oldConfiguration.error().message().c_str());
+-        return Status(oldConfiguration.error().code(), oldConfiguration.error().message());
++        // return Status(oldConfiguration.error().code(), oldConfiguration.error().message());
++        // HACKED ignore this error on alibaba linux 3 / 5.10 kernel
++        return netdutils::status::ok;
+     }
+ 
+     // Write to the configuration map to inform the kernel eBPF program to switch
+@@ -889,7 +891,7 @@ Status TrafficController::swapActiveStatsMap() {
+     int ret = synchronizeKernelRCU();
+     if (ret) {
+         ALOGE("map swap synchronize_rcu() ended with failure: %s", strerror(-ret));
+-        return statusFromErrno(-ret, "map swap synchronize_rcu() failed");
++    //    return statusFromErrno(-ret, "map swap synchronize_rcu() failed");
+     }
+     return netdutils::status::ok;
+ }
