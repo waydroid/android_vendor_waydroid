@@ -4,22 +4,24 @@ Date: Tue, 18 May 2021 08:33:28 +0430
 Subject: [PATCH] Add support for host hals whitelist
 
 ---
- Android.bp                      |  1 +
+ Android.bp                      |  3 ++
  transport/ServiceManagement.cpp | 64 +++++++++++++++++++++++++++------
- 2 files changed, 54 insertions(+), 11 deletions(-)
+ 2 files changed, 56 insertions(+), 11 deletions(-)
 
 diff --git a/Android.bp b/Android.bp
-index e0ca9e2..062e1bd 100644
+index e0ca9e2..dba23bd 100644
 --- a/Android.bp
 +++ b/Android.bp
-@@ -140,6 +140,7 @@ cc_defaults {
-     ],
+@@ -141,6 +141,9 @@ cc_defaults {
      static_libs: [
          "libhwbinder-impl-internal",
-+        "libtinyxml2",
      ],
++    whole_static_libs: [
++        "libtinyxml2",
++    ],
  
      target: {
+         android: {
 diff --git a/transport/ServiceManagement.cpp b/transport/ServiceManagement.cpp
 index 9884c70..6c17884 100644
 --- a/transport/ServiceManagement.cpp
