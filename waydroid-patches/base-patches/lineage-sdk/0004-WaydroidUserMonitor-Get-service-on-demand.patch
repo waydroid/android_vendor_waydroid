@@ -1,0 +1,76 @@
+From 29452f1664bab9cd9d2c2e165c719c6b60e41a30 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sat, 18 Jun 2022 10:46:11 +0200
+Subject: [PATCH] WaydroidUserMonitor: Get service on demand
+
+It might be that on boot the UserMonitor service is not published yet.
+
+Change-Id: I643a7641aa6c36cc79116999f205d48cd68ef422
+---
+ .../platform/internal/WayDroidService.java        |  3 +--
+ sdk/src/java/lineageos/waydroid/UserMonitor.java  | 15 ++++++---------
+ 2 files changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 3f674b2f..8161614f 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -89,8 +89,7 @@ public class WayDroidService extends LineageSystemService {
+     @Override
+     public void onStart() {
+         if (mContext != null) {
+-            if (UserMonitor.getService() != null)
+-                mUM = UserMonitor.getInstance(mContext);
++            mUM = UserMonitor.getInstance(mContext);
+         } else {
+             Log.w(TAG, "No context available");
+         }
+diff --git a/sdk/src/java/lineageos/waydroid/UserMonitor.java b/sdk/src/java/lineageos/waydroid/UserMonitor.java
+index 96425a38..e89da404 100644
+--- a/sdk/src/java/lineageos/waydroid/UserMonitor.java
++++ b/sdk/src/java/lineageos/waydroid/UserMonitor.java
+@@ -40,11 +40,6 @@ public class UserMonitor {
+         Context appContext = context.getApplicationContext();
+         mContext = appContext == null ? context : appContext;
+         sService = getService();
+-        if (sService == null) {
+-            throw new RuntimeException("Unable to get WayDroidService. The service" +
+-                    " either crashed, was not started, or the interface has been called to early" +
+-                    " in SystemServer init");
+-                }
+     }
+ 
+     /**
+@@ -78,11 +73,12 @@ public class UserMonitor {
+ 
+     /** @hide **/
+     public void userUnlocked(int uid) {
+-        if (sService == null) {
++        IUserMonitor service = getService();
++        if (service == null) {
+             return;
+         }
+         try {
+-            sService.userUnlocked(uid);
++            service.userUnlocked(uid);
+         } catch (RemoteException e) {
+             Log.e(TAG, e.getLocalizedMessage(), e);
+         }
+@@ -90,11 +86,12 @@ public class UserMonitor {
+     }
+ 
+     public void packageStateChanged(int mode, String packageName, int uid) {
+-        if (sService == null) {
++        IUserMonitor service = getService();
++        if (service == null) {
+             return;
+         }
+         try {
+-            sService.packageStateChanged(mode, packageName, uid);
++            service.packageStateChanged(mode, packageName, uid);
+         } catch (RemoteException e) {
+             Log.e(TAG, e.getLocalizedMessage(), e);
+         }
+-- 
+2.36.1
+
