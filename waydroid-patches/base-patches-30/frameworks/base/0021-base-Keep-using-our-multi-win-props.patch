@@ -23,6 +23,15 @@ index e4ac0a59..ec2617ec 100644
  
      private static final String PACKAGE_WINDOW_BOUNDS_NAME = "package-window-bounds";
      private static final String PACKAGE_WINDOWING_MODE_NAME = "package-windowing-mode";
+@@ -49,7 +49,7 @@ public class BoringdroidManager {
+     }
+ 
+     public static boolean isPCModeEnabled() {
+-        return SystemProperties.getBoolean("persist.sys.pcmode.enabled", true);
++        return SystemProperties.getBoolean("persist.waydroid.multi_windows", false);
+     }
+ 
+     private static boolean isInPCModeDisallowedList(String packageName) {
 diff --git a/core/java/com/android/internal/policy/PhoneWindow.java b/core/java/com/android/internal/policy/PhoneWindow.java
 index f3d8aee1..fb3bb0d8 100644
 --- a/core/java/com/android/internal/policy/PhoneWindow.java
