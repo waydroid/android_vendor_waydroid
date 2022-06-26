@@ -1,0 +1,24 @@
+From 33d6ac07aee84daa470d9c91974b90f90be4b52a Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 26 Jun 2022 11:22:00 +0200
+Subject: [PATCH] seccomp: Allow SYS_kcmp for mesa
+
+Change-Id: I93fba0c397259e90bb1829fe0d7a36b52de94023
+---
+ libc/SECCOMP_WHITELIST_COMMON.TXT | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libc/SECCOMP_WHITELIST_COMMON.TXT b/libc/SECCOMP_WHITELIST_COMMON.TXT
+index 2faa559a2..1a838be1b 100644
+--- a/libc/SECCOMP_WHITELIST_COMMON.TXT
++++ b/libc/SECCOMP_WHITELIST_COMMON.TXT
+@@ -84,3 +84,6 @@ int io_destroy(aio_context_t ctx) all
+ int io_submit(aio_context_t ctx, long nr,  struct iocb **iocbpp) all
+ int io_getevents(aio_context_t ctx, long min_nr, long max_nr, struct io_event *events, struct timespec *timeout) all
+ int io_cancel(aio_context_t ctx, struct iocb *, struct io_event *result) all
++
++# mesa
++int kcmp(pid_t pid1, pid_t pid2, int type, unsigned long idx1, unsigned long idx2) all
+-- 
+2.36.1
+
