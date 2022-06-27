@@ -1,0 +1,66 @@
+From 92e113355229c58a002ea4235d42db0837134464 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 1 Jul 2022 14:49:47 +0200
+Subject: [PATCH] IPlatform: Add launch intent
+
+Change-Id: I0a316b79cf8831aa3df157e304c44823b4dd6e90
+---
+ .../platform/internal/WayDroidService.java    | 24 +++++++++++++++++++
+ .../java/lineageos/waydroid/IPlatform.aidl    |  1 +
+ 2 files changed, 25 insertions(+)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 91c41265..e13c6545 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -17,6 +17,7 @@
+ package org.lineageos.platform.internal;
+ 
+ import android.app.PendingIntent;
++import android.content.ActivityNotFoundException;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.pm.ApplicationInfo;
+@@ -370,6 +371,29 @@ public class WayDroidService extends LineageSystemService {
+             mContext.startActivity(launchIntent);
+         }
+ 
++        @Override
++        public String launchIntent(String action, String uri) {
++            if (mPm == null || mContext == null)
++                return "";
++
++            Intent i;
++            if (uri == null || uri.isEmpty())
++                i = new Intent(action);
++            else
++                i = new Intent(action, Uri.parse(uri));
++            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++
++            ResolveInfo ri = mPm.resolveActivity(i, 0);
++            try {
++                mContext.startActivity(i);
++            } catch (ActivityNotFoundException ignored) {}
++
++            if (ri != null) {
++                return ri.activityInfo.packageName;
++            }
++            return "";
++        }
++
+         @Override
+         public String getAppName(String packageName) {
+             if (mPm == null || mContext == null)
+diff --git a/sdk/src/java/lineageos/waydroid/IPlatform.aidl b/sdk/src/java/lineageos/waydroid/IPlatform.aidl
+index 01b68892..c602efa1 100644
+--- a/sdk/src/java/lineageos/waydroid/IPlatform.aidl
++++ b/sdk/src/java/lineageos/waydroid/IPlatform.aidl
+@@ -34,4 +34,5 @@ interface IPlatform {
+     String settingsGetString(int mode, String key);
+     void settingsPutInt(int mode, String key, int value);
+     int settingsGetInt(int mode, String key);
++    String launchIntent(String action, String uri);
+ }
+-- 
+2.36.1
+

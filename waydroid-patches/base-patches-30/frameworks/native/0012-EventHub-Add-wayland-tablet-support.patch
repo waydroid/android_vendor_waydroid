@@ -1,0 +1,73 @@
+From 94c5fedbe49434af43477e820d6e40394d80379d Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 26 Jun 2022 01:51:31 +0200
+Subject: [PATCH] EventHub: Add wayland tablet support
+
+Change-Id: I72a1f08bb13d7356dff4eb79167350ed5033b714
+---
+ services/inputflinger/reader/EventHub.cpp | 31 +++++++++++++++++++++--
+ 1 file changed, 29 insertions(+), 2 deletions(-)
+
+diff --git a/services/inputflinger/reader/EventHub.cpp b/services/inputflinger/reader/EventHub.cpp
+index 5b3036640a..991ed0a3ca 100644
+--- a/services/inputflinger/reader/EventHub.cpp
++++ b/services/inputflinger/reader/EventHub.cpp
+@@ -285,19 +285,22 @@ enum {
+     WL_INPUT_TOUCH,
+     WL_INPUT_KEYBOARD,
+     WL_INPUT_POINTER,
++    WL_INPUT_TABLET,
+     WL_INPUT_TOTAL
+ };
+ 
+ static const char *INPUT_PIPE_NAME[WL_INPUT_TOTAL] = {
+     "/dev/input/wl_touch_events",
+     "/dev/input/wl_keyboard_events",
+-    "/dev/input/wl_pointer_events"
++    "/dev/input/wl_pointer_events",
++    "/dev/input/wl_tablet_events"
+ };
+ 
+ static const char *INPUT_TYPE_NAME[WL_INPUT_TOTAL] = {
+     "wayland_touch",
+     "wayland_keyboard",
+-    "wayland_pointer"
++    "wayland_pointer",
++    "wayland_tablet"
+ };
+ 
+ EventHub::EventHub(void)
+@@ -1593,6 +1596,30 @@ if (!isWayland) {
+         set_bit(REL_Y, device->relBitmask);
+         set_bit(REL_HWHEEL, device->relBitmask);
+         set_bit(REL_WHEEL, device->relBitmask);
++    } else if (inputType == WL_INPUT_TABLET) {
++        device->classes |= INPUT_DEVICE_CLASS_EXTERNAL_STYLUS |
++                           INPUT_DEVICE_CLASS_TOUCH;
++
++        set_bit(INPUT_PROP_DIRECT, device->propBitmask);
++
++        set_bit(BTN_TOOL_PEN, device->keyBitmask);
++        set_bit(BTN_TOOL_RUBBER, device->keyBitmask);
++        set_bit(BTN_TOOL_BRUSH, device->keyBitmask);
++        set_bit(BTN_TOOL_PENCIL, device->keyBitmask);
++        set_bit(BTN_TOOL_AIRBRUSH, device->keyBitmask);
++        set_bit(BTN_TOOL_FINGER, device->keyBitmask);
++        set_bit(BTN_TOOL_MOUSE, device->keyBitmask);
++        set_bit(BTN_TOOL_LENS, device->keyBitmask);
++        set_bit(BTN_TOUCH, device->keyBitmask);
++        set_bit(BTN_STYLUS, device->keyBitmask);
++        set_bit(BTN_STYLUS2, device->keyBitmask);
++        set_bit(BTN_STYLUS3, device->keyBitmask);
++        set_bit(ABS_X, device->absBitmask);
++        set_bit(ABS_Y, device->absBitmask);
++        set_bit(ABS_PRESSURE, device->absBitmask);
++        set_bit(ABS_DISTANCE, device->absBitmask);
++        set_bit(ABS_TILT_X, device->absBitmask);
++        set_bit(ABS_TILT_Y, device->absBitmask);
+     }
+ }
+ 
+-- 
+2.36.1
+
