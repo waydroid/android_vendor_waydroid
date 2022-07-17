@@ -8,6 +8,7 @@
   <project path="device/waydroid/waydroid" name="WayDroid/android_device_waydroid_waydroid" remote="ghub" revision="refs/heads/lineage-18.1" />
   <project path="hardware/waydroid" name="WayDroid/android_hardware_waydroid" remote="ghub" revision="refs/heads/lineage-17.1" />
   <project path="vendor/extra" name="WayDroid/android_vendor_waydroid" remote="ghub" revision="refs/heads/lineage-18.1" />
+  <project path="packages/apps/WaydroidUpdater" name="WayDroid/android_packages_apps_WaydroidUpdater" revision="refs/heads/lineage-18.1" />
 
   <!-- Audio -->
   <project path="external/alsa-lib" name="WayDroid/android_external_alsa-lib" remote="ghub" revision="refs/heads/lineage-17.1" />
