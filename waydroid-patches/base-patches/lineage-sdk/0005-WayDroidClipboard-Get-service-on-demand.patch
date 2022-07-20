@@ -1,0 +1,61 @@
+From bf64c7ea9467e26f3dd484a5d92b7a9a4a850913 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 21 Jun 2022 14:04:56 +0200
+Subject: [PATCH] WayDroidClipboard: Get service on demand
+
+It might be that on boot the Clipboard service is not published yet.
+
+Change-Id: I7d2056b3ff7fa0775773e88116f25fd450a87c70
+---
+ sdk/src/java/lineageos/waydroid/Clipboard.java | 15 ++++++---------
+ 1 file changed, 6 insertions(+), 9 deletions(-)
+
+diff --git a/sdk/src/java/lineageos/waydroid/Clipboard.java b/sdk/src/java/lineageos/waydroid/Clipboard.java
+index b70e22b0..3b4972ee 100644
+--- a/sdk/src/java/lineageos/waydroid/Clipboard.java
++++ b/sdk/src/java/lineageos/waydroid/Clipboard.java
+@@ -36,11 +36,6 @@ public class Clipboard {
+         Context appContext = context.getApplicationContext();
+         mContext = appContext == null ? context : appContext;
+         sService = getService();
+-        if (sService == null) {
+-            throw new RuntimeException("Unable to get WayDroidService. The service" +
+-                    " either crashed, was not started, or the interface has been called to early" +
+-                    " in SystemServer init");
+-                }
+     }
+ 
+     /**
+@@ -74,11 +69,12 @@ public class Clipboard {
+ 
+     /** @hide **/
+     public void sendClipboardData(String value) {
+-        if (sService == null) {
++        IClipboard service = getService();
++        if (service == null) {
+             return;
+         }
+         try {
+-            sService.sendClipboardData(value);
++            service.sendClipboardData(value);
+         } catch (RemoteException e) {
+             Log.e(TAG, e.getLocalizedMessage(), e);
+         }
+@@ -86,11 +82,12 @@ public class Clipboard {
+     }
+ 
+     public String getClipboardData() {
+-        if (sService == null) {
++        IClipboard service = getService();
++        if (service == null) {
+             return "";
+         }
+         try {
+-            return sService.getClipboardData();
++            return service.getClipboardData();
+         } catch (RemoteException e) {
+             Log.e(TAG, e.getLocalizedMessage(), e);
+         }
+-- 
+2.36.1
+

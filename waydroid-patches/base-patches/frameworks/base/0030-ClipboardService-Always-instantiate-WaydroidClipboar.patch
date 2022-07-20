@@ -1,0 +1,30 @@
+From e41fc281bd8d4d8d7338ccf00cd05dab1f0cd629 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 21 Jun 2022 14:06:13 +0200
+Subject: [PATCH] ClipboardService: Always instantiate WaydroidClipboard
+
+It might be that on boot the Clipboard service is not published yet.
+The service will be retrieved on demand.
+
+Change-Id: I77ee92e71da63838a4c90a6762ff4a3c1c2f255a
+---
+ .../java/com/android/server/clipboard/ClipboardService.java    | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/clipboard/ClipboardService.java b/services/core/java/com/android/server/clipboard/ClipboardService.java
+index e3e6bcca99b7..2d3a16d93987 100644
+--- a/services/core/java/com/android/server/clipboard/ClipboardService.java
++++ b/services/core/java/com/android/server/clipboard/ClipboardService.java
+@@ -214,8 +214,7 @@ public class ClipboardService extends SystemService {
+             mHostMonitorThread.start();
+         }
+ 
+-        if (Clipboard.getService() != null)
+-            mWaydroidClipboard = Clipboard.getInstance(context);
++        mWaydroidClipboard = Clipboard.getInstance(context);
+     }
+ 
+     @Override
+-- 
+2.36.1
+

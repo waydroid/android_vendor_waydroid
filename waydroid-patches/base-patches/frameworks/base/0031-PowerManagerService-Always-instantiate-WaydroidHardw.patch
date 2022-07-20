@@ -1,0 +1,30 @@
+From 841cbd85509046d13864ca93b08d88a45b2fefc1 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 21 Jun 2022 14:15:19 +0200
+Subject: [PATCH] PowerManagerService: Always instantiate WaydroidHardware
+
+It might be that on boot the Hardware service is not published yet.
+The service will be retrieved on demand.
+
+Change-Id: Id6074e8069d7ee5bcc7b140b99632017f9924e42
+---
+ .../java/com/android/server/power/PowerManagerService.java     | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index b2c8d226adfb..1a90dfe6cabb 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -825,8 +825,7 @@ public final class PowerManagerService extends SystemService
+         mBatterySaverStateMachine = new BatterySaverStateMachine(
+                 mLock, mContext, mBatterySaverController);
+ 
+-        if (Hardware.getService() != null)
+-            mWaydroidHardware = Hardware.getInstance(context);
++        mWaydroidHardware = Hardware.getInstance(context);
+ 
+         synchronized (mLock) {
+             mWakeLockSuspendBlocker =
+-- 
+2.36.1
+
