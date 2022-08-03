@@ -44,3 +44,6 @@ service vendor.camera-provider-2-4 /vendor/bin/hw/android.hardware.camera.provid
     capabilities SYS_NICE
     oneshot
     writepid /dev/cpuset/camera-daemon/tasks /dev/stune/top-app/tasks
+
+on property:ro.vndk.version=28
+    mount none /dev/null /vendor_extra/lib/libmedia_codecserviceregistrant.so ro bind
