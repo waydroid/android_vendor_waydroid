@@ -1,0 +1,350 @@
+From fa1a6771d07ff4c0908e01e2330f0678b6ab5182 Mon Sep 17 00:00:00 2001
+From: utzcoz <43091780+utzcoz@users.noreply.github.com>
+Date: Wed, 29 Dec 2021 02:23:20 +0800
+Subject: [PATCH 26/35] Reuse LaunchParamsPersister to store/restore bounds for
+ task (#2)
+
+1. Make sure LaunchParamsPersister stores bounds for freeform task
+   although the display is not freeform.
+2. Use task package name as fallback window layout affinity for task, if
+   Activity doesn't declare it explicitly.
+3. Remove BoringdroidManager's logic to store/restore bounds.
+4. Remove modification to change generated LaunchParams.
+5. Don't persist windowing mode when pc mode disabled.
+
+Change-Id: I010d468141c9d57b139c3219006ee6924717a815
+Signed-off-by: utzcoz <utzcoz@outlook.com>
+---
+ .../android/internal/BoringdroidManager.java  | 103 ++++--------------
+ .../server/wm/LaunchParamsPersister.java      |  25 +++--
+ .../core/java/com/android/server/wm/Task.java |  12 +-
+ .../server/wm/TaskLaunchParamsModifier.java   |  18 +++
+ 4 files changed, 65 insertions(+), 93 deletions(-)
+
+diff --git a/core/java/com/android/internal/BoringdroidManager.java b/core/java/com/android/internal/BoringdroidManager.java
+index bfcd76f7d734..c56a7807f7f3 100644
+--- a/core/java/com/android/internal/BoringdroidManager.java
++++ b/core/java/com/android/internal/BoringdroidManager.java
+@@ -18,9 +18,9 @@ package com.android.internal;
+ 
+ import android.app.Service;
+ import android.app.WindowConfiguration;
++import android.app.WindowConfiguration.WindowingMode;
+ import android.content.Context;
+ import android.content.SharedPreferences;
+-import android.graphics.Rect;
+ import android.os.Environment;
+ import android.os.RemoteException;
+ import android.os.ServiceManager;
+@@ -41,7 +41,6 @@ public class BoringdroidManager {
+     public static boolean IS_SYSTEMUI_PLUGIN_ENABLED =
+             SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
+ 
+-    private static final String PACKAGE_WINDOW_BOUNDS_NAME = "package-window-bounds";
+     private static final String PACKAGE_WINDOWING_MODE_NAME = "package-windowing-mode";
+     private static final String PACKAGE_WINDOWING_MODE_OVERLAY_NAME = "package-windowing-mode-overlay";
+     private static final List<String> DISALLOWED_LIST = new ArrayList<>();
+@@ -79,21 +78,18 @@ public class BoringdroidManager {
+         );
+     }
+ 
+-    private static File getPackageWindowBoundsName() {
+-        return new File(
+-                Environment.getDataSystemCeDirectory(UserHandle.myUserId())
+-                        + File.separator + PACKAGE_WINDOW_BOUNDS_NAME
+-        );
+-    }
+-
+     public static void savePackageWindowingMode(Context context,
+                                                 String packageName,
+-                                                @WindowConfiguration.WindowingMode int windowingMode) {
++                                                @WindowingMode int windowingMode) {
+         if (isDataSystemDirNotReady(context)) {
+             Slog.e(TAG, "Calling savePackageWindowingMode with package " + packageName
+                     + ", and mode " + windowingMode + ", before file is ready");
+             return;
+         }
++        if (!isPCModeEnabled()) {
++            Slog.e(TAG, "Don't save package windowing mode when pc mode disabled");
++            return;
++        }
+         SharedPreferences sharedPreferences =
+                 context.getSharedPreferences(getPackageWindowingModeFile(), Context.MODE_PRIVATE);
+         sharedPreferences.edit().putInt(packageName, windowingMode).apply();
+@@ -108,7 +104,7 @@ public class BoringdroidManager {
+      */
+     public static void savePackageOverlayWindowingMode(Context context,
+                                                        String packageName,
+-                                                       @WindowConfiguration.WindowingMode int windowingMode) {
++                                                       @WindowingMode int windowingMode) {
+         if (isDataSystemDirNotReady(context)) {
+             Slog.e(TAG, "Calling savePackageWindowingMode with package " + packageName
+                     + ", and mode " + windowingMode + ", before file is ready");
+@@ -119,8 +115,7 @@ public class BoringdroidManager {
+         sharedPreferences.edit().putInt(packageName, windowingMode).apply();
+     }
+ 
+-    public static void savePackageOverlayWindowingMode(String packageName,
+-                                                       @WindowConfiguration.WindowingMode int windowingMode) {
++    public static void savePackageOverlayWindowingMode(String packageName, @WindowingMode int windowingMode) {
+         IWindowManager windowManager = IWindowManager.Stub.asInterface(
+                 ServiceManager.getService(Service.WINDOW_SERVICE));
+         try {
+@@ -130,36 +125,21 @@ public class BoringdroidManager {
+         }
+     }
+ 
+-    /**
+-     * Get package overlay windowing mode from overlay file.
+-     *
+-     * @param context     The {@link Context} instance to retrieve shared preferences.
+-     * @param packageName The package name will be retrieved.
+-     * @return Returns the windowing mode of provided package name if existing, otherwise
+-     * returns {@link WindowConfiguration#WINDOWING_MODE_UNDEFINED}.
+-     */
+-    public static @WindowConfiguration.WindowingMode
+-    int getPackageOverlayWindowingMode(Context context, String packageName) {
++    public static @WindowingMode int getPackageOverlayWindowingMode(Context context, String packageName) {
+         if (isDataSystemDirNotReady(context)) {
+-            Slog.e(TAG, "Calling getPackageWindowingMode with package " + packageName
+-                    + ", before file is ready");
++            Slog.e(TAG, "Calling getPackageWindowingMode with package " + packageName + ", before file is ready");
+             return WindowConfiguration.WINDOWING_MODE_UNDEFINED;
+         }
+         context.reloadSharedPreferences();
+         SharedPreferences overlaySharedPreferences =
+-                context.getSharedPreferences(
+-                        getPackageWindowingModeOverlayFile(),
+-                        Context.MODE_PRIVATE
+-                );
++                context.getSharedPreferences(getPackageWindowingModeOverlayFile(), Context.MODE_PRIVATE);
+         int overlayWindowingMode =
+                 overlaySharedPreferences.getInt(packageName, WindowConfiguration.WINDOWING_MODE_UNDEFINED);
+-        Slog.d(TAG, "Found overlay windowing mode " + overlayWindowingMode
+-                + ", for package " + packageName);
++        Slog.d(TAG, "Found overlay windowing mode " + overlayWindowingMode + ", for package " + packageName);
+         return overlayWindowingMode;
+     }
+ 
+-    public static @WindowConfiguration.WindowingMode
+-    int getPackageOverlayWindowingMode(String packageName) {
++    public static @WindowingMode int getPackageOverlayWindowingMode(String packageName) {
+         IWindowManager windowManager = IWindowManager.Stub.asInterface(
+                 ServiceManager.getService(Service.WINDOW_SERVICE));
+         try {
+@@ -170,8 +150,7 @@ public class BoringdroidManager {
+         }
+     }
+ 
+-    public static @WindowConfiguration.WindowingMode
+-    int getPackageWindowingMode(Context context, String packageName) {
++    public static @WindowingMode int getPackageWindowingMode(Context context, String packageName) {
+         if (isDataSystemDirNotReady(context)) {
+             Slog.e(TAG, "Calling getPackageWindowingMode with package " + packageName
+                     + ", before file is ready");
+@@ -179,7 +158,7 @@ public class BoringdroidManager {
+         }
+         // Okay, there is a checking chain for package windowing mode:
+         // 1. If pc mode is not enabled, we should set all package to undefined, and let system
+-        //    to calculate windowing mode based on package config.
++        //    calculate windowing mode based on package config.
+         // 2. If package is in our defined pc disallowed list, we should set it to undefined.
+         // 3. If package has windowing mode defined in overlay shared preferences, we should use
+         //    whatever defined in that file. The frameworks will not change it, and leave it to
+@@ -187,7 +166,7 @@ public class BoringdroidManager {
+         //    mode, just to modify it with key for package name and int value for windowing mode,
+         //    based on WindowConfiguration definition. But if you set it to UNDEFINED, it will
+         //    also fallback to the following config.
+-        // 4. If non of above, we will try to get windowing mode of package from saved shared
++        // 4. If none of above, we will try to get windowing mode of package from saved shared
+         //    preferences, what will be modified when user changing window mode with shortcut
+         //    or decor caption bar. The default is WINDOWING_MODE_FREEFORM.
+         if (!isPCModeEnabled()) {
+@@ -198,55 +177,17 @@ public class BoringdroidManager {
+         if (isInPCModeDisallowedList(packageName)) {
+             return WindowConfiguration.WINDOWING_MODE_UNDEFINED;
+         }
+-        context.reloadSharedPreferences();
+-        SharedPreferences overlaySharedPreferences =
+-                context.getSharedPreferences(
+-                        getPackageWindowingModeOverlayFile(),
+-                        Context.MODE_PRIVATE
+-                );
+-        int overlayWindowingMode = overlaySharedPreferences.getInt(packageName, -1);
+-        Slog.d(TAG, "Found overlay windowing mode " + overlayWindowingMode
+-                + ", for package " + packageName);
++        int overlayWindowingMode = getPackageOverlayWindowingMode(context, packageName);
++        Slog.d(TAG, "Found overlay windowing mode " + overlayWindowingMode + ", for package " + packageName);
+         if (overlayWindowingMode != -1 && overlayWindowingMode != WindowConfiguration.WINDOWING_MODE_UNDEFINED) {
+             return overlayWindowingMode;
+         }
++        context.reloadSharedPreferences();
+         SharedPreferences sharedPreferences =
+                 context.getSharedPreferences(getPackageWindowingModeFile(), Context.MODE_PRIVATE);
+         // We hope the default windowing mode is freeform.
+-        return sharedPreferences.getInt(packageName, WindowConfiguration.WINDOWING_MODE_FREEFORM);
+-    }
+-
+-    public static void savePackageWindowBounds(Context context, String packageName, Rect bounds) {
+-        if (isDataSystemDirNotReady(context)) {
+-            Slog.e(TAG, "Calling savePackageWindowBounds with package " + packageName
+-                    + ", and bounds " + bounds + ", before file is ready");
+-            return;
+-        }
+-        SharedPreferences sharedPreferences =
+-                context.getSharedPreferences(getPackageWindowBoundsName(), Context.MODE_PRIVATE);
+-        Rect tempBounds = new Rect(bounds);
+-        sharedPreferences
+-                .edit()
+-                .putInt(packageName + "-left", tempBounds.left)
+-                .putInt(packageName + "-top", tempBounds.top)
+-                .putInt(packageName + "-right", tempBounds.right)
+-                .putInt(packageName + "-bottom", tempBounds.bottom)
+-                .apply();
+-    }
+-
+-    public static Rect getPackageWindowBounds(Context context, String packageName) {
+-        if (isDataSystemDirNotReady(context)) {
+-            Slog.e(TAG, "Calling getPackageWindowBounds with package " + packageName
+-                    + ", before file is ready");
+-            return new Rect();
+-        }
+-        SharedPreferences sharedPreferences =
+-                context.getSharedPreferences(getPackageWindowBoundsName(), Context.MODE_PRIVATE);
+-        return new Rect(
+-                sharedPreferences.getInt(packageName + "-left", 0),
+-                sharedPreferences.getInt(packageName + "-top", 0),
+-                sharedPreferences.getInt(packageName + "-right", 0),
+-                sharedPreferences.getInt(packageName + "-bottom", 0)
+-        );
++        int windowingMode = sharedPreferences.getInt(packageName, WindowConfiguration.WINDOWING_MODE_FREEFORM);
++        Slog.d(TAG, "Found windowing mode " + windowingMode + ", for package " + packageName);
++        return windowingMode;
+     }
+ }
+diff --git a/services/core/java/com/android/server/wm/LaunchParamsPersister.java b/services/core/java/com/android/server/wm/LaunchParamsPersister.java
+index f788585df34b..f27bcd6f125b 100644
+--- a/services/core/java/com/android/server/wm/LaunchParamsPersister.java
++++ b/services/core/java/com/android/server/wm/LaunchParamsPersister.java
+@@ -31,7 +31,6 @@ import android.util.SparseArray;
+ import android.util.Xml;
+ import android.view.DisplayInfo;
+ 
+-import com.android.internal.BoringdroidManager;
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.internal.util.FastXmlSerializer;
+ import com.android.server.LocalServices;
+@@ -286,7 +285,19 @@ class LaunchParamsPersister {
+             windowLayoutAffinity = task.mWindowLayoutAffinity;
+         } else {
+             ActivityInfo.WindowLayout layout = activity.info.windowLayout;
+-            windowLayoutAffinity = layout == null ? null : layout.windowLayoutAffinity;
++            // region @boringdroid
++            // windowLayoutAffinity = layout == null ? null : layout.windowLayoutAffinity;
++            // We only support to use package name as fallback window layout affinity when Activity doesn't
++            // declare window layout affinity explicitly. Is there any app that declares window layout affinity
++            // explicitly?
++            if (layout != null && layout.windowLayoutAffinity != null) {
++                windowLayoutAffinity = layout.windowLayoutAffinity;
++            } else if (name != null) {
++                windowLayoutAffinity = name.getPackageName();
++            } else {
++                windowLayoutAffinity = null;
++            }
++            // endregion
+         }
+ 
+         outParams.reset();
+@@ -305,6 +316,7 @@ class LaunchParamsPersister {
+             for (int i = 0; i < candidates.size(); ++i) {
+                 ComponentName candidate = candidates.valueAt(i);
+                 final PersistableLaunchParams candidateParams = map.get(candidate);
++
+                 if (candidateParams == null) {
+                     continue;
+                 }
+@@ -329,15 +341,6 @@ class LaunchParamsPersister {
+         }
+         outParams.mWindowingMode = persistableParams.mWindowingMode;
+         outParams.mBounds.set(persistableParams.mBounds);
+-        // region @boringdroid
+-        if (name != null
+-                && BoringdroidManager.getPackageWindowingMode(
+-                        WindowManagerService.getWMSContext(), name.getPackageName())
+-                != WindowConfiguration.WINDOWING_MODE_FREEFORM) {
+-            outParams.mWindowingMode = WindowConfiguration.WINDOWING_MODE_UNDEFINED;
+-            outParams.mBounds.setEmpty();
+-        }
+-        // endregion
+     }
+ 
+     void removeRecordForPackage(String packageName) {
+diff --git a/services/core/java/com/android/server/wm/Task.java b/services/core/java/com/android/server/wm/Task.java
+index 0d1a3436d4cc..8c1e78bf9550 100644
+--- a/services/core/java/com/android/server/wm/Task.java
++++ b/services/core/java/com/android/server/wm/Task.java
+@@ -1020,6 +1020,14 @@ class Task extends WindowContainer<WindowContainer> {
+         }
+         mWindowLayoutAffinity =
+                 info.windowLayout == null ? null : info.windowLayout.windowLayoutAffinity;
++        // region @boringdroid
++        // We only support to use package name as fallback window layout affinity when Activity doesn't
++        // declare window layout affinity explicitly. Is there any app that declares window layout affinity
++        // explicitly?
++        if (mWindowLayoutAffinity == null) {
++            mWindowLayoutAffinity = info.packageName;
++        }
++        // endregion
+ 
+         final int intentFlags = intent == null ? 0 : intent.getFlags();
+         if ((intentFlags & Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED) != 0) {
+@@ -2119,7 +2127,9 @@ class Task extends WindowContainer<WindowContainer> {
+         // back to its last state in a freeform display when it's launched in a freeform display
+         // next time.
+         if (getWindowConfiguration().getDisplayWindowingMode() != WINDOWING_MODE_FREEFORM) {
+-            return;
++            // region @boringdroid
++            // return;
++            // endregion
+         }
+ 
+         // Saves the new state so that we can launch the activity at the same location.
+diff --git a/services/core/java/com/android/server/wm/TaskLaunchParamsModifier.java b/services/core/java/com/android/server/wm/TaskLaunchParamsModifier.java
+index 11c20b6d9133..6fdf036d27e2 100644
+--- a/services/core/java/com/android/server/wm/TaskLaunchParamsModifier.java
++++ b/services/core/java/com/android/server/wm/TaskLaunchParamsModifier.java
+@@ -50,6 +50,7 @@ import android.view.Gravity;
+ import android.view.View;
+ import android.window.WindowContainerToken;
+ 
++import com.android.internal.BoringdroidManager;
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.server.wm.LaunchParamsController.LaunchParams;
+ import com.android.server.wm.LaunchParamsController.LaunchParamsModifier;
+@@ -292,6 +293,23 @@ class TaskLaunchParamsModifier implements LaunchParamsModifier {
+             }
+             getTaskBounds(root, display, layout, resolvedMode, hasInitialBounds, outParams.mBounds);
+         }
++        // region @boringdroid
++        else if (resolvedMode == WINDOWING_MODE_FREEFORM && BoringdroidManager.isPCModeEnabled()) {
++            // We should use similar AOSP's default bounds mechanism to assign bounds for task, that
++            // started on non-freeform display with freeform windowing mode.
++            if (outParams.mBounds.isEmpty()) {
++                if (source != null && source.inFreeformWindowingMode()
++                        && resolvedMode == WINDOWING_MODE_FREEFORM
++                        && outParams.mBounds.isEmpty()
++                        && source.getDisplayArea() == taskDisplayArea) {
++                    // Set bounds to be not very far from source activity.
++                    cascadeBounds(source.getConfiguration().windowConfiguration.getBounds(),
++                            display, outParams.mBounds);
++                }
++                getTaskBounds(root, display, layout, resolvedMode, hasInitialBounds, outParams.mBounds);
++            }
++        }
++        // endregion
+ 
+         return RESULT_CONTINUE;
+     }
+-- 
+2.37.2
+

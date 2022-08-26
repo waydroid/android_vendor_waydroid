@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 6a12d287e1b8b4b6dc3656a4b227820c155eb232 Mon Sep 17 00:00:00 2001
 From: Jon West <electrikjesus@gmail.com>
 Date: Sat, 8 Feb 2020 15:06:39 -0500
-Subject: [PATCH] Add minimize & pip buttons to freeform windows
+Subject: [PATCH 15/35] Add minimize & pip buttons to freeform windows
 
 Thanks to @farmerbb for assistance and @rogerdott for the graphics
 
@@ -27,7 +27,7 @@ Change-Id: I8ddad6eab27f52574ee1c10e8006612fb46a83c5
  create mode 100644 core/res/res/drawable/decor_pip_button_light.xml
 
 diff --git a/config/hiddenapi-greylist-max-o.txt b/config/hiddenapi-greylist-max-o.txt
-index 023bf387..66547dfa 100644
+index 023bf3876228..66547dfa57cf 100644
 --- a/config/hiddenapi-greylist-max-o.txt
 +++ b/config/hiddenapi-greylist-max-o.txt
 @@ -91764,6 +91764,10 @@ Lcom/android/internal/R$drawable;->decor_close_button_dark:I
@@ -42,7 +42,7 @@ index 023bf387..66547dfa 100644
  Lcom/android/internal/R$drawable;->default_wallpaper:I
  Lcom/android/internal/R$drawable;->dialog_frame:I
 diff --git a/core/java/android/app/Activity.java b/core/java/android/app/Activity.java
-index c976a9bf..a48bb787 100644
+index c976a9bfb30d..a48bb787b787 100644
 --- a/core/java/android/app/Activity.java
 +++ b/core/java/android/app/Activity.java
 @@ -1006,6 +1006,16 @@ public class Activity extends ContextThemeWrapper
@@ -77,7 +77,7 @@ index c976a9bf..a48bb787 100644
  
      /**
 diff --git a/core/java/android/view/Window.java b/core/java/android/view/Window.java
-index b399691c..bc2c6913 100644
+index b399691ca787..bc2c6913412f 100644
 --- a/core/java/android/view/Window.java
 +++ b/core/java/android/view/Window.java
 @@ -653,6 +653,8 @@ public abstract class Window {
@@ -90,7 +90,7 @@ index b399691c..bc2c6913 100644
  
      /**
 diff --git a/core/java/com/android/internal/policy/DecorView.java b/core/java/com/android/internal/policy/DecorView.java
-index fbbf7916..5d1833a7 100644
+index fbbf7916b31e..5d1833a717e5 100644
 --- a/core/java/com/android/internal/policy/DecorView.java
 +++ b/core/java/com/android/internal/policy/DecorView.java
 @@ -2209,6 +2209,10 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
@@ -116,7 +116,7 @@ index fbbf7916..5d1833a7 100644
                  R.drawable.decor_maximize_button_dark);
          view.findViewById(R.id.close_window).setBackgroundResource(
 diff --git a/core/java/com/android/internal/widget/DecorCaptionView.java b/core/java/com/android/internal/widget/DecorCaptionView.java
-index 21021457..7ec93ff6 100644
+index 21021457377a..7ec93ff6c987 100644
 --- a/core/java/com/android/internal/widget/DecorCaptionView.java
 +++ b/core/java/com/android/internal/widget/DecorCaptionView.java
 @@ -83,6 +83,8 @@ public class DecorCaptionView extends ViewGroup implements View.OnTouchListener,
@@ -219,7 +219,7 @@ index 21021457..7ec93ff6 100644
              mOwner.dispatchOnWindowDismissed(
 diff --git a/core/res/res/drawable/decor_minimize_button_dark.xml b/core/res/res/drawable/decor_minimize_button_dark.xml
 new file mode 100644
-index 00000000..7143d6cb
+index 000000000000..7143d6cb6d2b
 --- /dev/null
 +++ b/core/res/res/drawable/decor_minimize_button_dark.xml
 @@ -0,0 +1,30 @@
@@ -255,7 +255,7 @@ index 00000000..7143d6cb
 +</vector>
 diff --git a/core/res/res/drawable/decor_minimize_button_light.xml b/core/res/res/drawable/decor_minimize_button_light.xml
 new file mode 100644
-index 00000000..876641cf
+index 000000000000..876641cfbd01
 --- /dev/null
 +++ b/core/res/res/drawable/decor_minimize_button_light.xml
 @@ -0,0 +1,30 @@
@@ -291,7 +291,7 @@ index 00000000..876641cf
 +</vector>
 diff --git a/core/res/res/drawable/decor_pip_button_dark.xml b/core/res/res/drawable/decor_pip_button_dark.xml
 new file mode 100644
-index 00000000..8a1c43c2
+index 000000000000..8a1c43c26aec
 --- /dev/null
 +++ b/core/res/res/drawable/decor_pip_button_dark.xml
 @@ -0,0 +1,29 @@
@@ -326,7 +326,7 @@ index 00000000..8a1c43c2
 +</vector>
 diff --git a/core/res/res/drawable/decor_pip_button_light.xml b/core/res/res/drawable/decor_pip_button_light.xml
 new file mode 100644
-index 00000000..84433b5f
+index 000000000000..84433b5f1ea0
 --- /dev/null
 +++ b/core/res/res/drawable/decor_pip_button_light.xml
 @@ -0,0 +1,29 @@
@@ -360,7 +360,7 @@ index 00000000..84433b5f
 +        android:strokeWidth="1"/>
 +</vector>
 diff --git a/core/res/res/layout/decor_caption.xml b/core/res/res/layout/decor_caption.xml
-index 02467369..55edbfcf 100644
+index 02467369825d..55edbfcfbb91 100644
 --- a/core/res/res/layout/decor_caption.xml
 +++ b/core/res/res/layout/decor_caption.xml
 @@ -30,6 +30,24 @@
@@ -389,7 +389,7 @@ index 02467369..55edbfcf 100644
                  android:id="@+id/maximize_window"
                  android:layout_width="32dp"
 diff --git a/core/res/res/values/arrays.xml b/core/res/res/values/arrays.xml
-index 8f2d6c3e..168ca791 100644
+index 8f2d6c3e02f4..168ca7917c65 100644
 --- a/core/res/res/values/arrays.xml
 +++ b/core/res/res/values/arrays.xml
 @@ -139,6 +139,10 @@
@@ -404,7 +404,7 @@ index 8f2d6c3e..168ca791 100644
  
      <!-- Used in LocalePicker -->
 diff --git a/core/res/res/values/strings.xml b/core/res/res/values/strings.xml
-index 5c659123..cb7c072a 100644
+index 5c659123b027..cb7c072a880a 100644
 --- a/core/res/res/values/strings.xml
 +++ b/core/res/res/values/strings.xml
 @@ -4981,6 +4981,10 @@
@@ -419,7 +419,7 @@ index 5c659123..cb7c072a 100644
      <string name="maximize_button_text">Maximize</string>
      <!-- Accessibility text for the close window button -->
 diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
-index 8401a1bc..da60814c 100644
+index 8401a1bc4271..da60814c2123 100644
 --- a/core/res/res/values/symbols.xml
 +++ b/core/res/res/values/symbols.xml
 @@ -2267,14 +2267,20 @@
@@ -443,3 +443,6 @@ index 8401a1bc..da60814c 100644
    <java-symbol type="color" name="decor_button_dark_color" />
    <java-symbol type="color" name="decor_button_light_color" />
    <java-symbol type="array" name="unloggable_phone_numbers" />
+-- 
+2.37.2
+

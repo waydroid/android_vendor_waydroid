@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From a5f13124b2407e3bcc89609b1b6361ed97ab7cdb Mon Sep 17 00:00:00 2001
 From: utzcoz <utzcoz@outlook.com>
 Date: Sat, 31 Oct 2020 13:52:32 +0800
-Subject: [PATCH] Only show pip button if activity supports it
+Subject: [PATCH 34/35] Only show pip button if activity supports it
 
 Signed-off-by: utzcoz <utzcoz@outlook.com>
 Change-Id: I1512f35a90592c247c230461bee8b882c5df98dd
@@ -16,7 +16,7 @@ Conflicts:
  3 files changed, 34 insertions(+)
 
 diff --git a/core/java/android/app/Activity.java b/core/java/android/app/Activity.java
-index f753e59c..9c5bca00 100644
+index f753e59c0fad..9c5bca00df02 100644
 --- a/core/java/android/app/Activity.java
 +++ b/core/java/android/app/Activity.java
 @@ -965,6 +965,17 @@ public class Activity extends ContextThemeWrapper
@@ -38,10 +38,10 @@ index f753e59c..9c5bca00 100644
           * Puts the activity in picture-in-picture mode if the activity supports.
           * @see android.R.attr#supportsPictureInPicture
 diff --git a/core/java/android/view/Window.java b/core/java/android/view/Window.java
-index 6a9f9af7..6b01aef9 100644
+index 6cdd56c95926..cc0b4b9a8f12 100644
 --- a/core/java/android/view/Window.java
 +++ b/core/java/android/view/Window.java
-@@ -635,6 +635,15 @@ public abstract class Window {
+@@ -640,6 +640,15 @@ public abstract class Window {
           */
          void toggleFreeformWindowingMode() throws RemoteException;
  
@@ -58,7 +58,7 @@ index 6a9f9af7..6b01aef9 100644
           * Puts the activity in picture-in-picture mode if the activity supports.
           * @see android.R.attr#supportsPictureInPicture
 diff --git a/core/java/com/android/internal/widget/DecorCaptionView.java b/core/java/com/android/internal/widget/DecorCaptionView.java
-index f11ec913..943bc056 100644
+index f11ec913a2e2..943bc056fcfc 100644
 --- a/core/java/com/android/internal/widget/DecorCaptionView.java
 +++ b/core/java/com/android/internal/widget/DecorCaptionView.java
 @@ -150,7 +150,12 @@ public class DecorCaptionView extends ViewGroup implements View.OnTouchListener,
@@ -97,3 +97,6 @@ index f11ec913..943bc056 100644
  
      public boolean isCaptionShowing() {
          return mShow;
+-- 
+2.37.2
+

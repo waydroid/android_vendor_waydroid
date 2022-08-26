@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From b63ab264b38966579b6424518fd8ad530f2625f1 Mon Sep 17 00:00:00 2001
 From: Jon West <electrikjesus@gmail.com>
 Date: Sun, 19 Sep 2021 18:48:02 -0400
-Subject: [PATCH] Update titlebar button graphics
+Subject: [PATCH 33/35] Update titlebar button graphics
 
 Thanks to @RadekBledowski for the graphics
 Change-Id: Ic53146429051acae509a3a68050a8e0f1c1ae69d
@@ -15,7 +15,7 @@ Change-Id: Ic53146429051acae509a3a68050a8e0f1c1ae69d
  6 files changed, 11 insertions(+), 9 deletions(-)
 
 diff --git a/core/res/res/drawable/decor_back_button_dark.xml b/core/res/res/drawable/decor_back_button_dark.xml
-index f8552b0d..4bbed435 100644
+index f8552b0d5023..4bbed43545bf 100644
 --- a/core/res/res/drawable/decor_back_button_dark.xml
 +++ b/core/res/res/drawable/decor_back_button_dark.xml
 @@ -8,7 +8,7 @@
@@ -28,7 +28,7 @@ index f8552b0d..4bbed435 100644
          android:strokeWidth="1"/>
  </vector>
 diff --git a/core/res/res/drawable/decor_back_button_light.xml b/core/res/res/drawable/decor_back_button_light.xml
-index 954fe2a3..fe95200a 100644
+index 954fe2a3f994..fe95200af134 100644
 --- a/core/res/res/drawable/decor_back_button_light.xml
 +++ b/core/res/res/drawable/decor_back_button_light.xml
 @@ -8,7 +8,7 @@
@@ -41,7 +41,7 @@ index 954fe2a3..fe95200a 100644
          android:strokeWidth="1"/>
  </vector>
 diff --git a/core/res/res/drawable/decor_minimize_button_dark.xml b/core/res/res/drawable/decor_minimize_button_dark.xml
-index 7143d6cb..5cc18cbf 100644
+index 7143d6cb6d2b..5cc18cbff668 100644
 --- a/core/res/res/drawable/decor_minimize_button_dark.xml
 +++ b/core/res/res/drawable/decor_minimize_button_dark.xml
 @@ -24,7 +24,7 @@
@@ -54,7 +54,7 @@ index 7143d6cb..5cc18cbf 100644
          android:strokeWidth="1"/>
  </vector>
 diff --git a/core/res/res/drawable/decor_minimize_button_light.xml b/core/res/res/drawable/decor_minimize_button_light.xml
-index 876641cf..67050842 100644
+index 876641cfbd01..670508420b9c 100644
 --- a/core/res/res/drawable/decor_minimize_button_light.xml
 +++ b/core/res/res/drawable/decor_minimize_button_light.xml
 @@ -24,7 +24,7 @@ Copyright (C) 2015 The Android Open Source Project
@@ -67,7 +67,7 @@ index 876641cf..67050842 100644
          android:strokeWidth="1"/>
  </vector>
 diff --git a/core/res/res/drawable/decor_pip_button_dark.xml b/core/res/res/drawable/decor_pip_button_dark.xml
-index 8a1c43c2..5a7d4521 100644
+index 8a1c43c26aec..5a7d4521e2d9 100644
 --- a/core/res/res/drawable/decor_pip_button_dark.xml
 +++ b/core/res/res/drawable/decor_pip_button_dark.xml
 @@ -23,7 +23,8 @@ Copyright (C) 2015 The Android Open Source Project
@@ -83,7 +83,7 @@ index 8a1c43c2..5a7d4521 100644
 +        android:fillType="evenOdd"/>
  </vector>
 diff --git a/core/res/res/drawable/decor_pip_button_light.xml b/core/res/res/drawable/decor_pip_button_light.xml
-index 84433b5f..1b29e8da 100644
+index 84433b5f1ea0..1b29e8da2461 100644
 --- a/core/res/res/drawable/decor_pip_button_light.xml
 +++ b/core/res/res/drawable/decor_pip_button_light.xml
 @@ -23,7 +23,8 @@ Copyright (C) 2015 The Android Open Source Project
@@ -97,3 +97,6 @@ index 84433b5f..1b29e8da 100644
 +        android:strokeWidth="1"
 +        android:fillType="evenOdd"/>
  </vector>
+-- 
+2.37.2
+

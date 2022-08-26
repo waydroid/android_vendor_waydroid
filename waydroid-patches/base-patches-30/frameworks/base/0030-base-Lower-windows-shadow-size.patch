@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 83d9494500fe67ace1418bc8f4afc7bf22232dc5 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Thu, 9 Sep 2021 15:12:51 +0800
-Subject: [PATCH] base: Lower windows shadow size
+Subject: [PATCH 30/35] base: Lower windows shadow size
 
 Change-Id: I42650c73a7073db4fa9b968bbf8365f23fccc165
 ---
@@ -9,7 +9,7 @@ Change-Id: I42650c73a7073db4fa9b968bbf8365f23fccc165
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/core/java/com/android/internal/policy/DecorView.java b/core/java/com/android/internal/policy/DecorView.java
-index 66965c42..2a9320e9 100644
+index 19cf7646a01a..e8549b8163c9 100644
 --- a/core/java/com/android/internal/policy/DecorView.java
 +++ b/core/java/com/android/internal/policy/DecorView.java
 @@ -129,7 +129,7 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
@@ -21,3 +21,6 @@ index 66965c42..2a9320e9 100644
      // The height of a window which has not in DIP.
      public static final int DECOR_SHADOW_UNFOCUSED_HEIGHT_IN_DIP = 5;
  
+-- 
+2.37.2
+

@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From d65aef9607f9c64fdbae19b65a1d829b661f18dc Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Tue, 20 Apr 2021 16:33:54 +0800
-Subject: [PATCH] fwb: Don't check vintf compatibility
+Subject: [PATCH 05/35] fwb: Don't check vintf compatibility
 
 Change-Id: I7a611be5bf7502da979f7ccbd0f71f9749be04c8
 ---
@@ -9,7 +9,7 @@ Change-Id: I7a611be5bf7502da979f7ccbd0f71f9749be04c8
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/core/java/android/os/Build.java b/core/java/android/os/Build.java
-index 8c6fca50..3f577c8b 100755
+index 8c6fca50fa8b..3f577c8b7f40 100755
 --- a/core/java/android/os/Build.java
 +++ b/core/java/android/os/Build.java
 @@ -1111,7 +1111,7 @@ public class Build {
@@ -21,3 +21,6 @@ index 8c6fca50..3f577c8b 100755
  
          if (IS_TREBLE_ENABLED) {
              // If we can run this code, the device should already pass AVB.
+-- 
+2.37.2
+

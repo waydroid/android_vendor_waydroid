@@ -1,0 +1,34 @@
+From dbfc554e1b8c890e3d524983fddb72c6a55db6b0 Mon Sep 17 00:00:00 2001
+From: utzcoz <utzcoz@outlook.com>
+Date: Sun, 20 Jun 2021 22:09:52 +0800
+Subject: [PATCH 24/35] Fix wrong description on comment
+
+Change-Id: I7f773508bf33ac8f6df185f30a37f1cf136c5704
+Signed-off-by: utzcoz <utzcoz@outlook.com>
+---
+ core/java/com/android/internal/BoringdroidManager.java | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/core/java/com/android/internal/BoringdroidManager.java b/core/java/com/android/internal/BoringdroidManager.java
+index 0ba111f6cb10..bfcd76f7d734 100644
+--- a/core/java/com/android/internal/BoringdroidManager.java
++++ b/core/java/com/android/internal/BoringdroidManager.java
+@@ -178,7 +178,7 @@ public class BoringdroidManager {
+             return WindowConfiguration.WINDOWING_MODE_UNDEFINED;
+         }
+         // Okay, there is a checking chain for package windowing mode:
+-        // 1. If pc mode is enabled, we should set all package to undefined, and let system
++        // 1. If pc mode is not enabled, we should set all package to undefined, and let system
+         //    to calculate windowing mode based on package config.
+         // 2. If package is in our defined pc disallowed list, we should set it to undefined.
+         // 3. If package has windowing mode defined in overlay shared preferences, we should use
+@@ -249,4 +249,4 @@ public class BoringdroidManager {
+                 sharedPreferences.getInt(packageName + "-bottom", 0)
+         );
+     }
+-}
+\ No newline at end of file
++}
+-- 
+2.37.2
+

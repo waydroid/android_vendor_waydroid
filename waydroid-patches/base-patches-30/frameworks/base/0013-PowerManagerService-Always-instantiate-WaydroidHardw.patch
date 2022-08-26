@@ -1,7 +1,8 @@
-From 70837fb99bdf2fac6d0e9f019213b79c31600170 Mon Sep 17 00:00:00 2001
+From 1696bcf291bbfdaf846d58c9eaa623e07b2d55f6 Mon Sep 17 00:00:00 2001
 From: Alessandro Astone <ales.astone@gmail.com>
 Date: Tue, 21 Jun 2022 14:15:19 +0200
-Subject: [PATCH 2/2] PowerManagerService: Always instantiate WaydroidHardware
+Subject: [PATCH 13/35] PowerManagerService: Always instantiate
+ WaydroidHardware
 
 It might be that on boot the Hardware service is not published yet.
 The service will be retrieved on demand.
@@ -26,5 +27,5 @@ index c8bb9bf19f38..bd177314d3c0 100644
          synchronized (mLock) {
              mWakeLockSuspendBlocker =
 -- 
-2.36.1
+2.37.2
 

@@ -1,0 +1,126 @@
+From 86e1e9f3684d9a0c769e6ffd5f793f342e6b4598 Mon Sep 17 00:00:00 2001
+From: Yunfan Chen <yunfanc@google.com>
+Date: Mon, 7 Dec 2020 22:43:56 +0900
+Subject: [PATCH 25/35] Ensure notifying when only caption insets changed
+
+There's a bug where we dispatch the insets state only compare to the
+previous dispatched state excluding the caption insets. Make the insets
+included to make sure the caption insets change can be dispatched if
+only the caption insets changed.
+
+Another issue is, when we dismiss the caption, it happens after the
+window lay out traversal but before the post layout. It is necessary to
+notify the insets change because there's no server insets change in the
+post layout process and the app won't be able to receive the insets
+change.
+
+Test: atest InsetsControllerTest
+Test: see reproduce steps in b/174718377
+Test: Turn an app into freeform mode, the insets will be applied
+      immidiately
+Test: go/wm-smoke
+Bug: 174718377
+Change-Id: I5c40c406fcec40c9fe87ef6fa1b54e1a2592e3bc
+---
+ core/java/android/view/InsetsController.java  | 19 +++++++++++++------
+ .../android/internal/policy/DecorView.java    |  1 +
+ .../android/view/InsetsControllerTest.java    | 14 ++++++++++++++
+ 3 files changed, 28 insertions(+), 6 deletions(-)
+
+diff --git a/core/java/android/view/InsetsController.java b/core/java/android/view/InsetsController.java
+index 403ac3ab29c0..95a0cebf28ee 100644
+--- a/core/java/android/view/InsetsController.java
++++ b/core/java/android/view/InsetsController.java
+@@ -624,7 +624,7 @@ public class InsetsController implements WindowInsetsController, InsetsAnimation
+         updateState(state);
+         applyLocalVisibilityOverride();
+ 
+-        if (!mState.equals(lastState, true /* excludingCaptionInsets */,
++        if (!mState.equals(lastState, false /* excludingCaptionInsets */,
+                 true /* excludeInvisibleIme */)) {
+             if (DEBUG) Log.d(TAG, "onStateChanged, notifyInsetsChanged");
+             mHost.notifyInsetsChanged();
+@@ -658,16 +658,14 @@ public class InsetsController implements WindowInsetsController, InsetsAnimation
+             getSourceConsumer(type).updateSource(source, animationType);
+         }
+         for (@InternalInsetsType int type = 0; type < InsetsState.SIZE; type++) {
++            // Only update the server side insets here.
++            if (type == ITYPE_CAPTION_BAR) continue;
+             InsetsSource source = mState.peekSource(type);
+             if (source == null) continue;
+             if (newState.peekSource(type) == null) {
+                 mState.removeSource(type);
+             }
+         }
+-        if (mCaptionInsetsHeight != 0) {
+-            mState.getSource(ITYPE_CAPTION_BAR).setFrame(new Rect(mFrame.left, mFrame.top,
+-                    mFrame.right, mFrame.top + mCaptionInsetsHeight));
+-        }
+ 
+         updateDisabledUserAnimationTypes(disabledUserAnimationTypes);
+ 
+@@ -1374,7 +1372,16 @@ public class InsetsController implements WindowInsetsController, InsetsAnimation
+ 
+     @Override
+     public void setCaptionInsetsHeight(int height) {
+-        mCaptionInsetsHeight = height;
++        if (mCaptionInsetsHeight != height) {
++            mCaptionInsetsHeight = height;
++            if (mCaptionInsetsHeight != 0) {
++                mState.getSource(ITYPE_CAPTION_BAR).setFrame(new Rect(mFrame.left, mFrame.top,
++                        mFrame.right, mFrame.top + mCaptionInsetsHeight));
++            } else {
++                mState.removeSource(ITYPE_CAPTION_BAR);
++            }
++            mHost.notifyInsetsChanged();
++        }
+     }
+ 
+     @Override
+diff --git a/core/java/com/android/internal/policy/DecorView.java b/core/java/com/android/internal/policy/DecorView.java
+index 365f87f41ccb..19cf7646a01a 100644
+--- a/core/java/com/android/internal/policy/DecorView.java
++++ b/core/java/com/android/internal/policy/DecorView.java
+@@ -2021,6 +2021,7 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+             if (getForeground() != null) {
+                 drawableChanged();
+             }
++            notifyCaptionHeightChanged();
+         }
+     }
+ 
+diff --git a/core/tests/coretests/src/android/view/InsetsControllerTest.java b/core/tests/coretests/src/android/view/InsetsControllerTest.java
+index de128ad6d78e..9e564134021b 100644
+--- a/core/tests/coretests/src/android/view/InsetsControllerTest.java
++++ b/core/tests/coretests/src/android/view/InsetsControllerTest.java
+@@ -44,6 +44,7 @@ import static org.mockito.ArgumentMatchers.notNull;
+ import static org.mockito.Mockito.clearInvocations;
+ import static org.mockito.Mockito.mock;
+ import static org.mockito.Mockito.never;
++import static org.mockito.Mockito.reset;
+ import static org.mockito.Mockito.spy;
+ import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
+@@ -692,6 +693,19 @@ public class InsetsControllerTest {
+         });
+     }
+ 
++    @Test
++    public void testNotifyCaptionInsetsOnlyChange() {
++        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
++            final InsetsState state = new InsetsState(mController.getState(), true);
++            reset(mTestHost);
++            mController.setCaptionInsetsHeight(100);
++            verify(mTestHost).notifyInsetsChanged();
++            reset(mTestHost);
++            mController.setCaptionInsetsHeight(0);
++            verify(mTestHost).notifyInsetsChanged();
++        });
++    }
++
+     @Test
+     public void testRequestedState() {
+         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+-- 
+2.37.2
+

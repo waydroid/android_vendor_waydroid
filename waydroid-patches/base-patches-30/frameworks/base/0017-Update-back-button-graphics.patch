@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 2d0e1a7c1207440c90723b3940dfc97ada02c893 Mon Sep 17 00:00:00 2001
 From: Unknown <electrikjesus@gmail.com>
 Date: Wed, 24 Jun 2020 12:16:23 -0400
-Subject: [PATCH] Update back button graphics
+Subject: [PATCH 17/35] Update back button graphics
 
 Thanks again @rogerdott for the artwork
 ---
@@ -10,7 +10,7 @@ Thanks again @rogerdott for the artwork
  2 files changed, 26 insertions(+), 63 deletions(-)
 
 diff --git a/core/res/res/drawable/decor_back_button_dark.xml b/core/res/res/drawable/decor_back_button_dark.xml
-index ec0f6a92..f8552b0d 100644
+index ec0f6a92d230..f8552b0d5023 100644
 --- a/core/res/res/drawable/decor_back_button_dark.xml
 +++ b/core/res/res/drawable/decor_back_button_dark.xml
 @@ -1,34 +1,14 @@
@@ -62,7 +62,7 @@ index ec0f6a92..f8552b0d 100644
 -
 -
 diff --git a/core/res/res/drawable/decor_back_button_light.xml b/core/res/res/drawable/decor_back_button_light.xml
-index 7b9344a0..954fe2a3 100644
+index 7b9344a0dce4..954fe2a3f994 100644
 --- a/core/res/res/drawable/decor_back_button_light.xml
 +++ b/core/res/res/drawable/decor_back_button_light.xml
 @@ -1,31 +1,14 @@
@@ -110,3 +110,6 @@ index 7b9344a0..954fe2a3 100644
 +        android:fillColor="@color/white"
 +        android:strokeWidth="1"/>
  </vector>
+-- 
+2.37.2
+

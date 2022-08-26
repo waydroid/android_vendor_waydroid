@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From cb05e955664a129e4051592c667d061617095de5 Mon Sep 17 00:00:00 2001
 From: gudenau <gudenau>
 Date: Tue, 25 Sep 2018 09:44:26 +0200
-Subject: [PATCH] core: Add support for MicroG
+Subject: [PATCH 07/35] core: Add support for MicroG
 
 -fake signatures, enabled per app by dynamic permission
 
@@ -15,10 +15,10 @@ Signed-off-by: mracar07 <umutcan@umutcanacar.me>
  create mode 100644 core/res/res/values/microg_strings.xml
 
 diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
-index 26fd27b7..9aa9482f 100644
+index 9bb5aecdac8f..ea1ea9f9ed98 100644
 --- a/core/res/AndroidManifest.xml
 +++ b/core/res/AndroidManifest.xml
-@@ -2852,6 +2852,20 @@
+@@ -2853,6 +2853,20 @@
          android:description="@string/permdesc_getPackageSize"
          android:protectionLevel="normal" />
  
@@ -41,7 +41,7 @@ index 26fd27b7..9aa9482f 100644
           for details. -->
 diff --git a/core/res/res/values/microg_strings.xml b/core/res/res/values/microg_strings.xml
 new file mode 100644
-index 00000000..752833b4
+index 000000000000..752833b4c3a5
 --- /dev/null
 +++ b/core/res/res/values/microg_strings.xml
 @@ -0,0 +1,25 @@
@@ -71,7 +71,7 @@ index 00000000..752833b4
 +    <string name="permdesc_fakePackageSignature">Allows the app to pretend to be a different app. Malicious applications might be able to use this to access private application data. Legitimate uses include an emulator pretending to be what it emulates. Grant this permission with caution only!</string>
 +</resources>
 diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
-index d443c013..bb8d2caa 100644
+index ca9d1c6f0d1c..7ed30ea2cea4 100644
 --- a/services/core/java/com/android/server/pm/PackageManagerService.java
 +++ b/services/core/java/com/android/server/pm/PackageManagerService.java
 @@ -4465,8 +4465,9 @@ public class PackageManagerService extends IPackageManager.Stub
@@ -111,3 +111,6 @@ index d443c013..bb8d2caa 100644
      @Override
      public void checkPackageStartable(String packageName, int userId) {
          final int callingUid = Binder.getCallingUid();
+-- 
+2.37.2
+

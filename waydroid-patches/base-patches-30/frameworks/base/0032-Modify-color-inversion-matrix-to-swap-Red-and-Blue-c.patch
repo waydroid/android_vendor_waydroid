@@ -1,7 +1,8 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 76f48a7c5690fa8b65b91b2077c730385efe1eda Mon Sep 17 00:00:00 2001
 From: Mauro Rossi <issor.oruam@gmail.com>
 Date: Fri, 10 Aug 2018 01:12:22 +0200
-Subject: [PATCH] Modify color inversion matrix to swap Red and Blue colors
+Subject: [PATCH 32/35] Modify color inversion matrix to swap Red and Blue
+ colors
 
 Instead of color inversion it will produce Red and Blue colors swap,
 in order to correct displayed colors for R4xx and other old drivers
@@ -11,7 +12,7 @@ still based on KMS API
  1 file changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/services/core/java/com/android/server/display/color/ColorDisplayService.java b/services/core/java/com/android/server/display/color/ColorDisplayService.java
-index 95a98f1e..256b8f80 100644
+index 95a98f1e9494..256b8f8045d0 100644
 --- a/services/core/java/com/android/server/display/color/ColorDisplayService.java
 +++ b/services/core/java/com/android/server/display/color/ColorDisplayService.java
 @@ -155,10 +155,10 @@ public final class ColorDisplayService extends SystemService {
@@ -29,3 +30,6 @@ index 95a98f1e..256b8f80 100644
      };
  
      private final Handler mHandler;
+-- 
+2.37.2
+

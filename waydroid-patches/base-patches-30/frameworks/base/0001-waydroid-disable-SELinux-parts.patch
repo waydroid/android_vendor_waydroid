@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From f8efaf860a921dc88363324512abbd74b0959321 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Sun, 15 Nov 2020 00:24:05 +0700
-Subject: [PATCH] (waydroid) disable SELinux parts
+Subject: [PATCH 01/35] (waydroid) disable SELinux parts
 
 Change-Id: I1bee5fb7f9f879e3bc9dc0c69cfb004fde8a320a
 ---
@@ -10,7 +10,7 @@ Change-Id: I1bee5fb7f9f879e3bc9dc0c69cfb004fde8a320a
  2 files changed, 11 insertions(+), 8 deletions(-)
 
 diff --git a/core/jni/com_android_internal_os_Zygote.cpp b/core/jni/com_android_internal_os_Zygote.cpp
-index 9eede83e..f0b41b03 100644
+index 9eede83e21e5..f0b41b03223c 100644
 --- a/core/jni/com_android_internal_os_Zygote.cpp
 +++ b/core/jni/com_android_internal_os_Zygote.cpp
 @@ -1768,13 +1768,14 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids,
@@ -55,7 +55,7 @@ index 9eede83e..f0b41b03 100644
    /*
     * Storage Initialization
 diff --git a/services/core/java/com/android/server/pm/Settings.java b/services/core/java/com/android/server/pm/Settings.java
-index 98b41d71..667793e9 100644
+index 98b41d714e20..667793e9223f 100644
 --- a/services/core/java/com/android/server/pm/Settings.java
 +++ b/services/core/java/com/android/server/pm/Settings.java
 @@ -2700,18 +2700,18 @@ public final class Settings {
@@ -80,3 +80,6 @@ index 98b41d71..667793e9 100644
          }
      }
  
+-- 
+2.37.2
+

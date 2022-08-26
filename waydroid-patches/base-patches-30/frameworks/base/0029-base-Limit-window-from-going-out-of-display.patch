@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From d00a659f61a3e3ae38057275830e408496b1fad7 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Thu, 9 Sep 2021 15:12:20 +0800
-Subject: [PATCH] base: Limit window from going out of display
+Subject: [PATCH 29/35] base: Limit window from going out of display
 
 Change-Id: I45ee32a7dbfa3aea4ddceaa640a2ce3b92583ae1
 ---
@@ -9,7 +9,7 @@ Change-Id: I45ee32a7dbfa3aea4ddceaa640a2ce3b92583ae1
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/services/core/java/com/android/server/wm/TaskPositioner.java b/services/core/java/com/android/server/wm/TaskPositioner.java
-index 44f4a58a..d595882f 100644
+index 44f4a58af7ab..d595882f41f6 100644
 --- a/services/core/java/com/android/server/wm/TaskPositioner.java
 +++ b/services/core/java/com/android/server/wm/TaskPositioner.java
 @@ -477,7 +477,7 @@ class TaskPositioner implements IBinder.DeathRecipient {
@@ -21,3 +21,6 @@ index 44f4a58a..d595882f 100644
  
          // Vertically, the top mMinVisibleHeight of the window should remain visible.
          // (This assumes that the window caption bar is at the top of the window).
+-- 
+2.37.2
+

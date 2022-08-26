@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 898b4c15d1993cc34c7832a6439f55094e346eaa Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Fri, 10 Sep 2021 19:05:06 +0800
-Subject: [PATCH] base: Always enable caption
+Subject: [PATCH 31/35] base: Always enable caption
 
 Change-Id: I286146ebe9ed3557aecbb508cc846c82614ea5d6
 ---
@@ -11,7 +11,7 @@ Change-Id: I286146ebe9ed3557aecbb508cc846c82614ea5d6
  3 files changed, 31 insertions(+)
 
 diff --git a/core/java/android/app/WindowConfiguration.java b/core/java/android/app/WindowConfiguration.java
-index a486b950..050aa93d 100644
+index a486b9501e0c..050aa93d75ed 100644
 --- a/core/java/android/app/WindowConfiguration.java
 +++ b/core/java/android/app/WindowConfiguration.java
 @@ -31,6 +31,7 @@ import android.content.res.Configuration;
@@ -36,7 +36,7 @@ index a486b950..050aa93d 100644
                  || mDisplayWindowingMode == WINDOWING_MODE_FREEFORM);
      }
 diff --git a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
-index 0ae9cc27..5bcf354b 100644
+index 0ae9cc279e68..5bcf354bf7c5 100644
 --- a/services/core/java/com/android/server/am/ActivityManagerService.java
 +++ b/services/core/java/com/android/server/am/ActivityManagerService.java
 @@ -32,6 +32,10 @@ import static android.app.ActivityManager.PROCESS_STATE_TOP;
@@ -81,7 +81,7 @@ index 0ae9cc27..5bcf354b 100644
                      callingFeatureId, intent, resolvedType, resultTo, resultWho, requestCode,
                      startFlags, profilerInfo, bOptions, userId);
 diff --git a/services/core/java/com/android/server/wm/ActivityStack.java b/services/core/java/com/android/server/wm/ActivityStack.java
-index 86110626..fbbb2d2f 100644
+index 86110626eec0..fbbb2d2f8533 100644
 --- a/services/core/java/com/android/server/wm/ActivityStack.java
 +++ b/services/core/java/com/android/server/wm/ActivityStack.java
 @@ -20,6 +20,7 @@ import static android.app.ActivityTaskManager.INVALID_TASK_ID;
@@ -102,3 +102,6 @@ index 86110626..fbbb2d2f 100644
              if (!Objects.equals(getRequestedOverrideBounds(), mTmpRect2)) {
                  resize(mTmpRect2, false /*preserveWindows*/, true /*deferResume*/);
              }
+-- 
+2.37.2
+

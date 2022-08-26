@@ -1,0 +1,36 @@
+From 9c433b919bad148ba36514a1649fbe0dd6816324 Mon Sep 17 00:00:00 2001
+From: utzcoz <utzcoz@outlook.com>
+Date: Tue, 15 Jun 2021 22:51:57 +0800
+Subject: [PATCH 23/35] DO NOT MERGE - Disable overlay with decor caption
+ default
+
+Before we find why the system missed caption bar inset dispatching when
+window first opened, we should keep it disabled.
+
+Change-Id: If6d07c066f3f33d4eb533d25701023026759e398
+Signed-off-by: utzcoz <utzcoz@outlook.com>
+---
+ core/java/android/view/Window.java | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/core/java/android/view/Window.java b/core/java/android/view/Window.java
+index 6a9f9af75938..6cdd56c95926 100644
+--- a/core/java/android/view/Window.java
++++ b/core/java/android/view/Window.java
+@@ -321,7 +321,12 @@ public abstract class Window {
+     @UnsupportedAppUsage
+     private boolean mDestroyed;
+ 
+-    private boolean mOverlayWithDecorCaptionEnabled = true;
++    // region @boringdroid
++    // Disable overlay with decor caption default, before we find why the system missed
++    // caption bar inset dispatching when window first opened.
++    // private boolean mOverlayWithDecorCaptionEnabled = true;
++    private boolean mOverlayWithDecorCaptionEnabled = false;
++    // endregion
+     private boolean mCloseOnSwipeEnabled = false;
+ 
+     // The current window attributes.
+-- 
+2.37.2
+

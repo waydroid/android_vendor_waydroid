@@ -1,8 +1,8 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From abcb9c4e4195584965b29411ad493eafe5e1fcf4 Mon Sep 17 00:00:00 2001
 From: jingjiezhuang <jingjie.zhuang@igg.com>
 Date: Tue, 19 Apr 2022 18:42:12 +0800
-Subject: [PATCH] clipboard: Talk with waydroid host service to get clipboard
- synchronized
+Subject: [PATCH 11/35] clipboard: Talk with waydroid host service to get
+ clipboard synchronized
 
 Change-Id: Ia038dae3393dc4887ac9477aff642541ffc230a3
 ---
@@ -10,7 +10,7 @@ Change-Id: Ia038dae3393dc4887ac9477aff642541ffc230a3
  1 file changed, 23 insertions(+)
 
 diff --git a/services/core/java/com/android/server/clipboard/ClipboardService.java b/services/core/java/com/android/server/clipboard/ClipboardService.java
-index ed3a223b..f50d6c87 100644
+index ed3a223b5dd7..f50d6c87a990 100644
 --- a/services/core/java/com/android/server/clipboard/ClipboardService.java
 +++ b/services/core/java/com/android/server/clipboard/ClipboardService.java
 @@ -68,6 +68,8 @@ import java.io.RandomAccessFile;
@@ -78,3 +78,6 @@ index ed3a223b..f50d6c87 100644
                  return getClipboard(intendingUserId).primaryClip != null;
              }
          }
+-- 
+2.37.2
+

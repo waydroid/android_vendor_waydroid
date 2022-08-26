@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From ad350177172036027b46a1fbfe853bd74fc0d63f Mon Sep 17 00:00:00 2001
 From: Vachounet <vachounet@live.fr>
 Date: Wed, 12 Feb 2020 11:34:33 +0100
-Subject: [PATCH] AndroidManifest: add a permission group for signature
+Subject: [PATCH 08/35] AndroidManifest: add a permission group for signature
  spoofing
 
 Needed by PackageInstaller while checking for modern permission group
@@ -13,10 +13,10 @@ Change-Id: Ibb402960dcde6d21106d1481ca7c3cd314fd2ac1
  2 files changed, 8 insertions(+)
 
 diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
-index 9aa9482f..ed88091d 100644
+index ea1ea9f9ed98..e227d4d77643 100644
 --- a/core/res/AndroidManifest.xml
 +++ b/core/res/AndroidManifest.xml
-@@ -2862,6 +2862,7 @@
+@@ -2863,6 +2863,7 @@
      <!-- @hide Allows an application to change the package signature as
  	 seen by applications -->
      <permission android:name="android.permission.FAKE_PACKAGE_SIGNATURE"
@@ -25,7 +25,7 @@ index 9aa9482f..ed88091d 100644
          android:label="@string/permlab_fakePackageSignature"
          android:description="@string/permdesc_fakePackageSignature" />
 diff --git a/core/res/res/values/microg_strings.xml b/core/res/res/values/microg_strings.xml
-index 752833b4..eb435795 100644
+index 752833b4c3a5..eb4357957486 100644
 --- a/core/res/res/values/microg_strings.xml
 +++ b/core/res/res/values/microg_strings.xml
 @@ -22,4 +22,11 @@
@@ -40,3 +40,6 @@ index 752833b4..eb435795 100644
 +    <string name="permgrouprequest_fake_package_signature">Allow
 +        &lt;b><xliff:g id="app_name" example="Gmail">%1$s</xliff:g>&lt;/b> to spoof package signature?</string>
  </resources>
+-- 
+2.37.2
+

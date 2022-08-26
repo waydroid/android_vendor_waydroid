@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From ca841ea92ea05359c292d383f7b9f6dfac77c98d Mon Sep 17 00:00:00 2001
 From: Madhushan Nishantha <jlmadushan@gmail.com>
 Date: Wed, 20 Oct 2021 19:46:11 +0200
-Subject: [PATCH] (waydroid) disable app dir isolation using SELinux
+Subject: [PATCH 04/35] (waydroid) disable app dir isolation using SELinux
 
 Change-Id: Ifc0495a4795ab64f646abd4987819fa367b304f4
 ---
@@ -10,7 +10,7 @@ Change-Id: Ifc0495a4795ab64f646abd4987819fa367b304f4
  2 files changed, 4 insertions(+), 2 deletions(-)
 
 diff --git a/core/jni/Android.bp b/core/jni/Android.bp
-index 0797b18f..42228084 100644
+index 0797b18f12de..42228084c243 100644
 --- a/core/jni/Android.bp
 +++ b/core/jni/Android.bp
 @@ -18,6 +18,7 @@ cc_library_shared {
@@ -22,7 +22,7 @@ index 0797b18f..42228084 100644
  
      cppflags: ["-Wno-conversion-null"],
 diff --git a/core/jni/com_android_internal_os_Zygote.cpp b/core/jni/com_android_internal_os_Zygote.cpp
-index f0b41b03..555b7b10 100644
+index f0b41b03223c..555b7b1081b5 100644
 --- a/core/jni/com_android_internal_os_Zygote.cpp
 +++ b/core/jni/com_android_internal_os_Zygote.cpp
 @@ -1644,8 +1644,9 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids,
@@ -37,3 +37,6 @@ index f0b41b03..555b7b10 100644
      isolateJitProfile(env, pkg_data_info_list, uid, process_name, managed_nice_name, fail_fn);
    }
    // MOUNT_EXTERNAL_INSTALLER, MOUNT_EXTERNAL_PASS_THROUGH, MOUNT_EXTERNAL_ANDROID_WRITABLE apps
+-- 
+2.37.2
+

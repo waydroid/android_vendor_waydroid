@@ -1,7 +1,7 @@
-From 0b74381f84b5d56c0ec8de6b97b48e79ca79fab6 Mon Sep 17 00:00:00 2001
+From 16c614ca96e0c1f26b17f60a69a0a55d72dc0f13 Mon Sep 17 00:00:00 2001
 From: Alessandro Astone <ales.astone@gmail.com>
 Date: Tue, 21 Jun 2022 14:06:13 +0200
-Subject: [PATCH 1/2] ClipboardService: Always instantiate WaydroidClipboard
+Subject: [PATCH 12/35] ClipboardService: Always instantiate WaydroidClipboard
 
 It might be that on boot the Clipboard service is not published yet.
 The service will be retrieved on demand.
@@ -26,5 +26,5 @@ index f50d6c87a990..0584f5bf5855 100644
  
      @Override
 -- 
-2.36.1
+2.37.2
 

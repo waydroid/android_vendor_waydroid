@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From a3fbbf9c122cb359fd26c45a03b8797e4732eec2 Mon Sep 17 00:00:00 2001
 From: utzcoz <utzcoz@outlook.com>
 Date: Thu, 11 Jun 2020 20:16:55 +0800
-Subject: [PATCH] Add back button for freeform window
+Subject: [PATCH 16/35] Add back button for freeform window
 
 Signed-off-by: utzcoz <utzcoz@outlook.com>
 Change-Id: Ic847315ef5fb606cacde03f30ad0ec41730d36b7
@@ -25,7 +25,7 @@ Conflicts:
  create mode 100644 core/res/res/drawable/decor_back_button_light.xml
 
 diff --git a/core/java/android/app/Activity.java b/core/java/android/app/Activity.java
-index a48bb787..f753e59c 100644
+index a48bb787b787..f753e59c0fad 100644
 --- a/core/java/android/app/Activity.java
 +++ b/core/java/android/app/Activity.java
 @@ -1016,6 +1016,13 @@ public class Activity extends ContextThemeWrapper
@@ -43,7 +43,7 @@ index a48bb787..f753e59c 100644
  
      private static native String getDlWarning();
 diff --git a/core/java/android/view/Window.java b/core/java/android/view/Window.java
-index bc2c6913..6a9f9af7 100644
+index bc2c6913412f..6a9f9af75938 100644
 --- a/core/java/android/view/Window.java
 +++ b/core/java/android/view/Window.java
 @@ -655,6 +655,10 @@ public abstract class Window {
@@ -58,7 +58,7 @@ index bc2c6913..6a9f9af7 100644
  
      /**
 diff --git a/core/java/com/android/internal/policy/DecorView.java b/core/java/com/android/internal/policy/DecorView.java
-index 5d1833a7..76aa232b 100644
+index 5d1833a717e5..76aa232bb41c 100644
 --- a/core/java/com/android/internal/policy/DecorView.java
 +++ b/core/java/com/android/internal/policy/DecorView.java
 @@ -2209,7 +2209,12 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
@@ -88,7 +88,7 @@ index 5d1833a7..76aa232b 100644
                  R.drawable.decor_pip_button_dark);
  		view.findViewById(R.id.minimize_window).setBackgroundResource(
 diff --git a/core/java/com/android/internal/widget/DecorCaptionView.java b/core/java/com/android/internal/widget/DecorCaptionView.java
-index 7ec93ff6..f11ec913 100644
+index 7ec93ff6c987..f11ec913a2e2 100644
 --- a/core/java/com/android/internal/widget/DecorCaptionView.java
 +++ b/core/java/com/android/internal/widget/DecorCaptionView.java
 @@ -16,6 +16,7 @@
@@ -183,7 +183,7 @@ index 7ec93ff6..f11ec913 100644
          } else if (mClickTarget == mPip) {
 diff --git a/core/res/res/drawable/decor_back_button_dark.xml b/core/res/res/drawable/decor_back_button_dark.xml
 new file mode 100644
-index 00000000..ec0f6a92
+index 000000000000..ec0f6a92d230
 --- /dev/null
 +++ b/core/res/res/drawable/decor_back_button_dark.xml
 @@ -0,0 +1,34 @@
@@ -223,7 +223,7 @@ index 00000000..ec0f6a92
 +
 diff --git a/core/res/res/drawable/decor_back_button_light.xml b/core/res/res/drawable/decor_back_button_light.xml
 new file mode 100644
-index 00000000..7b9344a0
+index 000000000000..7b9344a0dce4
 --- /dev/null
 +++ b/core/res/res/drawable/decor_back_button_light.xml
 @@ -0,0 +1,31 @@
@@ -259,7 +259,7 @@ index 00000000..7b9344a0
 +    </group>
 +</vector>
 diff --git a/core/res/res/layout/decor_caption.xml b/core/res/res/layout/decor_caption.xml
-index 55edbfcf..534d27d8 100644
+index 55edbfcfbb91..534d27d825eb 100644
 --- a/core/res/res/layout/decor_caption.xml
 +++ b/core/res/res/layout/decor_caption.xml
 @@ -30,6 +30,22 @@
@@ -286,7 +286,7 @@ index 55edbfcf..534d27d8 100644
                  android:id="@+id/pip_window"
                  android:layout_width="32dp"
 diff --git a/core/res/res/values/arrays.xml b/core/res/res/values/arrays.xml
-index 168ca791..633e928e 100644
+index 168ca7917c65..633e928ed2ad 100644
 --- a/core/res/res/values/arrays.xml
 +++ b/core/res/res/values/arrays.xml
 @@ -143,6 +143,10 @@
@@ -301,7 +301,7 @@ index 168ca791..633e928e 100644
  
      <!-- Used in LocalePicker -->
 diff --git a/core/res/res/values/strings.xml b/core/res/res/values/strings.xml
-index cb7c072a..3d0c18e1 100644
+index cb7c072a880a..3d0c18e1e21b 100644
 --- a/core/res/res/values/strings.xml
 +++ b/core/res/res/values/strings.xml
 @@ -4981,6 +4981,9 @@
@@ -315,7 +315,7 @@ index cb7c072a..3d0c18e1 100644
      <string name="pip_button_text">Picture In Picture</string>
      <!-- Accessibility text for the minimize window button -->
 diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
-index da60814c..32481df6 100644
+index da60814c2123..32481df6996e 100644
 --- a/core/res/res/values/symbols.xml
 +++ b/core/res/res/values/symbols.xml
 @@ -2281,6 +2281,11 @@
@@ -330,3 +330,6 @@ index da60814c..32481df6 100644
    <java-symbol type="color" name="decor_button_dark_color" />
    <java-symbol type="color" name="decor_button_light_color" />
    <java-symbol type="array" name="unloggable_phone_numbers" />
+-- 
+2.37.2
+

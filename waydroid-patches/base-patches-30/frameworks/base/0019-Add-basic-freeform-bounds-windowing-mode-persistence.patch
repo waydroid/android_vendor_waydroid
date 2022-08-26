@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From b2fc359a39f5768f72a0e4aab536ddf826cc775c Mon Sep 17 00:00:00 2001
 From: utzcoz <utzcoz@outlook.com>
 Date: Tue, 28 Jul 2020 23:05:24 +0800
-Subject: [PATCH] Add basic freeform bounds/windowing mode persistence
+Subject: [PATCH 19/35] Add basic freeform bounds/windowing mode persistence
 
 Expose package-windowing-mode-overlay for definning windowing mode
 
@@ -29,7 +29,6 @@ So the current windowing mode checking chain is:
    or decor caption bar. The default is WINDOWING_MODE_FREEFORM.
 
 Signed-off-by: utzcoz <utzcoz@outlook.com>
-Change-Id: I94f0e92b3d51839ee0ab2b5886ca1615ce851ee4
 ---
  .../android/internal/BoringdroidManager.java  | 177 ++++++++++++++++++
  .../android/internal/policy/PhoneWindow.java  |   4 +
@@ -45,7 +44,7 @@ Change-Id: I94f0e92b3d51839ee0ab2b5886ca1615ce851ee4
 
 diff --git a/core/java/com/android/internal/BoringdroidManager.java b/core/java/com/android/internal/BoringdroidManager.java
 new file mode 100644
-index 00000000..e4ac0a59
+index 000000000000..e4ac0a59cdc7
 --- /dev/null
 +++ b/core/java/com/android/internal/BoringdroidManager.java
 @@ -0,0 +1,177 @@
@@ -228,7 +227,7 @@ index 00000000..e4ac0a59
 +}
 \ No newline at end of file
 diff --git a/core/java/com/android/internal/policy/PhoneWindow.java b/core/java/com/android/internal/policy/PhoneWindow.java
-index d90a0225..f3d8aee1 100644
+index d90a0225608d..f3d8aee178d5 100644
 --- a/core/java/com/android/internal/policy/PhoneWindow.java
 +++ b/core/java/com/android/internal/policy/PhoneWindow.java
 @@ -60,6 +60,7 @@ import android.os.Parcel;
@@ -251,7 +250,7 @@ index d90a0225..f3d8aee1 100644
          mActivityConfigCallback = activityConfigCallback;
 diff --git a/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java b/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java
 deleted file mode 100644
-index d4aff777..00000000
+index d4aff777d938..000000000000
 --- a/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java
 +++ /dev/null
 @@ -1,24 +0,0 @@
@@ -281,10 +280,10 @@ index d4aff777..00000000
 -}
 \ No newline at end of file
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
-index eeb4b98e..c84a3a9a 100644
+index 21dc7b364b82..67fe6509af05 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
-@@ -38,7 +38,7 @@ import android.widget.LinearLayout;
+@@ -42,7 +42,7 @@ import android.widget.LinearLayout;
  import android.widget.Space;
  
  import com.android.internal.annotations.VisibleForTesting;
@@ -293,7 +292,7 @@ index eeb4b98e..c84a3a9a 100644
  import com.android.systemui.Dependency;
  import com.android.systemui.R;
  import com.android.systemui.recents.OverviewProxyService;
-@@ -161,7 +161,7 @@ public class NavigationBarInflaterView extends FrameLayout
+@@ -166,7 +166,7 @@ public class NavigationBarInflaterView extends FrameLayout
              return getContext().getString(defaultResource).replace(HOME_HANDLE, "");
          }
          // region @boringdroid
@@ -302,7 +301,7 @@ index eeb4b98e..c84a3a9a 100644
              return getContext().getString(R.string.boring_config_navBarLayout);
          } else {
              return getContext().getString(defaultResource);
-@@ -498,7 +498,7 @@ public class NavigationBarInflaterView extends FrameLayout
+@@ -512,7 +512,7 @@ public class NavigationBarInflaterView extends FrameLayout
              }
          }
          // region @boringdroid
@@ -312,7 +311,7 @@ index eeb4b98e..c84a3a9a 100644
              layoutParams.width =
                      (int) v.getContext()
 diff --git a/services/core/java/com/android/server/wm/ActivityStack.java b/services/core/java/com/android/server/wm/ActivityStack.java
-index 6d452c39..86110626 100644
+index 6d452c39eccc..86110626eec0 100644
 --- a/services/core/java/com/android/server/wm/ActivityStack.java
 +++ b/services/core/java/com/android/server/wm/ActivityStack.java
 @@ -143,6 +143,7 @@ import android.util.proto.ProtoOutputStream;
@@ -358,7 +357,7 @@ index 6d452c39..86110626 100644
          final boolean isOrhasTask = rTask == this || hasChild(rTask);
          // mLaunchTaskBehind tasks get placed at the back of the task stack.
 diff --git a/services/core/java/com/android/server/wm/ActivityStarter.java b/services/core/java/com/android/server/wm/ActivityStarter.java
-index 54ad4aca..6c1a8106 100644
+index 54ad4acaca4c..6c1a810615e7 100644
 --- a/services/core/java/com/android/server/wm/ActivityStarter.java
 +++ b/services/core/java/com/android/server/wm/ActivityStarter.java
 @@ -113,6 +113,7 @@ import android.util.DebugUtils;
@@ -391,7 +390,7 @@ index 54ad4aca..6c1a8106 100644
  
          computeSourceStack();
 diff --git a/services/core/java/com/android/server/wm/LaunchParamsPersister.java b/services/core/java/com/android/server/wm/LaunchParamsPersister.java
-index a974332f..376470a9 100644
+index b037e59942cf..f788585df34b 100644
 --- a/services/core/java/com/android/server/wm/LaunchParamsPersister.java
 +++ b/services/core/java/com/android/server/wm/LaunchParamsPersister.java
 @@ -17,6 +17,7 @@
@@ -410,7 +409,7 @@ index a974332f..376470a9 100644
  import com.android.internal.annotations.VisibleForTesting;
  import com.android.internal.util.FastXmlSerializer;
  import com.android.server.LocalServices;
-@@ -324,6 +326,15 @@ class LaunchParamsPersister {
+@@ -327,6 +329,15 @@ class LaunchParamsPersister {
          }
          outParams.mWindowingMode = persistableParams.mWindowingMode;
          outParams.mBounds.set(persistableParams.mBounds);
@@ -427,7 +426,7 @@ index a974332f..376470a9 100644
  
      void removeRecordForPackage(String packageName) {
 diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
-index c25fd122..f9a7a726 100644
+index c25fd12266af..f9a7a7265632 100644
 --- a/services/core/java/com/android/server/wm/WindowManagerService.java
 +++ b/services/core/java/com/android/server/wm/WindowManagerService.java
 @@ -147,6 +147,7 @@ import android.content.ContentResolver;
@@ -452,3 +451,6 @@ index c25fd122..f9a7a726 100644
 +    }
 +    // endregion
  }
+-- 
+2.37.2
+

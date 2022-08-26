@@ -1,29 +1,29 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 7262c18ab9f224b7cd99d77257f6ba6f1d3c2484 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Tue, 7 Sep 2021 10:03:35 +0800
-Subject: [PATCH] base: Keep using our multi-win props
+Subject: [PATCH 27/35] base: Keep using our multi-win props
 
 Change-Id: I8adc8dbebb4558813ff7a160cbd368a68ed01009
 ---
- core/java/com/android/internal/BoringdroidManager.java          | 2 +-
- core/java/com/android/internal/policy/PhoneWindow.java          | 2 +-
- .../com/android/systemui/shared/plugins/PluginManagerImpl.java  | 2 +-
- 3 files changed, 3 insertions(+), 3 deletions(-)
+ core/java/com/android/internal/BoringdroidManager.java        | 4 ++--
+ core/java/com/android/internal/policy/PhoneWindow.java        | 2 +-
+ .../android/systemui/shared/plugins/PluginManagerImpl.java    | 2 +-
+ 3 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/core/java/com/android/internal/BoringdroidManager.java b/core/java/com/android/internal/BoringdroidManager.java
-index e4ac0a59..ec2617ec 100644
+index c56a7807f7f3..4783dafa3fc8 100644
 --- a/core/java/com/android/internal/BoringdroidManager.java
 +++ b/core/java/com/android/internal/BoringdroidManager.java
-@@ -35,7 +35,7 @@ import java.util.List;
+@@ -39,7 +39,7 @@ import java.util.List;
   */
  public class BoringdroidManager {
      public static boolean IS_SYSTEMUI_PLUGIN_ENABLED =
 -            SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
 +            SystemProperties.getBoolean("persist.waydroid.multi_windows", false);
  
-     private static final String PACKAGE_WINDOW_BOUNDS_NAME = "package-window-bounds";
      private static final String PACKAGE_WINDOWING_MODE_NAME = "package-windowing-mode";
-@@ -49,7 +49,7 @@ public class BoringdroidManager {
+     private static final String PACKAGE_WINDOWING_MODE_OVERLAY_NAME = "package-windowing-mode-overlay";
+@@ -52,7 +52,7 @@ public class BoringdroidManager {
      }
  
      public static boolean isPCModeEnabled() {
@@ -33,7 +33,7 @@ index e4ac0a59..ec2617ec 100644
  
      private static boolean isInPCModeDisallowedList(String packageName) {
 diff --git a/core/java/com/android/internal/policy/PhoneWindow.java b/core/java/com/android/internal/policy/PhoneWindow.java
-index f3d8aee1..fb3bb0d8 100644
+index f3d8aee178d5..fb3bb0d8346c 100644
 --- a/core/java/com/android/internal/policy/PhoneWindow.java
 +++ b/core/java/com/android/internal/policy/PhoneWindow.java
 @@ -374,7 +374,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
@@ -46,7 +46,7 @@ index f3d8aee1..fb3bb0d8 100644
          mSupportsPictureInPicture = forceResizable || context.getPackageManager().hasSystemFeature(
                  PackageManager.FEATURE_PICTURE_IN_PICTURE);
 diff --git a/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java b/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
-index 40072a29..fb5cf13b 100644
+index 40072a29ff71..fb5cf13b7a4e 100644
 --- a/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
 +++ b/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
 @@ -96,7 +96,7 @@ public class PluginManagerImpl extends BroadcastReceiver implements PluginManage
@@ -58,3 +58,6 @@ index 40072a29..fb5cf13b 100644
          // endregion
          mWhitelistedPlugins.addAll(Arrays.asList(initializer.getWhitelistedPlugins(mContext)));
          mPluginPrefs = new PluginPrefs(mContext);
+-- 
+2.37.2
+

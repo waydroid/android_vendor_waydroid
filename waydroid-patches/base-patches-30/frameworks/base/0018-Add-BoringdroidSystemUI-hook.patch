@@ -1,25 +1,27 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From ee46bbf406cebc86b1b7b7e0c5d8f89d00cf29e8 Mon Sep 17 00:00:00 2001
 From: utzcoz <utzcoz@outlook.com>
 Date: Fri, 24 Jul 2020 15:27:32 +0800
-Subject: [PATCH] BoringdroidSystemUI: Use persist.sys.systemuiplugin.enabled
- to control plugin and nav bar style
+Subject: [PATCH 18/35] Add BoringdroidSystemUI hook
 
-Change-Id: I1d88309b355d99c5aa75f3b6ad3c73e9d39ffdc3
+1. Use persist.sys.systemuiplugin.enabled to control plugin and nav bar style
+2. Reload BoringdroidSystemUI after display theme and tuner changed
+3. Notify task moved to front event when focused task changed
+
 Signed-off-by: utzcoz <utzcoz@outlook.com>
-
-Conflicts:
-	packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
+Change-Id: Ifb408bca4d0228d07de6141f94d7bf15ca397b0a
 ---
- packages/SystemUI/res/values/config.xml       |  3 +++
- packages/SystemUI/res/values/dimens.xml       |  4 +++-
- .../shared/plugins/PluginManagerImpl.java     |  6 ++++-
- .../android/systemui/BoringdroidConfig.java   | 24 +++++++++++++++++++
- .../phone/NavigationBarInflaterView.java      | 20 +++++++++++++++-
- 5 files changed, 54 insertions(+), 3 deletions(-)
+ packages/SystemUI/res/values/config.xml       |  3 ++
+ packages/SystemUI/res/values/dimens.xml       |  4 ++-
+ .../shared/plugins/PluginManagerImpl.java     |  6 +++-
+ .../android/systemui/BoringdroidConfig.java   | 24 +++++++++++++
+ .../fragments/FragmentHostManager.java        | 13 +++++++
+ .../phone/NavigationBarInflaterView.java      | 34 ++++++++++++++++++-
+ .../com/android/server/wm/ActivityRecord.java |  6 ++++
+ 7 files changed, 87 insertions(+), 3 deletions(-)
  create mode 100644 packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java
 
 diff --git a/packages/SystemUI/res/values/config.xml b/packages/SystemUI/res/values/config.xml
-index 367fe72d..9a8e4b3e 100644
+index 367fe72d4da7..9a8e4b3e52a0 100644
 --- a/packages/SystemUI/res/values/config.xml
 +++ b/packages/SystemUI/res/values/config.xml
 @@ -345,6 +345,9 @@
@@ -33,7 +35,7 @@ index 367fe72d..9a8e4b3e 100644
      <bool name="quick_settings_show_full_alarm">false</bool>
  
 diff --git a/packages/SystemUI/res/values/dimens.xml b/packages/SystemUI/res/values/dimens.xml
-index e414861b..cd8d923c 100644
+index e414861b0cd3..cd8d923cc54f 100644
 --- a/packages/SystemUI/res/values/dimens.xml
 +++ b/packages/SystemUI/res/values/dimens.xml
 @@ -348,7 +348,9 @@
@@ -48,7 +50,7 @@ index e414861b..cd8d923c 100644
      <dimen name="navigation_extra_key_width">36dp</dimen>
  
 diff --git a/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java b/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
-index 5c742f25..40072a29 100644
+index 5c742f25209e..40072a29ff71 100644
 --- a/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
 +++ b/packages/SystemUI/shared/src/com/android/systemui/shared/plugins/PluginManagerImpl.java
 @@ -93,7 +93,11 @@ public class PluginManagerImpl extends BroadcastReceiver implements PluginManage
@@ -66,7 +68,7 @@ index 5c742f25..40072a29 100644
          mPluginEnabler = initializer.getPluginEnabler(mContext);
 diff --git a/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java b/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java
 new file mode 100644
-index 00000000..d4aff777
+index 000000000000..d4aff777d938
 --- /dev/null
 +++ b/packages/SystemUI/src/com/android/systemui/BoringdroidConfig.java
 @@ -0,0 +1,24 @@
@@ -95,11 +97,65 @@ index 00000000..d4aff777
 +            SystemProperties.getBoolean("persist.sys.systemuiplugin.enabled", false);
 +}
 \ No newline at end of file
+diff --git a/packages/SystemUI/src/com/android/systemui/fragments/FragmentHostManager.java b/packages/SystemUI/src/com/android/systemui/fragments/FragmentHostManager.java
+index 87d90adceba5..708a123cd699 100644
+--- a/packages/SystemUI/src/com/android/systemui/fragments/FragmentHostManager.java
++++ b/packages/SystemUI/src/com/android/systemui/fragments/FragmentHostManager.java
+@@ -22,8 +22,10 @@ import android.app.FragmentManager;
+ import android.app.FragmentManager.FragmentLifecycleCallbacks;
+ import android.app.FragmentManagerNonConfig;
+ import android.content.Context;
++import android.content.Intent;
+ import android.content.pm.ActivityInfo;
+ import android.content.res.Configuration;
++import android.net.Uri;
+ import android.os.Bundle;
+ import android.os.Handler;
+ import android.os.Looper;
+@@ -34,9 +36,11 @@ import android.view.View;
+ 
+ import androidx.annotation.NonNull;
+ 
++import com.android.internal.BoringdroidManager;
+ import com.android.settingslib.applications.InterestingConfigChanges;
+ import com.android.systemui.Dependency;
+ import com.android.systemui.plugins.Plugin;
++import com.android.systemui.shared.plugins.PluginManagerImpl;
+ import com.android.systemui.util.leak.LeakDetector;
+ 
+ import java.io.FileDescriptor;
+@@ -157,6 +161,15 @@ public class FragmentHostManager {
+     protected void onConfigurationChanged(Configuration newConfig) {
+         if (mConfigChanges.applyNewConfig(mContext.getResources())) {
+             reloadFragments();
++            // region @boringdroid
++            if (BoringdroidManager.IS_SYSTEMUI_PLUGIN_ENABLED) {
++                Intent intent = new Intent(
++                        PluginManagerImpl.PLUGIN_CHANGED,
++                        Uri.fromParts("package", "com.boringdroid.systemui", null)
++                );
++                mContext.sendBroadcast(intent);
++            }
++            // endregion
+         } else {
+             mFragments.dispatchConfigurationChanged(newConfig);
+         }
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
-index 047cb702..eeb4b98e 100644
+index 047cb702c559..21dc7b364b82 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
-@@ -38,6 +38,7 @@ import android.widget.LinearLayout;
+@@ -26,6 +26,10 @@ import android.content.res.Configuration;
+ import android.graphics.drawable.Icon;
+ import android.os.RemoteException;
+ import android.os.ServiceManager;
++import android.content.Intent;
++import android.content.res.Configuration;
++import android.graphics.drawable.Icon;
++import android.net.Uri;
+ import android.util.AttributeSet;
+ import android.util.Log;
+ import android.util.SparseArray;
+@@ -38,9 +42,11 @@ import android.widget.LinearLayout;
  import android.widget.Space;
  
  import com.android.internal.annotations.VisibleForTesting;
@@ -107,7 +163,11 @@ index 047cb702..eeb4b98e 100644
  import com.android.systemui.Dependency;
  import com.android.systemui.R;
  import com.android.systemui.recents.OverviewProxyService;
-@@ -159,7 +160,13 @@ public class NavigationBarInflaterView extends FrameLayout
++import com.android.systemui.shared.plugins.PluginManagerImpl;
+ import com.android.systemui.shared.system.QuickStepContract;
+ import com.android.systemui.statusbar.phone.ReverseLinearLayout.ReverseRelativeLayout;
+ import com.android.systemui.statusbar.policy.KeyButtonView;
+@@ -159,7 +165,13 @@ public class NavigationBarInflaterView extends FrameLayout
          if (!mIsHintEnabled && defaultResource == R.string.config_navBarLayoutHandle) {
              return getContext().getString(defaultResource).replace(HOME_HANDLE, "");
          }
@@ -122,7 +182,23 @@ index 047cb702..eeb4b98e 100644
      }
  
      @Override
-@@ -490,6 +497,17 @@ public class NavigationBarInflaterView extends FrameLayout
+@@ -207,6 +219,15 @@ public class NavigationBarInflaterView extends FrameLayout
+         if (!Objects.equals(mCurrentLayout, newValue)) {
+             clearViews();
+             inflateLayout(newValue);
++            // region @boringdroid
++            if (BoringdroidManager.IS_SYSTEMUI_PLUGIN_ENABLED) {
++                Intent intent = new Intent(
++                        PluginManagerImpl.PLUGIN_CHANGED,
++                        Uri.fromParts("package", "com.boringdroid.systemui", null)
++                );
++                getContext().sendBroadcast(intent);
++            }
++            // endregion
+         }
+     }
+ 
+@@ -490,6 +511,17 @@ public class NavigationBarInflaterView extends FrameLayout
                  }
              }
          }
@@ -140,3 +216,23 @@ index 047cb702..eeb4b98e 100644
          return v;
      }
  
+diff --git a/services/core/java/com/android/server/wm/ActivityRecord.java b/services/core/java/com/android/server/wm/ActivityRecord.java
+index 92dbfa4f1733..b55d0c259690 100644
+--- a/services/core/java/com/android/server/wm/ActivityRecord.java
++++ b/services/core/java/com/android/server/wm/ActivityRecord.java
+@@ -2444,6 +2444,12 @@ final class ActivityRecord extends WindowToken implements WindowManagerService.A
+         }
+ 
+         stack.moveToFront(reason, task);
++        // region @boringdroid
++        // We should notify task moved to front event if we change focused task
++        if (task != null) {
++            mAtmService.getTaskChangeNotificationController().notifyTaskMovedToFront(task.getTaskInfo());
++        }
++        // endregion
+         // Report top activity change to tracking services and WM
+         if (mRootWindowContainer.getTopResumedActivity() == this) {
+             mAtmService.setResumedActivityUncheckLocked(this, reason);
+-- 
+2.37.2
+
