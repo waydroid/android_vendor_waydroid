@@ -1,0 +1,82 @@
+From 608e0443e9a45c7accf32e796b5102bccfd9d400 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 28 Aug 2022 00:21:09 +0200
+Subject: [PATCH] Force hide status bar in multi-windows mode
+
+Otherwise its hitbox blocks the top half of a window's caption bar
+when maximized
+
+Change-Id: I1eef53b03af3929c896a710feafcfd6293a93eac
+---
+ core/java/android/view/InsetsSource.java |  2 ++
+ core/java/android/view/InsetsState.java  | 13 +++++++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/core/java/android/view/InsetsSource.java b/core/java/android/view/InsetsSource.java
+index dbf75705c073..24cf94586f84 100644
+--- a/core/java/android/view/InsetsSource.java
++++ b/core/java/android/view/InsetsSource.java
+@@ -73,6 +73,8 @@ public class InsetsSource implements Parcelable {
+     }
+ 
+     public void setVisible(boolean visible) {
++        if (InsetsState.shouldForceHide(mType))
++            visible = false;
+         mVisible = visible;
+     }
+ 
+diff --git a/core/java/android/view/InsetsState.java b/core/java/android/view/InsetsState.java
+index 81378831adbc..4e68edc08aea 100644
+--- a/core/java/android/view/InsetsState.java
++++ b/core/java/android/view/InsetsState.java
+@@ -39,6 +39,7 @@ import android.graphics.Insets;
+ import android.graphics.Rect;
+ import android.os.Parcel;
+ import android.os.Parcelable;
++import android.os.SystemProperties;
+ import android.util.ArraySet;
+ import android.util.SparseIntArray;
+ import android.view.WindowInsets.Type;
+@@ -46,6 +47,7 @@ import android.view.WindowInsets.Type.InsetsType;
+ import android.view.WindowManager.LayoutParams.SoftInputModeFlags;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
++import com.android.internal.BoringdroidManager;
+ 
+ import java.io.PrintWriter;
+ import java.lang.annotation.Retention;
+@@ -394,6 +396,13 @@ public class InsetsState implements Parcelable {
+         return false;
+     }
+ 
++    public static boolean shouldForceHide(@InternalInsetsType int type) {
++        return (type == ITYPE_CAPTION_BAR ||
++                type == ITYPE_STATUS_BAR) &&
++            BoringdroidManager.isPCModeEnabled() &&
++            !"Waydroid".equals(SystemProperties.get("waydroid.active_apps"));
++    }
++
+     /**
+      * Returns the source visibility or the default visibility if the source doesn't exist. This is
+      * useful if when treating this object as a request.
+@@ -403,6 +412,8 @@ public class InsetsState implements Parcelable {
+      *         doesn't exist.
+      */
+     public boolean getSourceOrDefaultVisibility(@InternalInsetsType int type) {
++        if (shouldForceHide(type))
++            return false;
+         final InsetsSource source = mSources[type];
+         return source != null ? source.isVisible() : getDefaultVisibility(type);
+     }
+@@ -526,6 +537,8 @@ public class InsetsState implements Parcelable {
+     }
+ 
+     public static boolean getDefaultVisibility(@InternalInsetsType int type) {
++        if (shouldForceHide(type))
++            return false;
+         return type != ITYPE_IME;
+     }
+ 
+-- 
+2.37.2
+
