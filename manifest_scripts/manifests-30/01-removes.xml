@@ -6,4 +6,5 @@
   <remove-project name="LineageOS/android_packages_apps_SetupWizard" />
   <remove-project name="device/google/cuttlefish" />
   <remove-project name="device/google/cuttlefish_kernel" />
+  <remove-project name="platform/prebuilts/vndk/v29" />
 </manifest>

@@ -29,4 +29,7 @@
   <!-- Webview -->
   <project path="external/chromium-webview/prebuilt/x86_64" name="LineageOS/android/android_external_chromium-webview_prebuilt_x86_64" clone-depth="1" remote="gitlab" revision="main" />
 
+  <!-- VNDK -->
+  <project path="prebuilts/vndk/v29" name="WayDroid/android_prebuilts_vndk_v29" groups="pdk" clone-depth="1" remote="ghub" revision="refs/heads/lineage-18.1" />
+
 </manifest>
