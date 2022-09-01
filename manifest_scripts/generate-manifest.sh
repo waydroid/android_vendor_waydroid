@@ -45,22 +45,18 @@ if [ ! -d "${top_dir}/.repo" ]; then
     exit
 fi
 
-mkdir -p ${loc_man}
-
-if [ -f build/make/core/version_defaults.mk ]; then
-    if grep -q "PLATFORM_SDK_VERSION := 28" build/make/core/version_defaults.mk; then
-        manifests_url="${manifests_url}-28"
-        manifests_path="${manifests_path}-28"
-    fi
-    if grep -q "PLATFORM_SDK_VERSION := 29" build/make/core/version_defaults.mk; then
-        manifests_url="${manifests_url}"
-        manifests_path="${manifests_path}"
-    fi
-    if grep -q "PLATFORM_SDK_VERSION := 30" build/make/core/version_defaults.mk; then
-        manifests_url="${manifests_url}-30"
-        manifests_path="${manifests_path}-30"
-    fi
+if [ ! -f build/make/core/version_defaults.mk ]; then
+    echo -e ${reset}""${reset}
+    echo -e ${ltred}"ERROR: Missing build/make. Please run `repo sync build/make` first."${reset}
+    echo -e ${reset}""${reset}
+    exit
 fi
+
+sdkv=$(cat build/make/core/version_defaults.mk | grep "PLATFORM_SDK_VERSION :=" | grep -o "[[:digit:]]\+")
+manifests_url="${manifests_url}-${sdkv}"
+manifests_path="${manifests_path}-${sdkv}"
+
+mkdir -p ${loc_man}
 
 echo -e ${reset}""${reset}
 echo -e ${green}"Placing manifest fragments..."${reset}

@@ -136,20 +136,9 @@ apply_patch() {
   fi
 }
 
-if [ -f build/make/core/version_defaults.mk ]; then
-    if grep -q "PLATFORM_SDK_VERSION := 28" build/make/core/version_defaults.mk; then
-        patch_dir="${patch_dir}-28"
-        roms_patch_dir="${roms_patch_dir}-28"
-    fi
-    if grep -q "PLATFORM_SDK_VERSION := 29" build/make/core/version_defaults.mk; then
-        patch_dir="${patch_dir}"
-        roms_patch_dir="${roms_patch_dir}"
-    fi
-    if grep -q "PLATFORM_SDK_VERSION := 30" build/make/core/version_defaults.mk; then
-        patch_dir="${patch_dir}-30"
-        roms_patch_dir="${roms_patch_dir}-30"
-    fi
-fi
+sdkv=$(cat build/make/core/version_defaults.mk | grep "PLATFORM_SDK_VERSION :=" | grep -o "[[:digit:]]\+")
+patch_dir="${patch_dir}-${sdkv}"
+roms_patch_dir="${roms_patch_dir}-${sdkv}"
 
 #Apply common patches
 cd $patch_dir
