@@ -52,7 +52,7 @@ index 81378831adbc..78a0a46e86d3 100644
 +    public static boolean shouldForceHide(@InternalInsetsType int type) {
 +        return (type == ITYPE_CLIMATE_BAR ||
 +                type == ITYPE_STATUS_BAR) &&
-+            BoringdroidManager.isPCModeEnabled() &&
++            (BoringdroidManager.isPCModeEnabled() || SystemProperties.getBoolean("persist.waydroid.hide_status_bar", false)) &&
 +            !"Waydroid".equals(SystemProperties.get("waydroid.active_apps"));
 +    }
 +
