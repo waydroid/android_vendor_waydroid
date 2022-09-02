@@ -1,4 +1,4 @@
-From 608e0443e9a45c7accf32e796b5102bccfd9d400 Mon Sep 17 00:00:00 2001
+From 9ec9d89e20153398e5f47208c2b23b58f6619c46 Mon Sep 17 00:00:00 2001
 From: Alessandro Astone <ales.astone@gmail.com>
 Date: Sun, 28 Aug 2022 00:21:09 +0200
 Subject: [PATCH] Force hide status bar in multi-windows mode
@@ -26,7 +26,7 @@ index dbf75705c073..24cf94586f84 100644
      }
  
 diff --git a/core/java/android/view/InsetsState.java b/core/java/android/view/InsetsState.java
-index 81378831adbc..4e68edc08aea 100644
+index 81378831adbc..78a0a46e86d3 100644
 --- a/core/java/android/view/InsetsState.java
 +++ b/core/java/android/view/InsetsState.java
 @@ -39,6 +39,7 @@ import android.graphics.Insets;
@@ -50,7 +50,7 @@ index 81378831adbc..4e68edc08aea 100644
      }
  
 +    public static boolean shouldForceHide(@InternalInsetsType int type) {
-+        return (type == ITYPE_CAPTION_BAR ||
++        return (type == ITYPE_CLIMATE_BAR ||
 +                type == ITYPE_STATUS_BAR) &&
 +            BoringdroidManager.isPCModeEnabled() &&
 +            !"Waydroid".equals(SystemProperties.get("waydroid.active_apps"));
