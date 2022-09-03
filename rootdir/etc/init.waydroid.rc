@@ -8,6 +8,7 @@ on property:sys.boot_completed=1
 
 on post-fs-data
     mkdir /data/icons 0775 system system
+    mkdir /data/waydroid_tmp 0755 host system
 
 service vendor.audio-hal-2-0 /vendor/bin/hw/android.hardware.audio@2.0-service
     override
