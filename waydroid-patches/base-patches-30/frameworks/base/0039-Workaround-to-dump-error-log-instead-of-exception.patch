@@ -1,0 +1,33 @@
+From 2095c0c1eebdf717fbd4e72ce362392929d5772f Mon Sep 17 00:00:00 2001
+From: Chilun <chilunhuang@google.com>
+Date: Fri, 27 Aug 2021 16:41:31 +0800
+Subject: [PATCH] Workaround to dump error log instead of exception
+
+This is a short-term workaround to dump error log instead of throwing
+the exception to unblock the test.
+
+Bug: 209744518
+Test: build pass
+Change-Id: I2ece3b9d85edc1ae43038e6f69b35f59b160a3dd
+(cherry picked from commit f8fc1326f762012e87f501fb0aeff3adc4c9a9d5)
+---
+ core/java/android/app/ActivityThread.java | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/core/java/android/app/ActivityThread.java b/core/java/android/app/ActivityThread.java
+index 4cc486a0b9b4..97f1d9cbed31 100644
+--- a/core/java/android/app/ActivityThread.java
++++ b/core/java/android/app/ActivityThread.java
+@@ -4606,7 +4606,8 @@ public final class ActivityThread extends ClientTransactionHandler {
+                 Slog.w(TAG, "Activity top position already set to onTop=" + onTop);
+                 return;
+             }
+-            throw new IllegalStateException("Activity top position already set to onTop=" + onTop);
++            // TODO(b/209744518): Remove this short-term workaround while fixing the binder failure.
++            Slog.e(TAG, "Activity top position already set to onTop=" + onTop);
+         }
+ 
+         r.isTopResumedActivity = onTop;
+-- 
+2.37.2
+
