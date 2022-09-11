@@ -1,17 +1,13 @@
-From 611ab709c8250e4fda0c83d4b17e09117b7315cd Mon Sep 17 00:00:00 2001
+From e9de1a7679bd18a5630fe8df656ebfc50dcb7453 Mon Sep 17 00:00:00 2001
 From: Alessandro Astone <ales.astone@gmail.com>
 Date: Sun, 28 Aug 2022 00:21:09 +0200
 Subject: [PATCH] Force hide status bar except in full-ui mode
 
-This doesn't fully hide the status bar for some apps, but it does for some
-and most importantly it works in multi-windows mode where the status bar
-hitbox would block the top half of a window's caption bar when maximized
-
 Change-Id: I1eef53b03af3929c896a710feafcfd6293a93eac
 ---
  core/java/android/view/InsetsSource.java |  2 ++
- core/java/android/view/InsetsState.java  | 12 ++++++++++++
- 2 files changed, 14 insertions(+)
+ core/java/android/view/InsetsState.java  | 14 +++++++++++++-
+ 2 files changed, 15 insertions(+), 1 deletion(-)
 
 diff --git a/core/java/android/view/InsetsSource.java b/core/java/android/view/InsetsSource.java
 index dbf75705c073..24cf94586f84 100644
@@ -27,7 +23,7 @@ index dbf75705c073..24cf94586f84 100644
      }
  
 diff --git a/core/java/android/view/InsetsState.java b/core/java/android/view/InsetsState.java
-index 81378831adbc..4c87aee3a08d 100644
+index 81378831adbc..8d89eaec54ff 100644
 --- a/core/java/android/view/InsetsState.java
 +++ b/core/java/android/view/InsetsState.java
 @@ -39,6 +39,7 @@ import android.graphics.Insets;
@@ -46,6 +42,15 @@ index 81378831adbc..4c87aee3a08d 100644
  
  import java.io.PrintWriter;
  import java.lang.annotation.Retention;
+@@ -193,7 +195,7 @@ public class InsetsState implements Parcelable {
+         final Rect relativeFrameMax = new Rect(frame);
+         for (int type = FIRST_TYPE; type <= LAST_TYPE; type++) {
+             InsetsSource source = mSources[type];
+-            if (source == null) {
++            if (source == null || shouldForceHide(type)) {
+                 int index = indexOf(toPublicType(type));
+                 if (typeInsetsMap[index] == null) {
+                     typeInsetsMap[index] = Insets.NONE;
 @@ -394,6 +396,12 @@ public class InsetsState implements Parcelable {
          return false;
      }
