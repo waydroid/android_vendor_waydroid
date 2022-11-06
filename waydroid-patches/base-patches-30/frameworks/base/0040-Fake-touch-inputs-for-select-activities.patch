@@ -1,0 +1,72 @@
+From 5a49d2b10c3978a409764945814c6449222f8c70 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 6 Nov 2022 12:47:52 +0100
+Subject: [PATCH] Fake touch inputs for select activities
+
+Based on "Core: Add force mouse click as touch toggle"
+
+Co-authored-by: Umang96 <umangleekha3@gmail.com>
+Change-Id: Ibe26a1cdc41744ad201427093ec384b9a5a0e4b2
+---
+ core/java/android/app/Activity.java | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/core/java/android/app/Activity.java b/core/java/android/app/Activity.java
+index 9c5bca00df02..d47927b075e1 100644
+--- a/core/java/android/app/Activity.java
++++ b/core/java/android/app/Activity.java
+@@ -75,11 +75,13 @@ import android.os.Handler;
+ import android.os.IBinder;
+ import android.os.Looper;
+ import android.os.Parcelable;
++import android.os.PatternMatcher;
+ import android.os.PersistableBundle;
+ import android.os.Process;
+ import android.os.RemoteException;
+ import android.os.ServiceManager.ServiceNotFoundException;
+ import android.os.StrictMode;
++import android.os.SystemProperties;
+ import android.os.Trace;
+ import android.os.UserHandle;
+ import android.text.Selection;
+@@ -952,6 +954,8 @@ public class Activity extends ContextThemeWrapper
+     private boolean mIsInMultiWindowMode;
+     private boolean mIsInPictureInPictureMode;
+ 
++    private boolean mFakeClickAsTouch;
++
+     private final WindowControllerCallback mWindowControllerCallback =
+             new WindowControllerCallback() {
+         /**
+@@ -4147,6 +4151,10 @@ public class Activity extends ContextThemeWrapper
+      * @return boolean Return true if this event was consumed.
+      */
+     public boolean dispatchTouchEvent(MotionEvent ev) {
++        int action = ev.getAction();
++        if (mFakeClickAsTouch && (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP)) {
++            ev.setSource(4098);
++        }
+         if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+             onUserInteraction();
+         }
+@@ -8010,6 +8018,17 @@ public class Activity extends ContextThemeWrapper
+                 .getWindowingMode();
+         mIsInMultiWindowMode = inMultiWindowMode(windowingMode);
+         mIsInPictureInPictureMode = windowingMode == WINDOWING_MODE_PINNED;
++
++        String componentName = getComponentName().flattenToString();
++        mFakeClickAsTouch = Arrays.stream(SystemProperties.get("persist.waydroid.fake_touch").split(","))
++            .map(x -> x.replace(".", "\\."))
++            .map(x -> x.replace("*", ".*"))
++            .map(x -> new PatternMatcher(x, PatternMatcher.PATTERN_SIMPLE_GLOB))
++            .anyMatch(p -> p.match(componentName));
++
++        if (mFakeClickAsTouch)
++            Log.d(TAG, "Faking touch inputs for " + componentName);
++
+         restoreHasCurrentPermissionRequest(icicle);
+         if (persistentState != null) {
+             onCreate(icicle, persistentState);
+-- 
+2.38.1
+
