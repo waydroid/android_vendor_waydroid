@@ -1,0 +1,340 @@
+From d1a0c5b8bdcbfdc340bdea58a586e0fed3b44b17 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Mon, 7 Nov 2022 15:04:49 +0100
+Subject: [PATCH 2/2] Fake wifi connection for select apps
+
+Largely based on https://github.com/lemonsqueeze/FakeWifiConnection
+
+Co-authored-by: lemonsqueeze <lemonsqueeze@gmx.com>
+Change-Id: I42ab1c98cc13fabc0f554fbd899bf7a67068b9b8
+---
+ .../java/android/net/ConnectivityManager.java |  41 +++-
+ wifi/java/android/net/wifi/FakeWifi.java      | 183 ++++++++++++++++++
+ wifi/java/android/net/wifi/WifiManager.java   |  13 ++
+ 3 files changed, 234 insertions(+), 3 deletions(-)
+ create mode 100644 wifi/java/android/net/wifi/FakeWifi.java
+
+diff --git a/core/java/android/net/ConnectivityManager.java b/core/java/android/net/ConnectivityManager.java
+index ed03f5198d6f..b9aae336422b 100644
+--- a/core/java/android/net/ConnectivityManager.java
++++ b/core/java/android/net/ConnectivityManager.java
+@@ -36,6 +36,7 @@ import android.net.SocketKeepalive.Callback;
+ import android.net.TetheringManager.StartTetheringCallback;
+ import android.net.TetheringManager.TetheringEventCallback;
+ import android.net.TetheringManager.TetheringRequest;
++import android.net.wifi.FakeWifi;
+ import android.os.Binder;
+ import android.os.Build;
+ import android.os.Build.VERSION_CODES;
+@@ -995,7 +996,10 @@ public class ConnectivityManager {
+     @Nullable
+     public NetworkInfo getActiveNetworkInfo() {
+         try {
+-            return mService.getActiveNetworkInfo();
++            NetworkInfo network = mService.getActiveNetworkInfo();
++            if (FakeWifi.isHackEnabled(mContext))
++                return FakeWifi.maybeOverwrite(network);
++            return network;
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
+         }
+@@ -1200,7 +1204,10 @@ public class ConnectivityManager {
+     @Nullable
+     public NetworkInfo getNetworkInfo(int networkType) {
+         try {
+-            return mService.getNetworkInfo(networkType);
++            NetworkInfo network = mService.getNetworkInfo(networkType);
++            if (networkType == ConnectivityManager.TYPE_WIFI && FakeWifi.isHackEnabled(mContext))
++                return FakeWifi.maybeOverwrite(network);
++            return network;
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
+         }
+@@ -1249,7 +1256,32 @@ public class ConnectivityManager {
+     @NonNull
+     public NetworkInfo[] getAllNetworkInfo() {
+         try {
+-            return mService.getAllNetworkInfo();
++            NetworkInfo[] networks = mService.getAllNetworkInfo();
++            if (!FakeWifi.isHackEnabled(mContext))
++                return networks;
++
++            int i;
++            boolean wifi_found = false;
++            for (i = 0; i < networks.length; i++) {
++                if (networks[i].getType() == ConnectivityManager.TYPE_WIFI) {
++                    wifi_found = true;
++                    break;
++                }
++            }
++
++            if (wifi_found && networks[i].isConnected())
++                return networks;
++
++            if (wifi_found) {
++                networks[i] = FakeWifi.getFakeNetworkInfo();
++            } else {
++                NetworkInfo[] extended = new NetworkInfo[networks.length + 1];
++                for (i = 0; i < networks.length; i++)
++                    extended[i] = networks[i];
++                extended[networks.length] = FakeWifi.getFakeNetworkInfo();
++                networks = extended;
++            }
++            return networks;
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
+         }
+@@ -3057,6 +3089,9 @@ public class ConnectivityManager {
+      */
+     @RequiresPermission(android.Manifest.permission.ACCESS_NETWORK_STATE)
+     public boolean isActiveNetworkMetered() {
++        if (FakeWifi.isHackEnabled(mContext))
++            return false;
++
+         try {
+             return mService.isActiveNetworkMetered();
+         } catch (RemoteException e) {
+diff --git a/wifi/java/android/net/wifi/FakeWifi.java b/wifi/java/android/net/wifi/FakeWifi.java
+new file mode 100644
+index 000000000000..cf194a0ef8a8
+--- /dev/null
++++ b/wifi/java/android/net/wifi/FakeWifi.java
+@@ -0,0 +1,183 @@
++package android.net.wifi;
++
++import android.content.Context;
++import android.net.ConnectivityManager;
++import android.net.NetworkInfo;
++import android.net.wifi.WifiInfo;
++import android.net.wifi.WifiSsid;
++import android.net.wifi.SupplicantState;
++import android.net.DhcpInfo;
++import android.os.PatternMatcher;
++import android.os.SystemProperties;
++import android.util.Log;
++
++import java.lang.Exception;
++import java.lang.reflect.Field;
++import java.net.NetworkInterface;
++import java.net.InetAddress;
++import java.util.*;
++import java.util.regex.Pattern;
++
++import android.annotation.NonNull;
++import android.annotation.Nullable;
++import android.annotation.SuppressLint;
++
++public final class FakeWifi {
++    private static final String LOG_TAG = "FakeWifi";
++
++    private FakeWifi() {}
++
++    public static boolean isHackEnabled(@NonNull Context context) {
++        String packageName = context.getOpPackageName();
++        boolean enabled = Arrays.stream(SystemProperties.get("persist.waydroid.fake_wifi").split(","))
++            .map(x -> x.replace(".", "\\."))
++            .map(x -> x.replace("*", ".*"))
++            .map(x -> new PatternMatcher(x, PatternMatcher.PATTERN_SIMPLE_GLOB))
++            .anyMatch(p -> p.match(packageName));
++
++        if (enabled)
++            Log.d(LOG_TAG, "Faking wifi for " + packageName);
++
++        return enabled;
++    }
++
++    @NonNull
++    public static NetworkInfo getFakeNetworkInfo()
++    {
++        NetworkInfo info = createNetworkInfo(ConnectivityManager.TYPE_WIFI, true);
++        return info;
++    }
++
++    @NonNull
++    public static NetworkInfo createNetworkInfo(final int type, final boolean connected)
++    {
++        NetworkInfo networkInfo = new NetworkInfo(type, 0, "WIFI", null);
++        networkInfo.setDetailedState(NetworkInfo.DetailedState.CONNECTED, null, null);
++
++        // networkInfo.setIsAvailable(true);
++        try {
++            Field isAvailable = networkInfo.getClass().getDeclaredField("mIsAvailable");
++            isAvailable.setAccessible(true);
++            isAvailable.setBoolean(networkInfo, true);
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++
++        return networkInfo;
++    }
++
++    @NonNull
++    private static WifiSsid createWifiSsid()
++    {
++        return WifiSsid.createFromAsciiEncoded("FakeWifi");
++    }
++
++    @NonNull
++    public static WifiInfo createWifiInfo()
++    {
++        IpInfo ip = getIpInfo();
++        InetAddress addr = (ip != null ? ip.addr : null);
++
++        WifiInfo info = new WifiInfo.Builder()
++                .setNetworkId(1)
++                .setBssid("66:55:44:33:22:11")
++                .setRssi(200) // MAX_RSSI
++                .build();
++
++        info.setSupplicantState(SupplicantState.COMPLETED);
++        info.setMacAddress("11:22:33:44:55:66");
++        info.setInetAddress(addr);
++        info.setLinkSpeed(65);  // Mbps
++        info.setFrequency(5000); // MHz
++        info.setSSID(createWifiSsid());
++        return info;
++    }
++
++    public static class IpInfo
++    {
++        NetworkInterface intf;
++        InetAddress addr;
++        String ip;
++        int ip_hex;
++        int netmask_hex;
++    }
++
++    // get current ip and netmask
++    @Nullable
++    public static IpInfo getIpInfo()
++    {
++        try
++        {
++            List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
++            for (NetworkInterface intf : interfaces)
++            {
++                List<InetAddress> addrs = Collections.list(intf.getInetAddresses());
++                for (InetAddress addr : addrs)
++                {
++                    if (!addr.isLoopbackAddress())
++                    {
++                        String sAddr = addr.getHostAddress().toUpperCase();
++                        boolean isIPv4 = isIPv4Address(sAddr);
++                        if (isIPv4)
++                        {
++                            IpInfo info = new IpInfo();
++                            info.addr = addr;
++                            info.intf = intf;
++                            info.ip = sAddr;
++                            info.ip_hex = InetAddress_to_hex(addr);
++                            info.netmask_hex = netmask_to_hex(intf.getInterfaceAddresses().get(0).getNetworkPrefixLength());
++                            return info;
++                        }
++                    }
++                }
++            }
++        } catch (Exception ex) { } // for now eat exceptions
++        return null;
++    }
++
++
++    public static boolean isIPv4Address(@NonNull String input) {
++        Pattern IPV4_PATTERN = Pattern.compile("^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
++        return IPV4_PATTERN.matcher(input).matches();
++    }
++
++    public static int netmask_to_hex(int netmask_slash)
++    {
++        int r = 0;
++        int b = 1;
++        for (int i = 0; i < netmask_slash;  i++, b = b << 1)
++            r |= b;
++        return r;
++    }
++
++    // for DhcpInfo
++    private static int InetAddress_to_hex(InetAddress a)
++    {
++        int result = 0;
++        byte b[] = a.getAddress();
++        for (int i = 0; i < 4; i++)
++            result |= (b[i] & 0xff) << (8 * i);
++        return result;
++    }
++
++    @NonNull
++    public static DhcpInfo createDhcpInfo()
++    {
++        DhcpInfo i = new DhcpInfo();
++        IpInfo ip = getIpInfo();
++        i.ipAddress = ip.ip_hex;
++        i.netmask = ip.netmask_hex;
++        i.dns1 = 0x04040404;
++        i.dns2 = 0x08080808;
++        // gateway, leaseDuration, serverAddress
++
++        return i;
++    }
++
++    @Nullable
++    public static NetworkInfo maybeOverwrite(@Nullable NetworkInfo network) {
++        if (network == null || network.getType() != ConnectivityManager.TYPE_WIFI || !network.isConnected())
++            network = getFakeNetworkInfo();
++        return network;
++    }
++}
+diff --git a/wifi/java/android/net/wifi/WifiManager.java b/wifi/java/android/net/wifi/WifiManager.java
+index 21bdca5a9dd7..4311765ebb19 100644
+--- a/wifi/java/android/net/wifi/WifiManager.java
++++ b/wifi/java/android/net/wifi/WifiManager.java
+@@ -40,6 +40,7 @@ import android.net.DhcpInfo;
+ import android.net.MacAddress;
+ import android.net.Network;
+ import android.net.NetworkStack;
++import android.net.wifi.FakeWifi;
+ import android.net.wifi.hotspot2.IProvisioningCallback;
+ import android.net.wifi.hotspot2.OsuProvider;
+ import android.net.wifi.hotspot2.PasspointConfiguration;
+@@ -2754,6 +2755,9 @@ public class WifiManager {
+      * @return the Wi-Fi information, contained in {@link WifiInfo}.
+      */
+     public WifiInfo getConnectionInfo() {
++        if (FakeWifi.isHackEnabled(mContext))
++            return FakeWifi.createWifiInfo();
++
+         try {
+             return mService.getConnectionInfo(mContext.getOpPackageName(),
+                     mContext.getAttributionTag());
+@@ -2887,6 +2891,9 @@ public class WifiManager {
+      * @return the DHCP information
+      */
+     public DhcpInfo getDhcpInfo() {
++        if (FakeWifi.isHackEnabled(mContext) && FakeWifi.getIpInfo() != null)
++            return FakeWifi.createDhcpInfo();
++
+         try {
+             return mService.getDhcpInfo();
+         } catch (RemoteException e) {
+@@ -2934,6 +2941,9 @@ public class WifiManager {
+      * @see #isWifiEnabled()
+      */
+     public int getWifiState() {
++        if (FakeWifi.isHackEnabled(mContext))
++            return WifiManager.WIFI_STATE_ENABLED;
++
+         try {
+             return mService.getWifiEnabledState();
+         } catch (RemoteException e) {
+@@ -2947,6 +2957,9 @@ public class WifiManager {
+      * @see #getWifiState()
+      */
+     public boolean isWifiEnabled() {
++        if (FakeWifi.isHackEnabled(mContext))
++            return true;
++
+         return getWifiState() == WIFI_STATE_ENABLED;
+     }
+ 
+-- 
+2.38.1
+
