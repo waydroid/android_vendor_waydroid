@@ -1,0 +1,31 @@
+From 83daccea9fb1f1856f03ea46091376577af348f9 Mon Sep 17 00:00:00 2001
+From: hmtheboy154 <buingoc67@gmail.com>
+Date: Sat, 15 Oct 2022 14:08:51 -0400
+Subject: [PATCH 28/28] MediaDefs.h : Add 24/32bit support to
+ audioEncodingToBits
+
+This is basically based on goffioul's "libstagefright: Extended
+media support via FFMPEG" commit for newer Android. We need this
+because cherry-pick "codec2: Add support for 24 and 32 bit formats"
+ commit.
+---
+ .../include/media/stagefright/foundation/MediaDefs.h           | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h b/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
+index 4608507124..e9c859433c 100644
+--- a/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
++++ b/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
+@@ -158,6 +158,9 @@ static inline int32_t audioEncodingToBits(AudioEncoding encoding) {
+             return 8;
+         case kAudioEncodingPcm16bit:
+             return 16;
++        case kAudioEncodingPcm24bitPacked:
++            return 24;
++        case kAudioEncodingPcm32bit:
+         case kAudioEncodingPcmFloat:
+             return 32;
+     }
+-- 
+2.38.1
+

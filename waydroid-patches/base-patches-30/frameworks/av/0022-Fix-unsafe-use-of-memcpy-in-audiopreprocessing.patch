@@ -1,0 +1,56 @@
+From 31635da5da26792bbe3b8607a2c83a696287ef3d Mon Sep 17 00:00:00 2001
+From: Michael Goffioul <michael.goffioul@gmail.com>
+Date: Wed, 22 Apr 2020 13:31:11 -0400
+Subject: [PATCH 22/28] Fix unsafe use of memcpy in audiopreprocessing
+
+Memcpy cannot be used with overlapping memory areas. One should use
+memmove instead.
+
+See: https://issuetracker.google.com/issues/154712995
+---
+ media/libeffects/preprocessing/PreProcessing.cpp | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/media/libeffects/preprocessing/PreProcessing.cpp b/media/libeffects/preprocessing/PreProcessing.cpp
+index 5fab5be1c3..e90d59ab56 100644
+--- a/media/libeffects/preprocessing/PreProcessing.cpp
++++ b/media/libeffects/preprocessing/PreProcessing.cpp
+@@ -1240,7 +1240,7 @@ int PreProcessingFx_Process(effect_handle_t     self,
+             memcpy(outBuffer->s16,
+                   session->outBuf,
+                   fr * session->outChannelCount * sizeof(int16_t));
+-            memcpy(session->outBuf,
++            memmove(session->outBuf,
+                   session->outBuf + fr * session->outChannelCount,
+                   (session->framesOut - fr) * session->outChannelCount * sizeof(int16_t));
+             session->framesOut -= fr;
+@@ -1303,7 +1303,7 @@ int PreProcessingFx_Process(effect_handle_t     self,
+                                                         session->procFrame->data_,
+                                                         &frOut);
+             }
+-            memcpy(session->inBuf,
++            memmove(session->inBuf,
+                    session->inBuf + frIn * session->inChannelCount,
+                    (session->framesIn - frIn) * session->inChannelCount * sizeof(int16_t));
+             session->framesIn -= frIn;
+@@ -1381,7 +1381,7 @@ int PreProcessingFx_Process(effect_handle_t     self,
+         memcpy(outBuffer->s16 + framesWr * session->outChannelCount,
+               session->outBuf,
+               fr * session->outChannelCount * sizeof(int16_t));
+-        memcpy(session->outBuf,
++        memmove(session->outBuf,
+               session->outBuf + fr * session->outChannelCount,
+               (session->framesOut - fr) * session->outChannelCount * sizeof(int16_t));
+         session->framesOut -= fr;
+@@ -1837,7 +1837,7 @@ int PreProcessingFx_ProcessReverse(effect_handle_t     self,
+                                                         session->revFrame->data_,
+                                                         &frOut);
+             }
+-            memcpy(session->revBuf,
++            memmove(session->revBuf,
+                    session->revBuf + frIn * session->inChannelCount,
+                    (session->framesRev - frIn) * session->inChannelCount * sizeof(int16_t));
+             session->framesRev -= frIn;
+-- 
+2.38.1
+

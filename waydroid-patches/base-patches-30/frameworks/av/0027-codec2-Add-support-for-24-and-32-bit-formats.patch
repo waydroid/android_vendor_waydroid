@@ -1,0 +1,77 @@
+From 140726268ca4db92412713c2104a5007a58d6616 Mon Sep 17 00:00:00 2001
+From: Arun Mirpuri <quic_amirpuri@quicinc.com>
+Date: Fri, 2 Apr 2021 15:00:30 -0700
+Subject: [PATCH 27/28] codec2: Add support for 24 and 32 bit formats
+
+Add support for 24 bit packed and 32bit pcm encoding
+formats in C2Config and C2 Raw Decoder
+
+Bug: 131742712
+
+Change-Id: I257e00f0f7864d243c2f6109826b05cd6a350a6f
+---
+ media/codec2/components/raw/C2SoftRawDec.cpp                  | 4 +++-
+ media/codec2/core/include/C2Config.h                          | 4 +++-
+ media/codec2/sfplugin/utils/Codec2Mapper.cpp                  | 2 ++
+ .../include/media/stagefright/foundation/MediaDefs.h          | 2 ++
+ 4 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/media/codec2/components/raw/C2SoftRawDec.cpp b/media/codec2/components/raw/C2SoftRawDec.cpp
+index 7b6f21aee4..ff5d7b514b 100644
+--- a/media/codec2/components/raw/C2SoftRawDec.cpp
++++ b/media/codec2/components/raw/C2SoftRawDec.cpp
+@@ -87,7 +87,9 @@ public:
+                 .withFields({C2F(mPcmEncodingInfo, value).oneOf({
+                      C2Config::PCM_16,
+                      C2Config::PCM_8,
+-                     C2Config::PCM_FLOAT})
++                     C2Config::PCM_FLOAT,
++                     C2Config::PCM_24,
++                     C2Config::PCM_32})
+                 })
+                 .withSetter((Setter<decltype(*mPcmEncodingInfo)>::StrictValueWithNoDeps))
+                 .build());
+diff --git a/media/codec2/core/include/C2Config.h b/media/codec2/core/include/C2Config.h
+index 1ea5ef2b4a..b3aba4c9be 100644
+--- a/media/codec2/core/include/C2Config.h
++++ b/media/codec2/core/include/C2Config.h
+@@ -1865,7 +1865,9 @@ constexpr char C2_PARAMKEY_MAX_CODED_CHANNEL_COUNT[] = "coded.max-channel-count"
+ C2ENUM(C2Config::pcm_encoding_t, uint32_t,
+     PCM_16,
+     PCM_8,
+-    PCM_FLOAT
++    PCM_FLOAT,
++    PCM_24,
++    PCM_32
+ )
+ 
+ typedef C2StreamParam<C2Info, C2SimpleValueStruct<C2Config::pcm_encoding_t>, kParamIndexPcmEncoding>
+diff --git a/media/codec2/sfplugin/utils/Codec2Mapper.cpp b/media/codec2/sfplugin/utils/Codec2Mapper.cpp
+index 903db6c767..3da9f001f0 100644
+--- a/media/codec2/sfplugin/utils/Codec2Mapper.cpp
++++ b/media/codec2/sfplugin/utils/Codec2Mapper.cpp
+@@ -311,6 +311,8 @@ ALookup<C2Config::pcm_encoding_t, int32_t> sPcmEncodings = {
+     { C2Config::PCM_8, kAudioEncodingPcm8bit },
+     { C2Config::PCM_16, kAudioEncodingPcm16bit },
+     { C2Config::PCM_FLOAT, kAudioEncodingPcmFloat },
++    { C2Config::PCM_24, kAudioEncodingPcm24bitPacked },
++    { C2Config::PCM_32, kAudioEncodingPcm32bit },
+ };
+ 
+ ALookup<C2Config::level_t, int32_t> sVp9Levels = {
+diff --git a/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h b/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
+index 29dea04eac..4608507124 100644
+--- a/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
++++ b/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
+@@ -134,6 +134,8 @@ enum AudioEncoding {
+     kAudioEncodingPcm16bit = 2,
+     kAudioEncodingPcm8bit = 3,
+     kAudioEncodingPcmFloat = 4,
++    kAudioEncodingPcm24bitPacked = 21,
++    kAudioEncodingPcm32bit = 22,
+ };
+ 
+ static inline AudioEncoding bitsToAudioEncoding(int32_t bits) {
+-- 
+2.38.1
+
