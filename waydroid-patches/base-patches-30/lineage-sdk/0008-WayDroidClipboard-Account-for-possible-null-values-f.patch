@@ -1,0 +1,28 @@
+From 5bb5035df8a8711eca790a1432d9bb47ef6f8a6b Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 29 Nov 2022 00:06:09 +0100
+Subject: [PATCH] WayDroidClipboard: Account for possible null values from the
+ host
+
+Change-Id: Id876a39acf38d13810ea8f0c0bc86a0a880832a6
+---
+ sdk/src/java/lineageos/waydroid/Clipboard.java | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sdk/src/java/lineageos/waydroid/Clipboard.java b/sdk/src/java/lineageos/waydroid/Clipboard.java
+index 3b4972ee..ba5a333a 100644
+--- a/sdk/src/java/lineageos/waydroid/Clipboard.java
++++ b/sdk/src/java/lineageos/waydroid/Clipboard.java
+@@ -87,7 +87,8 @@ public class Clipboard {
+             return "";
+         }
+         try {
+-            return service.getClipboardData();
++            String paste = service.getClipboardData();
++            return paste != null ? paste : "";
+         } catch (RemoteException e) {
+             Log.e(TAG, e.getLocalizedMessage(), e);
+         }
+-- 
+2.38.1
+
