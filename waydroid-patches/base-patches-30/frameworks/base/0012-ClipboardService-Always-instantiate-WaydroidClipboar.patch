@@ -1,18 +1,18 @@
-From 16c614ca96e0c1f26b17f60a69a0a55d72dc0f13 Mon Sep 17 00:00:00 2001
+From bbd7bd13297852c1689138323f5857d55af914cb Mon Sep 17 00:00:00 2001
 From: Alessandro Astone <ales.astone@gmail.com>
 Date: Tue, 21 Jun 2022 14:06:13 +0200
-Subject: [PATCH 12/35] ClipboardService: Always instantiate WaydroidClipboard
+Subject: [PATCH] ClipboardService: Always instantiate WaydroidClipboard
 
 It might be that on boot the Clipboard service is not published yet.
 The service will be retrieved on demand.
 
 Change-Id: I77ee92e71da63838a4c90a6762ff4a3c1c2f255a
 ---
- .../java/com/android/server/clipboard/ClipboardService.java    | 3 +--
- 1 file changed, 1 insertion(+), 2 deletions(-)
+ .../com/android/server/clipboard/ClipboardService.java     | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
 
 diff --git a/services/core/java/com/android/server/clipboard/ClipboardService.java b/services/core/java/com/android/server/clipboard/ClipboardService.java
-index f50d6c87a990..0584f5bf5855 100644
+index f50d6c87a990..283a944fe238 100644
 --- a/services/core/java/com/android/server/clipboard/ClipboardService.java
 +++ b/services/core/java/com/android/server/clipboard/ClipboardService.java
 @@ -214,8 +214,7 @@ public class ClipboardService extends SystemService {
@@ -25,6 +25,24 @@ index f50d6c87a990..0584f5bf5855 100644
      }
  
      @Override
+@@ -400,7 +399,7 @@ public class ClipboardService extends SystemService {
+                     return null;
+                 }
+                 addActiveOwnerLocked(intendingUid, pkg);
+-                if (mWaydroidClipboard != null) {
++                if (mWaydroidClipboard != null && mWaydroidClipboard.getService() != null) {
+                     String waydroidPaste = mWaydroidClipboard.getClipboardData();
+                     ClipData clip =
+                         new ClipData("host clipboard",
+@@ -439,7 +438,7 @@ public class ClipboardService extends SystemService {
+                         || isDeviceLocked(intendingUserId)) {
+                     return false;
+                 }
+-                if (mWaydroidClipboard != null) {
++                if (mWaydroidClipboard != null && mWaydroidClipboard.getService() != null) {
+                     String waydroidPaste = mWaydroidClipboard.getClipboardData();
+                     return !waydroidPaste.isEmpty();
+                 }
 -- 
-2.37.2
+2.38.1
 
