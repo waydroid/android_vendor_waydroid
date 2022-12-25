@@ -1,0 +1,69 @@
+From cb7a599542eba12a0149c7dc188cd94bade3214e Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 25 Dec 2022 19:21:24 +0100
+Subject: [PATCH 1/2] power: Suspend waydroid by default on kernel 4.9
+
+This was disabled by default because it causes issues on older kernel
+when cgroupsv2 is used.
+
+Change-Id: Ie5a3b2846d67b47ed35d9332553a6b81d4d47b9d
+---
+ .../android/server/power/PowerManagerService.java  | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index bd177314d3c0..e2f498a79f6d 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -81,6 +81,7 @@ import android.service.dreams.DreamManagerInternal;
+ import android.service.vr.IVrManager;
+ import android.service.vr.IVrStateCallbacks;
+ import android.sysprop.InitProperties;
++import android.system.Os;
+ import android.telephony.TelephonyManager;
+ import android.util.KeyValueListParser;
+ import android.util.PrintWriterPrinter;
+@@ -125,6 +126,7 @@ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.List;
+ import java.util.Objects;
++import java.util.stream.IntStream;
+ 
+ /**
+  * The power manager service is responsible for coordinating power management
+@@ -270,6 +272,7 @@ public final class PowerManagerService extends SystemService
+     private final Injector mInjector;
+ 
+     private Hardware mWaydroidHardware = null;
++    private boolean mWaydroidSuspendDefault;
+     private LightsManager mLightsManager;
+     private BatteryManagerInternal mBatteryManagerInternal;
+     private DisplayManagerInternal mDisplayManagerInternal;
+@@ -1042,6 +1045,15 @@ public final class PowerManagerService extends SystemService
+                         .config_keyboardBrightnessSettingDefaultFloat);
+ 
+         mWaydroidHardware = Hardware.getInstance(context);
++        try {
++            String[] kernel_ver_str = Os.uname().release.split("\\.", 3);
++            int[] kernel_ver = IntStream.range(0, 2)
++                    .map(i -> Integer.parseInt(kernel_ver_str[i]))
++                    .toArray();
++            mWaydroidSuspendDefault = kernel_ver[0] > 4 || (kernel_ver[0] == 4 && kernel_ver[1] >= 9);
++        } catch (Exception e) {
++            mWaydroidSuspendDefault = false;
++        }
+ 
+         synchronized (mLock) {
+             mWakeLockSuspendBlocker =
+@@ -2771,7 +2783,7 @@ public final class PowerManagerService extends SystemService
+                 } else {
+                     //changed = goToSleepNoUpdateLocked(time,
+                     //        PowerManager.GO_TO_SLEEP_REASON_TIMEOUT, 0, Process.SYSTEM_UID);
+-                    final boolean suspend = SystemProperties.get("persist.waydroid.suspend", "false").equals("true");
++                    final boolean suspend = SystemProperties.getBoolean("persist.waydroid.suspend", mWaydroidSuspendDefault);
+                     final boolean no_open_wins = SystemProperties.get("waydroid.open_windows", "-1").equals("0");
+                     if (mWaydroidHardware != null && suspend && no_open_wins && ((dirty & DIRTY_WAKE_LOCKS) == 0)) {
+                         wakeUpNoUpdateLocked(SystemClock.uptimeMillis(),
+-- 
+2.38.1
+
