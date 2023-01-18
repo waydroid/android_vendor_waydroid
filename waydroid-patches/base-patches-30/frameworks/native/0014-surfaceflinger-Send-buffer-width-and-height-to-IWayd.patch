@@ -1,0 +1,141 @@
+From cb11e8a218ce6f162953d9d943c47556e290b573 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Thu, 19 Jan 2023 00:17:42 +0100
+Subject: [PATCH 2/2] surfaceflinger: Send buffer width and height to
+ IWaydroidDisplay
+
+Change-Id: Id879b6ceffc82724fb6ddce79494d8a7a6cd26e4
+---
+ libs/vr/libvrflinger/Android.bp                    |  1 +
+ services/surfaceflinger/Android.bp                 |  2 ++
+ .../surfaceflinger/CompositionEngine/Android.bp    |  1 +
+ .../surfaceflinger/DisplayHardware/ComposerHal.cpp | 14 ++++++++++++--
+ .../surfaceflinger/DisplayHardware/ComposerHal.h   |  7 ++++---
+ 5 files changed, 20 insertions(+), 5 deletions(-)
+
+diff --git a/libs/vr/libvrflinger/Android.bp b/libs/vr/libvrflinger/Android.bp
+index 35db9abd38..e3d8fb684f 100644
+--- a/libs/vr/libvrflinger/Android.bp
++++ b/libs/vr/libvrflinger/Android.bp
+@@ -61,6 +61,7 @@ sharedLibraries = [
+     "libfmq",
+     "libpdx_default_transport",
+     "vendor.waydroid.display@1.0",
++    "vendor.waydroid.display@1.1",
+ ]
+ 
+ headerLibraries = [
+diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
+index 199b65cc6b..ecf07c99e6 100644
+--- a/services/surfaceflinger/Android.bp
++++ b/services/surfaceflinger/Android.bp
+@@ -63,6 +63,7 @@ cc_defaults {
+         "libutils",
+         "libSurfaceFlingerProp",
+         "vendor.waydroid.display@1.0",
++        "vendor.waydroid.display@1.1",
+     ],
+     // VrComposer is not used when building surfaceflinger for vendors
+     target: {
+@@ -103,6 +104,7 @@ cc_defaults {
+         "libhidlbase",
+         "libtimestats",
+         "vendor.waydroid.display@1.0",
++        "vendor.waydroid.display@1.1",
+     ],
+     // TODO (marissaw): this library is not used by surfaceflinger. This is here so
+     // the library compiled in a way that is accessible to system partition when running
+diff --git a/services/surfaceflinger/CompositionEngine/Android.bp b/services/surfaceflinger/CompositionEngine/Android.bp
+index 1673168db9..0e85a09b42 100644
+--- a/services/surfaceflinger/CompositionEngine/Android.bp
++++ b/services/surfaceflinger/CompositionEngine/Android.bp
+@@ -25,6 +25,7 @@ cc_defaults {
+         "libui",
+         "libutils",
+         "vendor.waydroid.display@1.0",
++        "vendor.waydroid.display@1.1",
+     ],
+     static_libs: [
+         "libmath",
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
+index b7f2c08cb2..386217a568 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
+@@ -261,7 +261,8 @@ void Composer::registerCallback(const sp<IComposerCallback>& callback)
+         ALOGE("failed to register IComposerCallback");
+     }
+ 
+-    mWaydroidDisplay = IWaydroidDisplay::getService();
++    mWaydroidDisplay = V1_0::IWaydroidDisplay::getService();
++    mWaydroidDisplay_1 = V1_1::IWaydroidDisplay::castFrom(mWaydroidDisplay);
+ }
+ 
+ bool Composer::isRemote() {
+@@ -608,6 +609,8 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
+     if (target.get()) {
+         if (mWaydroidDisplay)
+             mWaydroidDisplay->setTargetLayerHandleInfo(target->getPixelFormat(), target->getStride());
++        if (mWaydroidDisplay_1)
++            mWaydroidDisplay_1->setTargetLayerSize(target->getWidth(), target->getHeight());
+         handle = target->getNativeBuffer()->handle;
+     }
+ 
+@@ -1378,15 +1381,22 @@ Error Composer::setLayerName(Display, Layer layer, std::string name) {
+ }
+ 
+ Error Composer::setLayerHandleInfo(Display, Layer layer, const sp<GraphicBuffer>& buffer) {
++    Error error;
+     if (!mWaydroidDisplay)
+         return Error::UNSUPPORTED;
+ 
+     if (buffer.get() &&
+             mLayersHandleMap[mLayersZMap[layer]] != buffer->getNativeBuffer()->handle) {
+         mLayersHandleMap[mLayersZMap[layer]] = buffer->getNativeBuffer()->handle;
+-        return mWaydroidDisplay->setLayerHandleInfo(mLayersZMap[layer],
++        error = mWaydroidDisplay->setLayerHandleInfo(mLayersZMap[layer],
+                                                     buffer->getPixelFormat(),
+                                                     buffer->getStride());
++        if (error != Error::NONE)
++            return error;
++
++        if (mWaydroidDisplay_1)
++            mWaydroidDisplay_1->setLayerSize(mLayersZMap[layer],
++                                            buffer->getWidth(), buffer->getHeight());
+     }
+     return Error::NONE;
+ }
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.h b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+index 6845356054..75d5e0a39e 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.h
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+@@ -33,7 +33,7 @@
+ #include <android/hardware/graphics/common/1.1/types.h>
+ #include <android/hardware/graphics/composer/2.4/IComposer.h>
+ #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
+-#include <vendor/waydroid/display/1.0/IWaydroidDisplay.h>
++#include <vendor/waydroid/display/1.1/IWaydroidDisplay.h>
+ #include <composer-command-buffer/2.4/ComposerCommandBuffer.h>
+ #include <gui/HdrMetadata.h>
+ #include <math/mat4.h>
+@@ -48,7 +48,7 @@ namespace android {
+ 
+ namespace Hwc2 {
+ 
+-using ::vendor::waydroid::display::V1_0::IWaydroidDisplay;
++using namespace vendor::waydroid::display;
+ 
+ #if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
+ using frameworks::vr::composer::V2_0::IVrComposerClient;
+@@ -547,7 +547,8 @@ private:
+     // hwcomposer. This allows us to redirect surfaces to 3d surfaces in vr.
+     const bool mIsUsingVrComposer;
+ 
+-    sp<IWaydroidDisplay> mWaydroidDisplay;
++    sp<V1_0::IWaydroidDisplay> mWaydroidDisplay;
++    sp<V1_1::IWaydroidDisplay> mWaydroidDisplay_1;
+     std::map<Layer, int32_t> mLayersZMap;
+     std::map<int32_t, std::string> mLayersNameMap;
+     std::map<int32_t, const native_handle_t*> mLayersHandleMap;
+-- 
+2.39.0
+
