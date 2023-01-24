@@ -1,0 +1,39 @@
+From c4e60cb94ea7f5da89d7c292b4a3ec554abf89ae Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 24 Jan 2023 17:35:59 +0100
+Subject: [PATCH] InputManager: Add default waydroid keylayout
+
+Change-Id: Ia9fcd7aafac5c1248cbd7eec6a4934bd04a170a6
+---
+ .../com/android/server/input/InputManagerService.java     | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/services/core/java/com/android/server/input/InputManagerService.java b/services/core/java/com/android/server/input/InputManagerService.java
+index 08b3b777e520..963f677178a8 100644
+--- a/services/core/java/com/android/server/input/InputManagerService.java
++++ b/services/core/java/com/android/server/input/InputManagerService.java
+@@ -59,6 +59,7 @@ import android.os.Message;
+ import android.os.MessageQueue;
+ import android.os.Process;
+ import android.os.RemoteException;
++import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.provider.DeviceConfig;
+ import android.provider.Settings;
+@@ -418,6 +419,13 @@ public class InputManagerService extends IInputManager.Stub
+         if (mWiredAccessoryCallbacks != null) {
+             mWiredAccessoryCallbacks.systemReady();
+         }
++
++        String wl_keylayout = SystemProperties.get("waydroid.keyboard_layout");
++        if (wl_keylayout != "") {
++            addKeyboardLayoutForInputDevice(new InputDeviceIdentifier("vendor:1,product:1", 1, 1),
++                    "com.android.inputdevices/com.android.inputdevices.InputDeviceReceiver/keyboard_layout_" +
++                        wl_keylayout);
++        }
+     }
+ 
+     private void reloadKeyboardLayouts() {
+-- 
+2.39.1
+

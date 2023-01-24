@@ -1,14 +1,14 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 05b0b0e1649088397c9e0fa07a45a876e1c7da2d Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Fri, 4 Jun 2021 16:27:09 +0430
 Subject: [PATCH] EventHub: Add wayland inputs support
 
 ---
- services/inputflinger/reader/EventHub.cpp | 117 +++++++++++++++-------
- 1 file changed, 82 insertions(+), 35 deletions(-)
+ services/inputflinger/reader/EventHub.cpp | 118 +++++++++++++++-------
+ 1 file changed, 83 insertions(+), 35 deletions(-)
 
 diff --git a/services/inputflinger/reader/EventHub.cpp b/services/inputflinger/reader/EventHub.cpp
-index 27fb9dc0a0..5b3036640a 100644
+index 27fb9dc0a0..ae030e37f2 100644
 --- a/services/inputflinger/reader/EventHub.cpp
 +++ b/services/inputflinger/reader/EventHub.cpp
 @@ -28,8 +28,6 @@
@@ -158,7 +158,7 @@ index 27fb9dc0a0..5b3036640a 100644
      // Figure out the kinds of events the device reports.
      ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(device->keyBitmask)), device->keyBitmask);
      ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(device->absBitmask)), device->absBitmask);
-@@ -1529,25 +1553,48 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
+@@ -1529,25 +1553,49 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
          device->controllerNumber = getNextControllerNumberLocked(device);
          setLedForControllerLocked(device);
      }
@@ -196,6 +196,7 @@ index 27fb9dc0a0..5b3036640a 100644
 +        set_bit(ABS_PRESSURE, device->absBitmask);
 +    } else if (inputType == WL_INPUT_KEYBOARD) {
 +        device->classes |= INPUT_DEVICE_CLASS_KEYBOARD;
++        device->classes |= INPUT_DEVICE_CLASS_ALPHAKEY;
  
 -    set_bit(ABS_X, device->absBitmask);
 -    set_bit(ABS_Y, device->absBitmask);
@@ -222,3 +223,6 @@ index 27fb9dc0a0..5b3036640a 100644
  
      // Find a matching video device by comparing device names
      // This should be done before registerDeviceForEpollLocked, so that both fds are added to epoll
+-- 
+2.39.1
+
