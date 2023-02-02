@@ -1,0 +1,41 @@
+From dea0819226cfb89bccf69e9cbc8dfc144d4dd48a Mon Sep 17 00:00:00 2001
+From: Simon Fels <morphis@gravedo.de>
+Date: Thu, 10 Nov 2016 08:04:23 +0100
+Subject: [PATCH 08/27] wm: Disable all app transitions as they conflict with
+ our window management
+
+Change-Id: I208080ac83100f5e6e7116c041b17fdd8f9328ab
+---
+ .../android/wm/shell/startingsurface/StartingSurfaceDrawer.java | 2 +-
+ services/core/java/com/android/server/wm/AppTransition.java     | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/StartingSurfaceDrawer.java b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/StartingSurfaceDrawer.java
+index 22e804547d5c..05f0e5faa516 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/StartingSurfaceDrawer.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/StartingSurfaceDrawer.java
+@@ -309,7 +309,7 @@ public class StartingSurfaceDrawer {
+             params.privateFlags |= WindowManager.LayoutParams.PRIVATE_FLAG_COMPATIBLE_WINDOW;
+         }
+ 
+-        params.setTitle("Splash Screen " + activityInfo.packageName);
++        params.setTitle(activityInfo.packageName + "/SplashScreen");
+ 
+         // TODO(b/173975965) tracking performance
+         // Prepare the splash screen content view on splash screen worker thread in parallel, so the
+diff --git a/services/core/java/com/android/server/wm/AppTransition.java b/services/core/java/com/android/server/wm/AppTransition.java
+index adf862b78656..56a404ca5162 100644
+--- a/services/core/java/com/android/server/wm/AppTransition.java
++++ b/services/core/java/com/android/server/wm/AppTransition.java
+@@ -910,7 +910,7 @@ public class AppTransition implements Dump {
+         }
+         setAppTransitionFinishedCallbackIfNeeded(a);
+ 
+-        return a;
++        return null;
+     }
+ 
+     int getAppRootTaskClipMode() {
+-- 
+2.41.0
+
