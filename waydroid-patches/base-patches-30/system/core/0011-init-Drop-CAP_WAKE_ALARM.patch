@@ -1,0 +1,27 @@
+From 99a2e74f6e9dbecff269413de57ed12638028883 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Wed, 8 Feb 2023 16:37:51 +0100
+Subject: [PATCH] init: Drop CAP_WAKE_ALARM
+
+Change-Id: Ic036ecef91c9da7db1fffcd6e30fede4286b770b
+---
+ init/init.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/init/init.cpp b/init/init.cpp
+index 1ee6e2c7a..687dd7db2 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -699,6 +699,9 @@ int SecondStageMain(int argc, char** argv) {
+     InitKernelLogging(argv);
+     LOG(INFO) << "init second stage started!";
+ 
++    // Waydroid should not interrupt the host from sleeping
++    cap_drop_bound(CAP_WAKE_ALARM);
++
+     // Init should not crash because of a dependence on any other process, therefore we ignore
+     // SIGPIPE and handle EPIPE at the call site directly.  Note that setting a signal to SIG_IGN
+     // is inherited across exec, but custom signal handlers are not.  Since we do not want to
+-- 
+2.39.1
+
