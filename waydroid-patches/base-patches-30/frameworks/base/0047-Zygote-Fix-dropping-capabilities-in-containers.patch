@@ -1,4 +1,4 @@
-From 83e74bd7a8bb02e263c2c258c362ac25f052624e Mon Sep 17 00:00:00 2001
+From e1157dd969a3414c39604afea4fdc3eb545d6925 Mon Sep 17 00:00:00 2001
 From: Alessandro Astone <ales.astone@gmail.com>
 Date: Mon, 13 Mar 2023 01:09:38 +0100
 Subject: [PATCH] Zygote: Fix dropping capabilities in containers
@@ -12,19 +12,20 @@ zero-extend the bitmask
 
 Change-Id: I9b4c9273e8eb09f7e231b5c579e7906d05b6e475
 ---
- core/java/com/android/internal/os/ZygoteInit.java | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ core/java/com/android/internal/os/ZygoteInit.java | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/core/java/com/android/internal/os/ZygoteInit.java b/core/java/com/android/internal/os/ZygoteInit.java
-index 2e32730a6ecb..1aa23097abcd 100644
+index 2e32730a6ecb..d5ad40d50f74 100644
 --- a/core/java/com/android/internal/os/ZygoteInit.java
 +++ b/core/java/com/android/internal/os/ZygoteInit.java
-@@ -740,7 +740,7 @@ public class ZygoteInit {
+@@ -740,7 +740,8 @@ public class ZygoteInit {
          } catch (ErrnoException ex) {
              throw new RuntimeException("Failed to capget()", ex);
          }
 -        capabilities &= ((long) data[0].effective) | (((long) data[1].effective) << 32);
-+        capabilities &= Integer.toUnsignedLong(data[0].effective) | (Integer.toUnsignedLong(data[1].effective) << 32);
++        capabilities &= Integer.toUnsignedLong(data[0].effective) |
++                (Integer.toUnsignedLong(data[1].effective) << 32);
  
          /* Hardcoded command line to start the system server */
          String args[] = {
