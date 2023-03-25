@@ -154,6 +154,7 @@ if [[ "$conflict" == "y" ]]; then
   for i in $conflict_list ; do echo $i; done | sort -u
   echo -e ${yellow} "==========================================================================="${reset}
   echo -e ${yellow} "WARNING: Please resolve Conflict(s). You may need to re-run build..."${reset}
+  exit 1
 else
   echo -e ${green} "==========================================================================="${reset}
   echo -e ${green} "           INFO : All patches applied fine !!                              "${reset}
