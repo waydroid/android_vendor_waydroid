@@ -1,14 +1,14 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From e52a08bb01daf8c226ba31e587867fb405b50a11 Mon Sep 17 00:00:00 2001
 From: Tomeu Vizoso <tomeu.vizoso@collabora.com>
 Date: Wed, 24 Oct 2018 08:23:52 +0200
-Subject: [PATCH] Hack EventHub until it works with our fake evdev events
+Subject: [PATCH 04/14] Hack EventHub until it works with our fake evdev events
 
 ---
  services/inputflinger/reader/EventHub.cpp | 95 +++++++++++++++++++++--
  1 file changed, 88 insertions(+), 7 deletions(-)
 
 diff --git a/services/inputflinger/reader/EventHub.cpp b/services/inputflinger/reader/EventHub.cpp
-index a1514af668..27fb9dc0a0 100644
+index 1b72b546b4..7e601585f9 100644
 --- a/services/inputflinger/reader/EventHub.cpp
 +++ b/services/inputflinger/reader/EventHub.cpp
 @@ -28,6 +28,8 @@
@@ -164,7 +164,7 @@ index a1514af668..27fb9dc0a0 100644
      // Fill in the descriptor.
      assignDescriptorLocked(identifier);
  
-@@ -1299,12 +1360,13 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
+@@ -1299,8 +1360,8 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
      ALOGV("  location:   \"%s\"\n", identifier.location.c_str());
      ALOGV("  unique id:  \"%s\"\n", identifier.uniqueId.c_str());
      ALOGV("  descriptor: \"%s\"\n", identifier.descriptor.c_str());
@@ -175,12 +175,15 @@ index a1514af668..27fb9dc0a0 100644
  
      // Load the configuration file for the device.
      loadConfigurationLocked(device);
+@@ -1315,6 +1376,7 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
+         }
+     }
  
 +#if 0
      // Figure out the kinds of events the device reports.
      ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(device->keyBitmask)), device->keyBitmask);
      ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(device->absBitmask)), device->absBitmask);
-@@ -1467,6 +1529,25 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
+@@ -1477,6 +1539,25 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
          device->controllerNumber = getNextControllerNumberLocked(device);
          setLedForControllerLocked(device);
      }
@@ -206,3 +209,6 @@ index a1514af668..27fb9dc0a0 100644
  
      // Find a matching video device by comparing device names
      // This should be done before registerDeviceForEpollLocked, so that both fds are added to epoll
+-- 
+2.39.2
+

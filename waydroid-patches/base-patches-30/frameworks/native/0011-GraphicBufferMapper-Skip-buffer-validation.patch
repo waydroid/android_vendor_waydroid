@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From c489d0d70c059c9cbf8298b60947c250e02825cf Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Mon, 14 Mar 2022 23:02:05 +0000
-Subject: [PATCH] GraphicBufferMapper: Skip buffer validation
+Subject: [PATCH 11/14] GraphicBufferMapper: Skip buffer validation
 
 Change-Id: Ia7580cec2e4c89f8de7768361ad9852374991fda
 ---
@@ -39,3 +39,6 @@ index d20bd7a899..a45d50174a 100644
  
      *outHandle = bufferHandle;
  
+-- 
+2.39.2
+

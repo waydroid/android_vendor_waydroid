@@ -1,7 +1,7 @@
-From cb11e8a218ce6f162953d9d943c47556e290b573 Mon Sep 17 00:00:00 2001
+From 7afc24569d26b37aa91bb73ef95cf52fc51a5ca8 Mon Sep 17 00:00:00 2001
 From: Alessandro Astone <ales.astone@gmail.com>
 Date: Thu, 19 Jan 2023 00:17:42 +0100
-Subject: [PATCH 2/2] surfaceflinger: Send buffer width and height to
+Subject: [PATCH 14/14] surfaceflinger: Send buffer width and height to
  IWaydroidDisplay
 
 Change-Id: Id879b6ceffc82724fb6ddce79494d8a7a6cd26e4
@@ -137,5 +137,5 @@ index 6845356054..75d5e0a39e 100644
      std::map<int32_t, std::string> mLayersNameMap;
      std::map<int32_t, const native_handle_t*> mLayersHandleMap;
 -- 
-2.39.0
+2.39.2
 

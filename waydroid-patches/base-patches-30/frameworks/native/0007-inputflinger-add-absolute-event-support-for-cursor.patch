@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 0133b86b7e1c06882f9cb914861d2da8db521459 Mon Sep 17 00:00:00 2001
 From: Simon Fels <morphis@gravedo.de>
 Date: Mon, 22 Aug 2016 21:59:22 +0200
-Subject: [PATCH] inputflinger: add absolute event support for cursor
+Subject: [PATCH 07/14] inputflinger: add absolute event support for cursor
 
 Don't log event codes for cursor position changes
 
@@ -134,3 +134,6 @@ index f65ac3934a..8c87cbf8b9 100644
      CursorScrollAccumulator mCursorScrollAccumulator;
  
      int32_t mSource;
+-- 
+2.39.2
+

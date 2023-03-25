@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 6cae2b37c357441e459badc1f623623ba7ac6280 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Tue, 24 Aug 2021 22:45:23 +0430
-Subject: [PATCH] surfaceflinger: Provide layer names and stuffs
+Subject: [PATCH 05/14] surfaceflinger: Provide layer names and stuffs
 
 ---
  libs/vr/libvrflinger/Android.bp               |  1 +
@@ -234,3 +234,6 @@ index 6819ff43d2..b9a75ce536 100644
  private:
      // These are references to data owned by HWC2::Device, which will outlive
      // this HWC2::Layer, so these references are guaranteed to be valid for
+-- 
+2.39.2
+

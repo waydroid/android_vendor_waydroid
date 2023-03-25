@@ -1,7 +1,8 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 0cd3a62ecf71a17c26775e8e31be5e5f21bd9aab Mon Sep 17 00:00:00 2001
 From: TheKit <nekit1000@gmail.com>
 Date: Sun, 7 Mar 2021 17:15:20 +0200
-Subject: [PATCH] (halium) never set FLAT_BINDER_FLAG_TXN_SECURITY_CTX flag
+Subject: [PATCH 03/14] (halium) never set FLAT_BINDER_FLAG_TXN_SECURITY_CTX
+ flag
 
 It breaks binder transactions when run on a kernel without
 SELinux support.
@@ -43,3 +44,6 @@ index 4b773e816f..c06d24c9d5 100644
      };
  
      int result = ioctl(mDriverFD, BINDER_SET_CONTEXT_MGR_EXT, &obj);
+-- 
+2.39.2
+

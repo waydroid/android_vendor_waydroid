@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 314dac6782646a959ac856c388673de9efcc9272 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Fri, 27 Aug 2021 22:54:26 +0800
-Subject: [PATCH] native: Address host uid services as system UID
+Subject: [PATCH 10/14] native: Address host uid services as system UID
 
 Change-Id: If534b9a36f40f15390f5b5a6ca726ebf267406c1
 ---
@@ -45,3 +45,6 @@ index 847b73ad71..74d4704b5a 100644
      return mCallingUid;
  }
  
+-- 
+2.39.2
+
