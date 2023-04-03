@@ -1,0 +1,72 @@
+From 1c036f6bc18c5c326098cee7d43d3ed28a5e0f80 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 4 Apr 2023 01:44:02 +0200
+Subject: [PATCH] Send pointer capture status to the waydroid hwcomposer
+
+Change-Id: I412da3851af5aa57d7352d662769533e4072a616
+---
+ Android.bp                                         |  1 +
+ .../com/android/internal/policy/DecorView.java     | 14 ++++++++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/Android.bp b/Android.bp
+index fed35e5ae0f1..13a3059a3897 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -393,6 +393,7 @@ java_library {
+         "PlatformProperties",
+ 
+         "vendor.waydroid.window-V1.0-java",
++        "vendor.waydroid.window-V1.1-java",
+     ],
+     sdk_version: "core_platform",
+     installable: false,
+diff --git a/core/java/com/android/internal/policy/DecorView.java b/core/java/com/android/internal/policy/DecorView.java
+index eacdbda84bb8..89da7361edb5 100644
+--- a/core/java/com/android/internal/policy/DecorView.java
++++ b/core/java/com/android/internal/policy/DecorView.java
+@@ -121,6 +121,9 @@ import com.android.internal.widget.DecorCaptionView;
+ import com.android.internal.widget.FloatingToolbar;
+ 
+ import java.util.List;
++import java.util.NoSuchElementException;
++
++import vendor.waydroid.window.V1_1.IWaydroidWindow;
+ 
+ /** @hide */
+ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, WindowCallbacks {
+@@ -241,6 +244,8 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+     @UnsupportedAppUsage
+     private PhoneWindow mWindow;
+ 
++    private IWaydroidWindow mWaydroidWindow;
++
+     ViewGroup mContentRoot;
+ 
+     private Rect mTempRect;
+@@ -326,6 +331,10 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+         // region @boringdroid
+         mWindowCornerRadius = context.getResources().getDimension(R.dimen.decor_corner_radius);
+         // endregion
++
++        try {
++            mWaydroidWindow = IWaydroidWindow.getService(false /* retry */);
++        } catch (NoSuchElementException | RemoteException ignored) {}
+     }
+ 
+     void setBackgroundFallback(@Nullable Drawable fallbackDrawable) {
+@@ -2612,6 +2621,11 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+         if (!mWindow.isDestroyed() && mWindow.getCallback() != null) {
+             mWindow.getCallback().onPointerCaptureChanged(hasCapture);
+         }
++        if (mWaydroidWindow != null) {
++            try {
++                mWaydroidWindow.setPointerCapture(getContext().getPackageName(), hasCapture);
++            } catch (RemoteException ignored) {}
++        }
+     }
+ 
+     @Override
+-- 
+2.39.2
+
