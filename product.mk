@@ -22,6 +22,9 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PACKAGES += \
     init.waydroid.rc
 
+PRODUCT_PACKAGES += \
+    hidepid.rc
+
 # Dummy libnfc-nci.conf
 PRODUCT_PACKAGES += \
     libnfc-nci.conf
