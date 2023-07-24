@@ -1,0 +1,73 @@
+From 35f7beae695892ef4a5e846121f8ae318d3920f7 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=D0=90=D0=B7=D0=B0=D0=BB=D0=B8=D1=8F=20=D0=A1=D0=BC=D0=B0?=
+ =?UTF-8?q?=D1=80=D0=B0=D0=B3=D0=B4=D0=BE=D0=B2=D0=B0?=
+ <charming.flurry@yandex.ru>
+Date: Mon, 24 Jul 2023 13:55:28 +0000
+Subject: [PATCH] * Always block restarting ADBD as root (unsafe in Waydroid) *
+ Disable some restrictions for run-as that don't make sense in Waydroid
+
+Change-Id: I2816a4cf99fab1de7e8ec312ed6d0bc2c0dfd118
+---
+ adb/daemon/restart_service.cpp |  4 +++-
+ run-as/run-as.cpp              | 22 +++++++++++-----------
+ 2 files changed, 14 insertions(+), 12 deletions(-)
+
+diff --git a/adb/daemon/restart_service.cpp b/adb/daemon/restart_service.cpp
+index c942c1f23..6cbf640ca 100644
+--- a/adb/daemon/restart_service.cpp
++++ b/adb/daemon/restart_service.cpp
+@@ -53,7 +53,9 @@ void restart_root_service(unique_fd fd) {
+     bool enabled = false;
+     if (auto status = service->getEnabled(&enabled); !status.isOk()) {
+ #endif
+-    if (!__android_log_is_debuggable()) {
++    // Running ADBD as root is not safe in Waydroid, since it allows an unprivileged user to get an actual root shell (however, with restrictions enabled by LXC) with no way for admin to stop.
++    // There are other ways to perform privileged tasks, for "waydroid shell" subcommand to Magisk, that require either root or initial privileged setup
++    if (true) {
+         WriteFdExactly(fd.get(), "adbd cannot run as root in production builds\n");
+         return;
+     }
+diff --git a/run-as/run-as.cpp b/run-as/run-as.cpp
+index 432c434b4..8ee0f8db6 100644
+--- a/run-as/run-as.cpp
++++ b/run-as/run-as.cpp
+@@ -221,15 +221,15 @@ int main(int argc, char* argv[]) {
+   // Calculate user app ID.
+   uid_t userAppId = (AID_USER_OFFSET * userId) + info.uid;
+ 
+-  // Reject system packages.
+-  if (userAppId < AID_APP) {
+-    error(1, 0, "package not an application: %s", pkgname);
+-  }
++  // Reject system packages. -- disabled (doesn't matter)
++//  if (userAppId < AID_APP) {
++//    error(1, 0, "package not an application: %s", pkgname);
++//  }
+ 
+-  // Reject any non-debuggable package.
+-  if (!info.debuggable) {
+-    error(1, 0, "package not debuggable: %s", pkgname);
+-  }
++  // Reject any non-debuggable package. -- disabled (doesn't matter)
++//  if (!info.debuggable) {
++//    error(1, 0, "package not debuggable: %s", pkgname);
++//  }
+ 
+   // Check that the data directory path is valid.
+   check_data_path(pkgname, info.data_dir, userAppId);
+@@ -246,9 +246,9 @@ int main(int argc, char* argv[]) {
+   minijail_enter(j.get());
+ 
+   std::string seinfo = std::string(info.seinfo) + ":fromRunAs";
+-  if (selinux_android_setcontext(uid, 0, seinfo.c_str(), pkgname) < 0) {
+-    error(1, errno, "couldn't set SELinux security context");
+-  }
++//  if (selinux_android_setcontext(uid, 0, seinfo.c_str(), pkgname) < 0) {
++//    error(1, errno, "couldn't set SELinux security context");
++//  }
+ 
+   // cd into the data directory, and set $HOME correspondingly.
+   if (TEMP_FAILURE_RETRY(chdir(info.data_dir)) == -1) {
+-- 
+2.39.2
+
