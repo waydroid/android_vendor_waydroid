@@ -1,0 +1,100 @@
+From 9bf08cb3de92eee9bb5f0b98467af53da43f7ead Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 29 Aug 2023 20:36:56 +0200
+Subject: [PATCH] Send idle-inhibit status to the waydroid hwcomposer
+
+Change-Id: Ib95ff6578c873ebe8926a4b18507742f0f8f6799
+---
+ services/core/Android.bp                      |  1 +
+ .../server/wm/RootWindowContainer.java        | 28 ++++++++++++++++++-
+ 2 files changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/Android.bp b/services/core/Android.bp
+index 55e109e33295..9ca4c76d97dd 100644
+--- a/services/core/Android.bp
++++ b/services/core/Android.bp
+@@ -142,6 +142,7 @@ java_library_static {
+         "overlayable_policy_aidl-java",
+         "SurfaceFlingerProperties",
+         "vendor.lineage.biometrics.fingerprint.inscreen-V1.0-java",
++        "vendor.waydroid.window-V1.2-java",
+     ],
+ }
+ 
+diff --git a/services/core/java/com/android/server/wm/RootWindowContainer.java b/services/core/java/com/android/server/wm/RootWindowContainer.java
+index 7dcfaf342174..d282a8189616 100644
+--- a/services/core/java/com/android/server/wm/RootWindowContainer.java
++++ b/services/core/java/com/android/server/wm/RootWindowContainer.java
+@@ -158,6 +158,8 @@ import com.android.server.am.UserState;
+ import com.android.server.policy.WindowManagerPolicy;
+ import com.android.server.protolog.common.ProtoLog;
+ 
++import vendor.waydroid.window.V1_2.IWaydroidWindow;
++
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+ import java.lang.annotation.Retention;
+@@ -165,6 +167,7 @@ import java.lang.annotation.RetentionPolicy;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.List;
++import java.util.NoSuchElementException;
+ import java.util.Objects;
+ import java.util.Set;
+ import java.util.function.Consumer;
+@@ -251,6 +254,9 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
+     DisplayManager mDisplayManager;
+     private DisplayManagerInternal mDisplayManagerInternal;
+ 
++    final HashMap<String, Boolean> mIdleInhibitMap = new HashMap<>();
++    private IWaydroidWindow mWaydroidWindow;
++
+     /** Reference to default display so we can quickly look it up. */
+     private DisplayContent mDefaultDisplay;
+     private final SparseArray<IntArray> mDisplayAccessUIDs = new SparseArray<>();
+@@ -451,6 +457,10 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
+         mStackSupervisor = mService.mStackSupervisor;
+         mStackSupervisor.mRootWindowContainer = this;
+         mDisplayOffTokenAcquirer = mService.new SleepTokenAcquirerImpl("Display-off");
++
++        try {
++            mWaydroidWindow = IWaydroidWindow.getService(false /* retry */);
++        } catch (NoSuchElementException | RemoteException ignored) {}
+     }
+ 
+     boolean updateFocusedWindowLocked(int mode, boolean updateInputWindows) {
+@@ -945,6 +955,12 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
+             }
+         }
+ 
++        if (mWaydroidWindow != null && mHoldScreen == null && mIdleInhibitMap.values().contains(true)) {
++            mIdleInhibitMap.clear();
++            try {
++                mWaydroidWindow.setIdleInhibit("*", false);
++            } catch (RemoteException ignored) {}
++        }
+         mWmService.setHoldScreenLocked(mHoldScreen);
+         if (!mWmService.mDisplayFrozen) {
+             final float buttonBrightnessOverride =
+@@ -1132,7 +1148,17 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
+             }
+         }
+         if (w.mHasSurface && canBeSeen) {
+-            if ((attrFlags & FLAG_KEEP_SCREEN_ON) != 0) {
++            final boolean hold = (attrFlags & FLAG_KEEP_SCREEN_ON) != 0;
++            if (mWaydroidWindow != null && w.getTask() != null) {
++                String id = w.getOwningUid() + "#" + w.getTask().mTaskId;
++                if (mIdleInhibitMap.getOrDefault(id, false) != hold) {
++                    mIdleInhibitMap.put(id, hold);
++                    try {
++                        mWaydroidWindow.setIdleInhibit(Integer.toString(w.getTask().mTaskId), hold);
++                    } catch (RemoteException ignored) {}
++                }
++            }
++            if (hold) {
+                 mHoldScreen = w.mSession;
+                 mHoldScreenWindow = w;
+             } else if (w == mWmService.mLastWakeLockHoldingWindow) {
+-- 
+2.41.0
+
