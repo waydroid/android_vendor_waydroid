@@ -1,0 +1,187 @@
+From 4b2a44acc9e7ecf82c4224c0dae1d48d0482c376 Mon Sep 17 00:00:00 2001
+From: Tom Cherry <tomcherry@google.com>
+Date: Fri, 1 May 2020 15:34:47 -0700
+Subject: [PATCH] logd: use SO_PEERGROUPS when appropriate
+
+Logd checks all supplemental groups of a peer socket to see if it may
+have privileges to read logs.  This was previously done by a racy
+checking of /proc/<pid>/status, but this can now be replaced by
+SO_PEERGROUPS for kernels 4.13+.
+
+Test: SO_PEERGROUPS is successful on CF
+Test: non-root,system,log groups cannot read logs still
+Test: new test that does the above check
+Change-Id: I71f96f7acaf105e836f8fc4fee0ecb96e92242b4
+---
+ logd/LogCommand.cpp      | 75 +++++++++++++++++++++++++++++-----------
+ logd/tests/logd_test.cpp | 36 +++++++++++++++++++
+ 2 files changed, 90 insertions(+), 21 deletions(-)
+
+diff --git a/logd/LogCommand.cpp b/logd/LogCommand.cpp
+index 8bff9da46..7205ddcdc 100644
+--- a/logd/LogCommand.cpp
++++ b/logd/LogCommand.cpp
+@@ -18,6 +18,9 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <sys/socket.h>
++
++#include <vector>
+ 
+ #include <private/android_filesystem_config.h>
+ 
+@@ -27,19 +30,6 @@
+ LogCommand::LogCommand(const char* cmd) : FrameworkCommand(cmd) {
+ }
+ 
+-// gets a list of supplementary group IDs associated with
+-// the socket peer.  This is implemented by opening
+-// /proc/PID/status and look for the "Group:" line.
+-//
+-// This function introduces races especially since status
+-// can change 'shape' while reading, the net result is err
+-// on lack of permission.
+-//
+-// Race-free alternative is to introduce pairs of sockets
+-// and threads for each command and reading, one each that
+-// has open permissions, and one that has restricted
+-// permissions.
+-
+ static bool groupIsLog(char* buf) {
+     char* ptr;
+     static const char ws[] = " \n";
+@@ -57,12 +47,19 @@ static bool groupIsLog(char* buf) {
+     return false;
+ }
+ 
+-bool clientHasLogCredentials(uid_t uid, gid_t gid, pid_t pid) {
+-    if ((uid == AID_ROOT) || (uid == AID_SYSTEM) || (uid == AID_LOG)) {
+-        return true;
+-    }
++static bool UserIsPrivileged(int id) {
++    return id == AID_ROOT || id == AID_SYSTEM || id == AID_LOG;
++}
+ 
+-    if ((gid == AID_ROOT) || (gid == AID_SYSTEM) || (gid == AID_LOG)) {
++// gets a list of supplementary group IDs associated with
++// the socket peer.  This is implemented by opening
++// /proc/PID/status and look for the "Group:" line.
++//
++// This function introduces races especially since status
++// can change 'shape' while reading, the net result is err
++// on lack of permission.
++bool clientHasLogCredentials(uid_t uid, gid_t gid, pid_t pid) {
++    if (UserIsPrivileged(uid) || UserIsPrivileged(gid)) {
+         return true;
+     }
+ 
+@@ -77,8 +74,7 @@ bool clientHasLogCredentials(uid_t uid, gid_t gid, pid_t pid) {
+ 
+     //
+     // Reading /proc/<pid>/status is rife with race conditions. All of /proc
+-    // suffers from this and its use should be minimized. However, we have no
+-    // choice.
++    // suffers from this and its use should be minimized.
+     //
+     // Notably the content from one 4KB page to the next 4KB page can be from a
+     // change in shape even if we are gracious enough to attempt to read
+@@ -141,5 +137,42 @@ bool clientHasLogCredentials(uid_t uid, gid_t gid, pid_t pid) {
+ }
+ 
+ bool clientHasLogCredentials(SocketClient* cli) {
+-    return clientHasLogCredentials(cli->getUid(), cli->getGid(), cli->getPid());
++    if (UserIsPrivileged(cli->getUid()) || UserIsPrivileged(cli->getGid())) {
++        return true;
++    }
++
++    // Kernel version 4.13 added SO_PEERGROUPS to return the supplemental groups of a peer socket,
++    // so try that first then fallback to the above racy checking of /proc/<pid>/status if the
++    // kernel is too old.  Per
++    // https://source.android.com/devices/architecture/kernel/android-common, the fallback can be
++    // removed no earlier than 2024.
++    auto supplemental_groups = std::vector<gid_t>(16, -1);
++    socklen_t groups_size = supplemental_groups.size() * sizeof(gid_t);
++
++    int result = getsockopt(cli->getSocket(), SOL_SOCKET, SO_PEERGROUPS, supplemental_groups.data(),
++                            &groups_size);
++
++    if (result != 0) {
++        if (errno != ERANGE) {
++            return clientHasLogCredentials(cli->getUid(), cli->getGid(), cli->getPid());
++        }
++
++        supplemental_groups.resize(groups_size / sizeof(gid_t), -1);
++        result = getsockopt(cli->getSocket(), SOL_SOCKET, SO_PEERGROUPS, supplemental_groups.data(),
++                            &groups_size);
++
++        // There is still some error after resizing supplemental_groups, fallback.
++        if (result != 0) {
++            return clientHasLogCredentials(cli->getUid(), cli->getGid(), cli->getPid());
++        }
++    }
++
++    supplemental_groups.resize(groups_size / sizeof(gid_t), -1);
++    for (const auto& gid : supplemental_groups) {
++        if (UserIsPrivileged(gid)) {
++            return true;
++        }
++    }
++
++    return false;
+ }
+diff --git a/logd/tests/logd_test.cpp b/logd/tests/logd_test.cpp
+index 10bac62f3..019c451bb 100644
+--- a/logd/tests/logd_test.cpp
++++ b/logd/tests/logd_test.cpp
+@@ -31,6 +31,7 @@
+ #include <android-base/macros.h>
+ #include <android-base/stringprintf.h>
+ #include <cutils/sockets.h>
++#include <gtest/gtest-death-test.h>
+ #include <gtest/gtest.h>
+ #include <private/android_filesystem_config.h>
+ #include <private/android_logger.h>
+@@ -956,4 +957,39 @@ TEST(logd, multiple_test_3) {
+ 
+ TEST(logd, multiple_test_10) {
+     __android_log_btwrite_multiple__helper(10);
++
++// Only AID_ROOT, AID_SYSTEM, and AID_LOG can set log sizes.  Ensure that a different user, AID_BIN,
++// cannot set the log size.
++TEST(logd, logging_permissions) {
++#ifdef __ANDROID__
++    if (getuid() != 0) {
++        GTEST_SKIP() << "This test requires root";
++    }
++
++    auto child_main = [] {
++        setgroups(0, nullptr);
++        setgid(AID_BIN);
++        setuid(AID_BIN);
++
++        std::unique_ptr<logger_list, decltype(&android_logger_list_free)> logger_list{
++                android_logger_list_alloc(0, 0, 0), &android_logger_list_free};
++        if (!logger_list) {
++            _exit(1);
++        }
++        auto logger = android_logger_open(logger_list.get(), LOG_ID_MAIN);
++        if (!logger) {
++            _exit(2);
++        }
++        // This line should fail, so if it returns 0, we exit with an error.
++        if (android_logger_set_log_size(logger, 2 * 1024 * 1024) == 0) {
++            _exit(3);
++        }
++        _exit(EXIT_SUCCESS);
++    };
++
++    ASSERT_EXIT(child_main(), testing::ExitedWithCode(0), "");
++
++#else
++    GTEST_LOG_(INFO) << "This test does nothing.\n";
++#endif
+ }
+-- 
+2.41.0
+
