@@ -1,2 +1,0 @@
-on init
-    exec -- /system/bin/toybox mount -o remount,hidepid=2 /proc
