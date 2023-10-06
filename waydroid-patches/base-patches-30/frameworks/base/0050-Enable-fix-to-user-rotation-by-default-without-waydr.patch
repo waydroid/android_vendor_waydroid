@@ -1,0 +1,28 @@
+From ddec7763d0a2877566beab8da9e86cb145abafe6 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 6 Oct 2023 16:43:08 +0200
+Subject: [PATCH] Enable fix-to-user-rotation by default without
+ waydroid-sensord
+
+Change-Id: Id18e040bc8ce0d843b0da273a5bcd02c8d8a366f
+---
+ services/core/java/com/android/server/wm/DisplayRotation.java | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/wm/DisplayRotation.java b/services/core/java/com/android/server/wm/DisplayRotation.java
+index b581d49bc45b..e06399c0ce8d 100644
+--- a/services/core/java/com/android/server/wm/DisplayRotation.java
++++ b/services/core/java/com/android/server/wm/DisplayRotation.java
+@@ -336,7 +336,8 @@ public class DisplayRotation {
+         final boolean isTv = mContext.getPackageManager().hasSystemFeature(
+                 PackageManager.FEATURE_LEANBACK);
+         mDefaultFixedToUserRotation =
+-                (isCar || isTv || mService.mIsPc || mDisplayContent.forceDesktopMode())
++                (isCar || isTv || mService.mIsPc || mDisplayContent.forceDesktopMode() ||
++                 SystemProperties.getBoolean("waydroid.stub_sensors_hal", false))
+                 // For debug purposes the next line turns this feature off with:
+                 // $ adb shell setprop config.override_forced_orient true
+                 // $ adb shell wm size reset
+-- 
+2.41.0
+
