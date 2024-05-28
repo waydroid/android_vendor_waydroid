@@ -48,7 +48,7 @@ index 879d26de3..835a239cd 100644
  
          // All devices must be reopened.
          CHANGE_MUST_REOPEN = 1 << 31,
-+        
++
 +        // Force mouse as touch setting changed.
 +        CHANGE_FORCE_MOUSE_AS_TOUCH = 1 << 90,
      };
@@ -58,7 +58,7 @@ index 879d26de3..835a239cd 100644
  
      // True if pointer gestures are enabled.
      bool pointerGesturesEnabled;
-+    
++
 +    // True if pointer touch emulation is enabled.
 +    bool forceMouseAsTouch;
  
@@ -105,7 +105,7 @@ index 6f9fb1b5c..f3f0d81c7 100644
          mWheelXVelocityControl.setParameters(config->wheelVelocityControlParameters);
          mWheelYVelocityControl.setParameters(config->wheelVelocityControlParameters);
      }
-+    
++
 +    if (!changes || (changes & InputReaderConfiguration::CHANGE_FORCE_MOUSE_AS_TOUCH)) {
 +        if (mParameters.mode == Parameters::MODE_POINTER_RELATIVE) {
 +            // Disable touch emulation for the pointer when Pointer Capture is enabled.

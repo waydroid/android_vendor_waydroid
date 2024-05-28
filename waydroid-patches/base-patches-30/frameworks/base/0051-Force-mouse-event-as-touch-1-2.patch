@@ -82,7 +82,7 @@ index 963f677178a..dd49cfcfd53 100644
                  InputManager.MAX_POINTER_SPEED);
          nativeSetPointerSpeed(mPtr, speed);
      }
-+    
++
 +    private void updateForceMouseAsTouchFromSettings() {
 +        boolean forceMouseAsTouch = getForceMouseAsTouchSetting();
 +        setForceMouseAsTouchUnchecked(forceMouseAsTouch);
@@ -97,7 +97,7 @@ index 963f677178a..dd49cfcfd53 100644
          }
          return speed;
      }
-+    
++
 +    private void registerForceMouseAsTouchSettingObserver() {
 +        mContext.getContentResolver().registerContentObserver(
 +                Settings.System.getUriFor(Settings.System.FORCE_MOUSE_AS_TOUCH), true,
@@ -136,7 +136,7 @@ index 396d67af9ba..c3330f2e73e 100644
  
          // Pointer speed.
          int32_t pointerSpeed;
-+        
++
 +        // Force mouse events to be handled as touch event.
 +        bool forceMouseAsTouch;
  
