@@ -27,6 +27,9 @@
   <!-- BoringDroid -->
   <project path="vendor/prebuilts/bdapps" name="boringdroid/vendor_prebuilts_bdapps" remote="ghub" revision="refs/heads/boringdroid-11.0.0" />
 
+  <!-- Build -->
+  <project path="prebuilts/build-tools" name="WayDroid/android_prebuilts_build-tools" groups="pdk" clone-depth="1" remote="ghub" revision="refs/heads/lineage-18.1" />
+
   <!-- VNDK -->
   <project path="prebuilts/vndk/v29" name="WayDroid/android_prebuilts_vndk_v29" groups="pdk" clone-depth="1" remote="ghub" revision="refs/heads/lineage-18.1" />
 
