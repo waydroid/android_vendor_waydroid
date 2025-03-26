@@ -1,0 +1,139 @@
+From 19d80447524f39e93447f54fcf75a4459b9a0df4 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Wed, 19 Mar 2025 00:10:45 +0100
+Subject: [PATCH] WayDroidClipboard: Switch to vendor.waydroid.clipboard
+ service
+
+Clipboard is now implemented in hwcomposer rather than in waydroid.py
+
+Change-Id: I652cbd4c1dc0cddf2802cdb7a4ae215a71a21552
+---
+ Android.bp                                    |  1 +
+ .../app/LineageContextConstants.java          |  7 ------
+ .../java/lineageos/waydroid/Clipboard.java    | 20 ++++++++--------
+ .../java/lineageos/waydroid/IClipboard.aidl   | 23 -------------------
+ 4 files changed, 11 insertions(+), 40 deletions(-)
+ delete mode 100644 sdk/src/java/lineageos/waydroid/IClipboard.aidl
+
+diff --git a/Android.bp b/Android.bp
+index 41394bf5..b3437191 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -62,6 +62,7 @@ lineage_sdk_LOCAL_STATIC_JAVA_LIBRARIES = [
+     "vendor.lineage.livedisplay-V2.1-java",
+     "vendor.lineage.touch-V1.0-java",
+     "vendor.lineage.trust-V1.0-java",
++    "vendor.waydroid.clipboard-V1.0-java",
+ ]
+ 
+ // READ ME: ########################################################
+diff --git a/sdk/src/java/lineageos/app/LineageContextConstants.java b/sdk/src/java/lineageos/app/LineageContextConstants.java
+index 3ef10366..266606f8 100644
+--- a/sdk/src/java/lineageos/app/LineageContextConstants.java
++++ b/sdk/src/java/lineageos/app/LineageContextConstants.java
+@@ -115,13 +115,6 @@ public final class LineageContextConstants {
+      */
+     public static final String WAYDROID_PLATFORM_SERVICE = "waydroidplatform";
+ 
+-    /**
+-     * Manages waydroid clipboard
+-     *
+-     * @hide
+-     */
+-    public static final String WAYDROID_CLIPBOARD_SERVICE = "waydroidclipboard";
+-
+     /**
+      * Manages waydroid hardware
+      *
+diff --git a/sdk/src/java/lineageos/waydroid/Clipboard.java b/sdk/src/java/lineageos/waydroid/Clipboard.java
+index ba5a333a..d08590c7 100644
+--- a/sdk/src/java/lineageos/waydroid/Clipboard.java
++++ b/sdk/src/java/lineageos/waydroid/Clipboard.java
+@@ -22,12 +22,15 @@ import android.os.RemoteException;
+ import android.os.ServiceManager;
+ import android.util.Log;
+ 
++import java.util.NoSuchElementException;
++
+ import lineageos.app.LineageContextConstants;
++import vendor.waydroid.clipboard.V1_0.IWaydroidClipboard;
+ 
+ public class Clipboard {
+     private static final String TAG = "WayDroidClipboard";
+ 
+-    private static IClipboard sService;
++    private static IWaydroidClipboard sService;
+     private static Clipboard sInstance;
+ 
+     private Context mContext;
+@@ -52,24 +55,21 @@ public class Clipboard {
+     }
+ 
+     /** @hide **/
+-    public static IClipboard getService() {
++    public static IWaydroidClipboard getService() {
+         if (sService != null) {
+             return sService;
+         }
+-        IBinder b = ServiceManager.getService(LineageContextConstants.WAYDROID_CLIPBOARD_SERVICE);
+-
+-        if (b == null) {
++        try {
++            sService = IWaydroidClipboard.getService(false /* retry */);
++        } catch (RemoteException | NoSuchElementException e) {
+             Log.e(TAG, "null service. SAD!");
+-            return null;
+         }
+-
+-        sService = IClipboard.Stub.asInterface(b);
+         return sService;
+     }
+ 
+     /** @hide **/
+     public void sendClipboardData(String value) {
+-        IClipboard service = getService();
++        IWaydroidClipboard service = getService();
+         if (service == null) {
+             return;
+         }
+@@ -82,7 +82,7 @@ public class Clipboard {
+     }
+ 
+     public String getClipboardData() {
+-        IClipboard service = getService();
++        IWaydroidClipboard service = getService();
+         if (service == null) {
+             return "";
+         }
+diff --git a/sdk/src/java/lineageos/waydroid/IClipboard.aidl b/sdk/src/java/lineageos/waydroid/IClipboard.aidl
+deleted file mode 100644
+index b370e71a..00000000
+--- a/sdk/src/java/lineageos/waydroid/IClipboard.aidl
++++ /dev/null
+@@ -1,23 +0,0 @@
+-/*
+-**
+-** Copyright (C) 2021 The WayDroid Project
+-**
+-** Licensed under the Apache License, Version 2.0 (the "License");
+-** you may not use this file except in compliance with the License.
+-** You may obtain a copy of the License at
+-**
+-**     http://www.apache.org/licenses/LICENSE-2.0
+-**
+-** Unless required by applicable law or agreed to in writing, software
+-** distributed under the License is distributed on an "AS IS" BASIS,
+-** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-** See the License for the specific language governing permissions and
+-** limitations under the License.
+-*/
+-
+-package lineageos.waydroid;
+-
+-interface IClipboard {
+-    void sendClipboardData(String value);
+-    String getClipboardData();
+-}
+-- 
+2.48.1
+
