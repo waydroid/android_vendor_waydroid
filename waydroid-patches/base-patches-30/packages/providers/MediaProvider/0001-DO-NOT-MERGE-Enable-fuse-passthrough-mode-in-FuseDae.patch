@@ -1,0 +1,151 @@
+From 054b9c7dc9cafa51868957b21d7706437a1638e6 Mon Sep 17 00:00:00 2001
+From: Alessio Balsini <balsini@google.com>
+Date: Mon, 13 Jul 2020 12:01:13 +0100
+Subject: [PATCH 1/3] DO NOT MERGE Enable fuse passthrough mode in FuseDaemon
+
+FUSE passthrough is a feature that allows creating at OPEN/CREATE time a
+direct channel from the process accessing the FUSE file system to the
+file that lies in the lower file system. All the following read/write
+operations targeting a file that was opened with FUSE passthrough mode
+on target the lower file system directly, without the overhead of
+traversing the FUSE daemon.
+
+  go/fuse-passthrough
+
+This patch enables the FUSE passthrough feature in the fuse daemon
+spawned by MediaProvider.
+FUSE passthrough is activated according to the
+
+  persist.sys.fuse.passthrough.enable
+
+flag. Being this patch for testing purpose, FUSE passthrough is enabled
+by default and the flag can only be used to disable the feature is set
+to false.
+No further special conditions of the file are required for the
+passthrough feature to be enabled.
+
+Bug: 174548608
+Test: ScopedStorageTest
+Signed-off-by: Alessio Balsini <balsini@google.com>
+Change-Id: If674367e5dcdfc7c71a262a7748be4a1b23eb47e
+---
+ jni/FuseDaemon.cpp | 53 ++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 51 insertions(+), 2 deletions(-)
+
+diff --git a/jni/FuseDaemon.cpp b/jni/FuseDaemon.cpp
+index 170fba73f..a10900f10 100644
+--- a/jni/FuseDaemon.cpp
++++ b/jni/FuseDaemon.cpp
+@@ -241,7 +241,8 @@ struct fuse {
+           tracker(mediaprovider::fuse::NodeTracker(&lock)),
+           root(node::CreateRoot(_path, &lock, &tracker)),
+           mp(0),
+-          zero_addr(0) {}
++          zero_addr(0),
++          passthrough(false) {}
+ 
+     inline bool IsRoot(const node* node) const { return node == root; }
+ 
+@@ -295,6 +296,7 @@ struct fuse {
+     FAdviser fadviser;
+ 
+     std::atomic_bool* active;
++    bool passthrough;
+ };
+ 
+ static inline string get_name(node* n) {
+@@ -469,15 +471,26 @@ namespace fuse {
+  */
+ 
+ static void pf_init(void* userdata, struct fuse_conn_info* conn) {
++    struct fuse* fuse = reinterpret_cast<struct fuse*>(userdata);
++
+     // We don't want a getattr request with every read request
+     conn->want &= ~FUSE_CAP_AUTO_INVAL_DATA & ~FUSE_CAP_READDIRPLUS_AUTO;
+     unsigned mask = (FUSE_CAP_SPLICE_WRITE | FUSE_CAP_SPLICE_MOVE | FUSE_CAP_SPLICE_READ |
+                      FUSE_CAP_ASYNC_READ | FUSE_CAP_ATOMIC_O_TRUNC | FUSE_CAP_WRITEBACK_CACHE |
+                      FUSE_CAP_EXPORT_SUPPORT | FUSE_CAP_FLOCK_LOCKS);
++
++    if (fuse->passthrough) {
++        if (conn->capable & FUSE_CAP_PASSTHROUGH) {
++            mask |= FUSE_CAP_PASSTHROUGH;
++        } else {
++            LOG(WARNING) << "Passthrough feature not supported by the kernel";
++            fuse->passthrough = false;
++        }
++    }
++
+     conn->want |= conn->capable & mask;
+     conn->max_read = MAX_READ_SIZE;
+ 
+-    struct fuse* fuse = reinterpret_cast<struct fuse*>(userdata);
+     fuse->active->store(true, std::memory_order_release);
+ }
+ 
+@@ -978,6 +991,17 @@ static handle* create_handle_for_node(struct fuse* fuse, const string& path, int
+     return h;
+ }
+ 
++bool do_passthrough_enable(fuse_req_t req, struct fuse_file_info* fi, unsigned int fd) {
++    int passthrough_fh = fuse_passthrough_enable(req, fd);
++
++    if (passthrough_fh <= 0) {
++        return false;
++    }
++
++    fi->passthrough_fh = passthrough_fh;
++    return true;
++}
++
+ static void pf_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
+     ATRACE_CALL();
+     struct fuse* fuse = get_fuse(req);
+@@ -1042,6 +1066,16 @@ static void pf_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
+     fi->fh = ptr_to_id(h);
+     fi->keep_cache = 1;
+     fi->direct_io = !h->cached;
++
++    // TODO(b/173190192) ensuring that h->cached must be enabled in order to
++    // user FUSE passthrough is a conservative rule and might be dropped as
++    // soon as demonstrated its correctness.
++    if (fuse->passthrough && h->cached) {
++        if (!do_passthrough_enable(req, fi, fd)) {
++            LOG(WARNING) << "Passthrough OPEN failed for " << path;
++        }
++    }
++
+     fuse_reply_open(req, fi);
+ }
+ 
+@@ -1577,6 +1611,16 @@ static void pf_create(fuse_req_t req,
+     fi->fh = ptr_to_id(h);
+     fi->keep_cache = 1;
+     fi->direct_io = !h->cached;
++
++    // TODO(b/173190192) ensuring that h->cached must be enabled in order to
++    // user FUSE passthrough is a conservative rule and might be dropped as
++    // soon as demonstrated its correctness.
++    if (fuse->passthrough && h->cached) {
++        if (!do_passthrough_enable(req, fi, fd)) {
++            LOG(WARNING) << "Passthrough CREATE failed for " << child_path;
++        }
++    }
++
+     fuse_reply_create(req, &e, fi);
+ }
+ /*
+@@ -1779,6 +1823,11 @@ void FuseDaemon::Start(android::base::unique_fd fd, const std::string& path) {
+         fuse_set_log_func(fuse_logger);
+     }
+ 
++    fuse->passthrough = android::base::GetBoolProperty("persist.sys.fuse.passthrough.enable", true);
++    if (fuse->passthrough) {
++        LOG(INFO) << "Using FUSE passthrough";
++    }
++
+     struct fuse_session
+             * se = fuse_session_new(&args, &ops, sizeof(ops), &fuse_default);
+     if (!se) {
+-- 
+2.48.1
+

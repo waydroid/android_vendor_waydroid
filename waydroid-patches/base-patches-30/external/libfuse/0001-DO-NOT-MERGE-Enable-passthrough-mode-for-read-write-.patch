@@ -1,0 +1,201 @@
+From 37b164bedccd9c5abb0ba8ffbceac405ac331569 Mon Sep 17 00:00:00 2001
+From: Alessio Balsini <balsini@google.com>
+Date: Wed, 1 Jul 2020 14:14:28 +0100
+Subject: [PATCH 1/5] DO NOT MERGE Enable passthrough mode for read/write
+ operations
+
+Add support for filesystem passthrough read/write of files.
+
+When the FUSE_PASSTHROUGH capability is enabled, the FUSE daemon may
+decide while handling the "open" or "create" operation, if the given
+file can be accessed by that process in "passthrough" mode, meaning that
+all the further read and write operations would be forwarded by the
+kernel directly to the lower filesystem rather than to the FUSE daemon.
+All requests that aren't read or write are still handled by the
+userspace code.
+
+This allows for an improved performance on reads and writes, especially
+in the case of reads at random offsets, for which no (readahead)
+caching mechanism would help, reducing the performance gap between FUSE
+and native filesystem access.
+
+Extend also the passthrough_hp example with the new passthrough feature.
+
+Bug: 174548608
+Test: atest ScopedStorageTest
+Signed-off-by: Alessio Balsini <balsini@android.com>
+Change-Id: I38aff0cf7198b7cd92eccc97547d47f4e1132b00
+---
+ include/fuse_common.h   | 17 +++++++++++++++++
+ include/fuse_kernel.h   | 13 +++++++++++--
+ include/fuse_lowlevel.h |  2 ++
+ lib/fuse_lowlevel.c     | 19 +++++++++++++++++++
+ lib/fuse_versionscript  |  1 +
+ 5 files changed, 50 insertions(+), 2 deletions(-)
+
+diff --git a/include/fuse_common.h b/include/fuse_common.h
+index 2d686b2..7ac28d7 100644
+--- a/include/fuse_common.h
++++ b/include/fuse_common.h
+@@ -92,6 +92,11 @@ struct fuse_file_info {
+ 	 * same file handle. */
+ 	uint64_t fh;
+ 
++	/** Passthrough file handle id.  May be filled in by filesystem in
++	 * create and open.  It is used to create a passthrough connection
++	 * between FUSE file and lower file system file. */
++	uint32_t passthrough_fh;
++
+ 	/** Lock owner id.  Available in locking operations and flush */
+ 	uint64_t lock_owner;
+ 
+@@ -358,6 +363,18 @@ struct fuse_loop_config {
+  */
+ #define FUSE_CAP_NO_OPENDIR_SUPPORT    (1 << 24)
+ 
++/**
++ * Indicates support for passthrough mode access for read/write operations.
++ *
++ * If this flag is set in the `capable` field of the `fuse_conn_info`
++ * structure, then the FUSE kernel module supports redirecting read/write
++ * operations to the lower file system instead of letting them to be handled
++ * by the FUSE daemon.
++ *
++ * This feature is disabled by default.
++ */
++#define FUSE_CAP_PASSTHROUGH            (1 << 31)
++
+ /**
+  * Ioctl flags
+  *
+diff --git a/include/fuse_kernel.h b/include/fuse_kernel.h
+index 8a45f42..8bd7f0d 100644
+--- a/include/fuse_kernel.h
++++ b/include/fuse_kernel.h
+@@ -301,6 +301,7 @@ struct fuse_file_lock {
+ #define FUSE_CACHE_SYMLINKS	(1 << 23)
+ #define FUSE_NO_OPENDIR_SUPPORT (1 << 24)
+ #define FUSE_EXPLICIT_INVAL_DATA (1 << 25)
++#define FUSE_PASSTHROUGH	(1 << 31)
+ 
+ /**
+  * CUSE INIT request/reply flags
+@@ -547,7 +548,7 @@ struct fuse_create_in {
+ struct fuse_open_out {
+ 	uint64_t	fh;
+ 	uint32_t	open_flags;
+-	uint32_t	padding;
++	uint32_t	passthrough_fh;
+ };
+ 
+ struct fuse_release_in {
+@@ -574,6 +575,13 @@ struct fuse_read_in {
+ 	uint32_t	padding;
+ };
+ 
++struct fuse_passthrough_out {
++	uint32_t	fd;
++	/* For future implementation */
++	uint32_t	len;
++	void *		vec;
++};
++
+ #define FUSE_COMPAT_WRITE_IN_SIZE 24
+ 
+ struct fuse_write_in {
+@@ -825,7 +833,8 @@ struct fuse_notify_retrieve_in {
+ };
+ 
+ /* Device ioctls: */
+-#define FUSE_DEV_IOC_CLONE	_IOR(229, 0, uint32_t)
++#define FUSE_DEV_IOC_CLONE	      _IOR(229, 0, uint32_t)
++#define FUSE_DEV_IOC_PASSTHROUGH_OPEN _IOW(229, 1, struct fuse_passthrough_out)
+ 
+ struct fuse_lseek_in {
+ 	uint64_t	fh;
+diff --git a/include/fuse_lowlevel.h b/include/fuse_lowlevel.h
+index e81c282..e916112 100644
+--- a/include/fuse_lowlevel.h
++++ b/include/fuse_lowlevel.h
+@@ -1349,6 +1349,8 @@ int fuse_reply_attr(fuse_req_t req, const struct stat *attr,
+  */
+ int fuse_reply_readlink(fuse_req_t req, const char *link);
+ 
++int fuse_passthrough_enable(fuse_req_t req, unsigned int fd);
++
+ /**
+  * Reply with the canonical path for inotify
+  *
+diff --git a/lib/fuse_lowlevel.c b/lib/fuse_lowlevel.c
+index fc76b7c..c7efc3d 100644
+--- a/lib/fuse_lowlevel.c
++++ b/lib/fuse_lowlevel.c
+@@ -27,6 +27,7 @@
+ #include <errno.h>
+ #include <assert.h>
+ #include <sys/file.h>
++#include <sys/ioctl.h>
+ 
+ #ifndef F_LINUX_SPECIFIC_BASE
+ #define F_LINUX_SPECIFIC_BASE       1024
+@@ -388,6 +389,7 @@ static void fill_open(struct fuse_open_out *arg,
+ 		      const struct fuse_file_info *f)
+ {
+ 	arg->fh = f->fh;
++	arg->passthrough_fh = f->passthrough_fh;
+ 	if (f->direct_io)
+ 		arg->open_flags |= FOPEN_DIRECT_IO;
+ 	if (f->keep_cache)
+@@ -457,6 +459,19 @@ int fuse_reply_canonical_path(fuse_req_t req, const char *path)
+ 	return send_reply_ok(req, path, strlen(path) + 1);
+ }
+ 
++int fuse_passthrough_enable(fuse_req_t req, unsigned int fd) {
++    struct fuse_passthrough_out out = {};
++    int ret;
++
++    out.fd = fd;
++
++    ret = ioctl(req->se->fd, FUSE_DEV_IOC_PASSTHROUGH_OPEN, &out);
++    if (ret <= 0)
++        fuse_log(FUSE_LOG_ERR, "fuse: passthrough_enable: %s\n", strerror(errno));
++
++    return ret;
++}
++
+ int fuse_reply_open(fuse_req_t req, const struct fuse_file_info *f)
+ {
+ 	struct fuse_open_out arg;
+@@ -1990,6 +2005,8 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+ 				bufsize = max_bufsize;
+ 			}
+ 		}
++		if (arg->flags & FUSE_PASSTHROUGH)
++			se->conn.capable |= FUSE_PASSTHROUGH;
+ 	} else {
+ 		se->conn.max_readahead = 0;
+ 	}
+@@ -2102,6 +2119,8 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+ 		outarg.flags |= FUSE_WRITEBACK_CACHE;
+ 	if (se->conn.want & FUSE_CAP_POSIX_ACL)
+ 		outarg.flags |= FUSE_POSIX_ACL;
++	if (se->conn.want & FUSE_CAP_PASSTHROUGH)
++		outarg.flags |= FUSE_PASSTHROUGH;
+ 	outarg.max_readahead = se->conn.max_readahead;
+ 	outarg.max_write = se->conn.max_write;
+ 	if (se->conn.proto_minor >= 13) {
+diff --git a/lib/fuse_versionscript b/lib/fuse_versionscript
+index 4c075a3..b01699a 100644
+--- a/lib/fuse_versionscript
++++ b/lib/fuse_versionscript
+@@ -163,6 +163,7 @@ FUSE_3.7 {
+ 	global:
+ 		fuse_set_log_func;
+ 		fuse_log;
++		fuse_passthrough_enable;
+ 		fuse_reply_canonical_path;
+ } FUSE_3.3;
+ 
+-- 
+2.48.1
+

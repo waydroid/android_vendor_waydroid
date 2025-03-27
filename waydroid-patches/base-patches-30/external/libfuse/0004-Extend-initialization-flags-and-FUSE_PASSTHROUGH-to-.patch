@@ -1,0 +1,113 @@
+From 5e9b376dc3961047597c8da4e9138b49c04ca974 Mon Sep 17 00:00:00 2001
+From: Alessio Balsini <balsini@google.com>
+Date: Sat, 22 Jan 2022 12:51:41 +0000
+Subject: [PATCH 4/5] Extend initialization flags and FUSE_PASSTHROUGH to 64
+ bits
+
+With the latest kernel version the FUSE_PASSTHROUGH flag now conflicts
+with another flag.
+As the flag bits in the original "flags" field are all covered, the
+developer allocated another "flags2" field in the userspace <->
+kernelspace communication.
+While FUSE_PASSTHROUGH is kept as the last bit of either field, it's
+userspace that needs to decide if it should be the last bit of "flags"
+or "flags2" based on the FUSE version.
+
+Test: launch_cvd (both android-mainline and android13-5.10) \
+  `logcat FuseDaemon:V \*:S` shows no FUSE passthrough errors
+Bug: 215310351
+Signed-off-by: Alessio Balsini <balsini@google.com>
+Change-Id: Ib35e5e162b57a49fde1c36154adafb51172fc2bd
+---
+ include/fuse_common.h |  6 +++---
+ lib/fuse_lowlevel.c   | 22 ++++++++++++++++++----
+ 2 files changed, 21 insertions(+), 7 deletions(-)
+
+diff --git a/include/fuse_common.h b/include/fuse_common.h
+index 7ac28d7..cf3bf8a 100644
+--- a/include/fuse_common.h
++++ b/include/fuse_common.h
+@@ -373,7 +373,7 @@ struct fuse_loop_config {
+  *
+  * This feature is disabled by default.
+  */
+-#define FUSE_CAP_PASSTHROUGH            (1 << 31)
++#define FUSE_CAP_PASSTHROUGH            (1LL << 63)
+ 
+ /**
+  * Ioctl flags
+@@ -437,7 +437,7 @@ struct fuse_conn_info {
+ 	/**
+ 	 * Capability flags that the kernel supports (read-only)
+ 	 */
+-	unsigned capable;
++	uint64_t capable;
+ 
+ 	/**
+ 	 * Capability flags that the filesystem wants to enable.
+@@ -445,7 +445,7 @@ struct fuse_conn_info {
+ 	 * libfuse attempts to initialize this field with
+ 	 * reasonable default values before calling the init() handler.
+ 	 */
+-	unsigned want;
++	uint64_t want;
+ 
+ 	/**
+ 	 * Maximum number of pending "background" requests. A
+diff --git a/lib/fuse_lowlevel.c b/lib/fuse_lowlevel.c
+index baa6d2b..ea2ca60 100644
+--- a/lib/fuse_lowlevel.c
++++ b/lib/fuse_lowlevel.c
+@@ -1980,6 +1980,7 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+ 	struct fuse_session *se = req->se;
+ 	size_t bufsize = se->bufsize;
+ 	size_t outargsize = sizeof(outarg);
++	int extended_flags;
+ 
+ 	(void) nodeid;
+ 	if (se->debug) {
+@@ -1999,6 +2000,10 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+ 	outarg.major = FUSE_KERNEL_VERSION;
+ 	outarg.minor = FUSE_KERNEL_MINOR_VERSION;
+ 
++	extended_flags = arg->major > 7 || (arg->major == 7 && arg->minor >= 36);
++	fuse_log(FUSE_LOG_DEBUG, "fuse: protocol version: %u.%u, extended flags: %d\n",
++		arg->major, arg->minor, extended_flags);
++
+ 	if (arg->major < 7) {
+ 		fuse_log(FUSE_LOG_ERR, "fuse: unsupported protocol version: %u.%u\n",
+ 			arg->major, arg->minor);
+@@ -2055,8 +2060,13 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+ 				bufsize = max_bufsize;
+ 			}
+ 		}
+-		if (arg->flags & FUSE_PASSTHROUGH)
+-			se->conn.capable |= FUSE_PASSTHROUGH;
++		if (extended_flags) {
++			if (arg->flags2 & (1 << 31))
++				se->conn.capable |= FUSE_CAP_PASSTHROUGH;
++		} else {
++			if (arg->flags & (1 << 31))
++				se->conn.capable |= FUSE_CAP_PASSTHROUGH;
++		}
+ 	} else {
+ 		se->conn.max_readahead = 0;
+ 	}
+@@ -2169,8 +2179,12 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+ 		outarg.flags |= FUSE_WRITEBACK_CACHE;
+ 	if (se->conn.want & FUSE_CAP_POSIX_ACL)
+ 		outarg.flags |= FUSE_POSIX_ACL;
+-	if (se->conn.want & FUSE_CAP_PASSTHROUGH)
+-		outarg.flags |= FUSE_PASSTHROUGH;
++	if (se->conn.want & FUSE_CAP_PASSTHROUGH) {
++		if (extended_flags)
++			outarg.flags2 |= (1 << 31);
++		else
++			outarg.flags |= (1 << 31);
++	}
+ 	outarg.max_readahead = se->conn.max_readahead;
+ 	outarg.max_write = se->conn.max_write;
+ 	if (se->conn.proto_minor >= 13) {
+-- 
+2.48.1
+

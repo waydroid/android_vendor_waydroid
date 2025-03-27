@@ -1,0 +1,171 @@
+From 990d6dc9702a4f7db0f1249adbcbd4651c34c0f7 Mon Sep 17 00:00:00 2001
+From: Alessio Balsini <balsini@google.com>
+Date: Thu, 12 May 2022 17:23:21 +0100
+Subject: [PATCH 3/3] MediaProvider to report if FUSE passthrough is enabled
+
+Relying on the persist.sys.fuse.passthrough.enable system property to
+check if FUSE passthrough is enabled is not a reliable solution, as
+shown by mixed builds with GSI. The problem arises when an underlying
+system not supporting FUSE passthrough (e.g., Android R) runs with an
+Android S+ GSI which wants to use FUSE passthrough, thus has
+persist.sys.fuse.passthrough.enable set to true.
+Android works fine as MediaProvider (FuseDaemon) catches the exception
+that the kernel does not support FUSE passthrough, but the Android S+
+tests assume that FUSE passthrough is enabled because of the system
+property.
+
+This change extends the MediaProvider hidden API with a call to test if the FUSE
+passthrough feature is being used or not by the FUSE daemon.
+
+Bug: 207733510
+Test: android.scopedstorage.cts.device.ScopedStorageDeviceTest
+Signed-off-by: Alessio Balsini <balsini@google.com>
+Change-Id: Ie31be07d97a1f9ad4402f7f44490c924e883a0a9
+Merged-In: Ie31be07d97a1f9ad4402f7f44490c924e883a0a9
+---
+ .../java/android/provider/MediaStore.java        |  5 +++++
+ jni/FuseDaemon.cpp                               |  4 ++++
+ jni/FuseDaemon.h                                 |  5 +++++
+ jni/com_android_providers_media_FuseDaemon.cpp   | 11 +++++++++++
+ .../android/providers/media/MediaProvider.java   | 14 ++++++++++++++
+ .../android/providers/media/fuse/FuseDaemon.java | 16 ++++++++++++++++
+ 6 files changed, 55 insertions(+)
+
+diff --git a/apex/framework/java/android/provider/MediaStore.java b/apex/framework/java/android/provider/MediaStore.java
+index d518c18d5..cbfe4e706 100644
+--- a/apex/framework/java/android/provider/MediaStore.java
++++ b/apex/framework/java/android/provider/MediaStore.java
+@@ -213,6 +213,11 @@ public final class MediaStore {
+     /** {@hide} */
+     public static final String EXTRA_RESULT = "result";
+ 
++    /** {@hide} */
++    public static final String USES_FUSE_PASSTHROUGH = "uses_fuse_passthrough";
++    /** {@hide} */
++    public static final String USES_FUSE_PASSTHROUGH_RESULT = "uses_fuse_passthrough_result";
++
+     /**
+      * This is for internal use by the media scanner only.
+      * Name of the (optional) Uri parameter that determines whether to skip deleting
+diff --git a/jni/FuseDaemon.cpp b/jni/FuseDaemon.cpp
+index a58a08325..da20830dd 100644
+--- a/jni/FuseDaemon.cpp
++++ b/jni/FuseDaemon.cpp
+@@ -1747,6 +1747,10 @@ bool FuseDaemon::ShouldOpenWithFuse(int fd, bool for_read, const std::string& pa
+     return use_fuse;
+ }
+ 
++bool FuseDaemon::UsesFusePassthrough() const {
++    return fuse->passthrough;
++}
++
+ void FuseDaemon::InvalidateFuseDentryCache(const std::string& path) {
+     LOG(VERBOSE) << "Invalidating FUSE dentry cache";
+     if (active.load(std::memory_order_acquire)) {
+diff --git a/jni/FuseDaemon.h b/jni/FuseDaemon.h
+index 3c4b947fd..e1c720467 100644
+--- a/jni/FuseDaemon.h
++++ b/jni/FuseDaemon.h
+@@ -49,6 +49,11 @@ class FuseDaemon final {
+      */
+     bool ShouldOpenWithFuse(int fd, bool for_read, const std::string& path);
+ 
++    /**
++     * Check if the FUSE daemon uses FUSE passthrough
++     */
++    bool UsesFusePassthrough() const;
++
+     /**
+      * Invalidate FUSE VFS dentry cache entry for path
+      */
+diff --git a/jni/com_android_providers_media_FuseDaemon.cpp b/jni/com_android_providers_media_FuseDaemon.cpp
+index 3a65696f6..e8ea150f3 100644
+--- a/jni/com_android_providers_media_FuseDaemon.cpp
++++ b/jni/com_android_providers_media_FuseDaemon.cpp
+@@ -84,6 +84,15 @@ jboolean com_android_providers_media_FuseDaemon_should_open_with_fuse(JNIEnv* en
+     return JNI_FALSE;
+ }
+ 
++jboolean com_android_providers_media_FuseDaemon_uses_fuse_passthrough(JNIEnv* env, jobject self,
++                                                                      jlong java_daemon) {
++    fuse::FuseDaemon* const daemon = reinterpret_cast<fuse::FuseDaemon*>(java_daemon);
++    if (daemon) {
++        return daemon->UsesFusePassthrough();
++    }
++    return JNI_FALSE;
++}
++
+ void com_android_providers_media_FuseDaemon_invalidate_fuse_dentry_cache(JNIEnv* env, jobject self,
+                                                                          jlong java_daemon,
+                                                                          jstring java_path) {
+@@ -114,6 +123,8 @@ const JNINativeMethod methods[] = {
+          reinterpret_cast<void*>(com_android_providers_media_FuseDaemon_delete)},
+         {"native_should_open_with_fuse", "(JLjava/lang/String;ZI)Z",
+          reinterpret_cast<void*>(com_android_providers_media_FuseDaemon_should_open_with_fuse)},
++        {"native_uses_fuse_passthrough", "(J)Z",
++         reinterpret_cast<void*>(com_android_providers_media_FuseDaemon_uses_fuse_passthrough)},
+         {"native_is_fuse_thread", "()Z",
+          reinterpret_cast<void*>(com_android_providers_media_FuseDaemon_is_fuse_thread)},
+         {"native_is_started", "(J)Z",
+diff --git a/src/com/android/providers/media/MediaProvider.java b/src/com/android/providers/media/MediaProvider.java
+index 5b3a8c41e..93a5261b5 100644
+--- a/src/com/android/providers/media/MediaProvider.java
++++ b/src/com/android/providers/media/MediaProvider.java
+@@ -4749,6 +4749,20 @@ public class MediaProvider extends ContentProvider {
+                 res.putParcelable(MediaStore.EXTRA_RESULT, pi);
+                 return res;
+             }
++            case MediaStore.USES_FUSE_PASSTHROUGH: {
++                boolean isEnabled = false;
++                try {
++                    FuseDaemon daemon = getFuseDaemonForFile(new File(arg));
++                    if (daemon != null) {
++                        isEnabled = daemon.usesFusePassthrough();
++                    }
++                } catch (FileNotFoundException e) {
++                }
++
++                Bundle bundle = new Bundle();
++                bundle.putBoolean(MediaStore.USES_FUSE_PASSTHROUGH_RESULT, isEnabled);
++                return bundle;
++            }
+             default:
+                 throw new UnsupportedOperationException("Unsupported call: " + method);
+         }
+diff --git a/src/com/android/providers/media/fuse/FuseDaemon.java b/src/com/android/providers/media/fuse/FuseDaemon.java
+index 9a433c96d..10f116df5 100644
+--- a/src/com/android/providers/media/fuse/FuseDaemon.java
++++ b/src/com/android/providers/media/fuse/FuseDaemon.java
+@@ -138,6 +138,21 @@ public final class FuseDaemon extends Thread {
+         }
+     }
+ 
++    /**
++     * Checks if the FuseDaemon uses the FUSE passthrough feature.
++     *
++     * @return {@code true} if the FuseDaemon uses FUSE passthrough, {@code false} otherwise
++     */
++    public boolean usesFusePassthrough() {
++        synchronized (mLock) {
++            if (mPtr == 0) {
++                Log.i(TAG, "usesFusePassthrough failed, FUSE daemon unavailable");
++                return false;
++            }
++            return native_uses_fuse_passthrough(mPtr);
++        }
++    }
++
+     /**
+      * Invalidates FUSE VFS dentry cache for {@code path}
+      */
+@@ -159,6 +174,7 @@ public final class FuseDaemon extends Thread {
+     private native void native_delete(long daemon);
+     private native boolean native_should_open_with_fuse(long daemon, String path, boolean readLock,
+             int fd);
++    private native boolean native_uses_fuse_passthrough(long daemon);
+     private native void native_invalidate_fuse_dentry_cache(long daemon, String path);
+     private native boolean native_is_started(long daemon);
+     public static native boolean native_is_fuse_thread();
+-- 
+2.48.1
+

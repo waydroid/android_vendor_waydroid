@@ -1,0 +1,63 @@
+From 70b68d26771e520a9f8894a558543ae872d6e961 Mon Sep 17 00:00:00 2001
+From: jingjiezhuang <jingjie.zhuang@igg.com>
+Date: Wed, 20 Mar 2024 02:33:56 +0800
+Subject: [PATCH 5/5] FUSE_PASSTHROUGH stable value 37
+
+Change-Id: Id575914ee4fe6cc0cf9697db16116fb232d4e8ab
+---
+ include/fuse_common.h | 2 +-
+ include/fuse_kernel.h | 2 +-
+ lib/fuse_lowlevel.c   | 4 ++--
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/include/fuse_common.h b/include/fuse_common.h
+index cf3bf8a..cc08c0d 100644
+--- a/include/fuse_common.h
++++ b/include/fuse_common.h
+@@ -373,7 +373,7 @@ struct fuse_loop_config {
+  *
+  * This feature is disabled by default.
+  */
+-#define FUSE_CAP_PASSTHROUGH            (1LL << 63)
++#define FUSE_CAP_PASSTHROUGH            (1ULL << 37)
+ 
+ /**
+  * Ioctl flags
+diff --git a/include/fuse_kernel.h b/include/fuse_kernel.h
+index f1b0fea..cef8481 100644
+--- a/include/fuse_kernel.h
++++ b/include/fuse_kernel.h
+@@ -397,7 +397,7 @@ struct fuse_file_lock {
+  */
+ #if FUSE_KERNEL_VERSION > 7 ||                                                 \
+ 	(FUSE_KERNEL_VERSION == 7 && FUSE_KERNEL_MINOR_VERSION >= 36)
+-#define FUSE_PASSTHROUGH (1ULL << 63)
++#define FUSE_PASSTHROUGH (1ULL << 37)
+ #else
+ #define FUSE_PASSTHROUGH (1 << 31)
+ #endif
+diff --git a/lib/fuse_lowlevel.c b/lib/fuse_lowlevel.c
+index ea2ca60..adae603 100644
+--- a/lib/fuse_lowlevel.c
++++ b/lib/fuse_lowlevel.c
+@@ -2061,7 +2061,7 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+ 			}
+ 		}
+ 		if (extended_flags) {
+-			if (arg->flags2 & (1 << 31))
++			if (arg->flags2 & (1ULL << 37))
+ 				se->conn.capable |= FUSE_CAP_PASSTHROUGH;
+ 		} else {
+ 			if (arg->flags & (1 << 31))
+@@ -2181,7 +2181,7 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+ 		outarg.flags |= FUSE_POSIX_ACL;
+ 	if (se->conn.want & FUSE_CAP_PASSTHROUGH) {
+ 		if (extended_flags)
+-			outarg.flags2 |= (1 << 31);
++			outarg.flags2 |= (1ULL << 37);
+ 		else
+ 			outarg.flags |= (1 << 31);
+ 	}
+-- 
+2.48.1
+
