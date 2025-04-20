@@ -1,0 +1,42 @@
+From 1db28a7d0e1a4d90690e6b984a725e104e5a0cc9 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 20 Apr 2025 22:12:39 +0200
+Subject: [PATCH] art: Disable SSE4.2 instructions on 32-bit x86
+
+The waydroid x86 target is allowed to run on non-sse4.2 CPUs
+
+Change-Id: I46dffb6cd4ed3f97974fb1bf4c1ac0fd6074d8c9
+---
+ build/Android.bp | 12 +++---------
+ 1 file changed, 3 insertions(+), 9 deletions(-)
+
+diff --git a/build/Android.bp b/build/Android.bp
+index d2545a401d..35000c5450 100644
+--- a/build/Android.bp
++++ b/build/Android.bp
+@@ -210,19 +210,13 @@ art_module_art_global_defaults {
+                 "-fno-omit-frame-pointer",
+             ],
+         },
+-        // The build assumes that all our x86/x86_64 hosts (such as buildbots and developer
++        // The build assumes that all our x86_64 hosts (such as buildbots and developer
+         // desktops) support at least sse4.2/popcount. This firstly implies that the ART
+         // runtime binary itself may exploit these features. Secondly, this implies that
+         // the ART runtime passes these feature flags to dex2oat and JIT by calling the
+         // method InstructionSetFeatures::FromCppDefines(). Since invoking dex2oat directly
+-        // does not pick up these flags, cross-compiling from a x86/x86_64 host to a
+-        // x86/x86_64 target should not be affected.
+-        linux_x86: {
+-            cflags: [
+-                "-msse4.2",
+-                "-mpopcnt",
+-            ],
+-        },
++        // does not pick up these flags, cross-compiling from a x86_64 host to a
++        // x86_64 target should not be affected.
+         linux_x86_64: {
+             cflags: [
+                 "-msse4.2",
+-- 
+2.49.0
+
