@@ -1,0 +1,69 @@
+From 2231575cb3d5c53651a854c05651ca0784c77d94 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sat, 26 Apr 2025 19:08:47 +0200
+Subject: [PATCH] navigationbar: Remove HOME and RECENT buttons in single-app
+ mode
+
+Change-Id: I8c5d05ac318b6486967fb81815fe02f32c388d1f
+---
+ .../NavigationBarInflaterView.java            | 28 +++++++++++++++++--
+ 1 file changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/navigationbar/NavigationBarInflaterView.java b/packages/SystemUI/src/com/android/systemui/navigationbar/NavigationBarInflaterView.java
+index 51feed875337..c560009ca7cd 100644
+--- a/packages/SystemUI/src/com/android/systemui/navigationbar/NavigationBarInflaterView.java
++++ b/packages/SystemUI/src/com/android/systemui/navigationbar/NavigationBarInflaterView.java
+@@ -39,6 +39,10 @@ import android.widget.FrameLayout;
+ import android.widget.LinearLayout;
+ import android.widget.Space;
+ 
++import android.database.ContentObserver;
++import android.os.Handler;
++import android.provider.Settings;
++
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.systemui.Dependency;
+ import com.android.systemui.R;
+@@ -124,6 +128,17 @@ public class NavigationBarInflaterView extends FrameLayout
+         createInflaters();
+         mOverviewProxyService = Dependency.get(OverviewProxyService.class);
+         mNavBarMode = Dependency.get(NavigationModeController.class).addListener(this);
++
++        context.getContentResolver().registerContentObserver(
++            Settings.Global.getUriFor(Settings.Global.POLICY_CONTROL),
++            false,
++            new ContentObserver(new Handler(context.getMainLooper())) {
++                @Override
++                public void onChange(boolean selfChange) {
++                    onLikelyDefaultLayoutChange();
++                }
++            }
++        );
+     }
+ 
+     @VisibleForTesting
+@@ -160,10 +175,19 @@ public class NavigationBarInflaterView extends FrameLayout
+                 : mOverviewProxyService.shouldShowSwipeUpUI()
+                         ? R.string.config_navBarLayoutQuickstep
+                         : R.string.config_navBarLayout;
++        String layout = getContext().getString(defaultResource);
+         if (!mIsHintEnabled && defaultResource == R.string.config_navBarLayoutHandle) {
+-            return getContext().getString(defaultResource).replace(HOME_HANDLE, "");
++            layout = layout.replace(HOME_HANDLE, "");
+         }
+-        return getContext().getString(defaultResource);
++
++        String policy = Settings.Global.getString(mContext.getContentResolver(), Settings.Global.POLICY_CONTROL);
++        if ("immersive.status=*".equals(policy)) {
++            layout = layout.replace(HOME, "")
++                           .replace(HOME_HANDLE, "")
++                           .replace(RECENT, "");
++        }
++
++        return layout;
+     }
+ 
+     @Override
+-- 
+2.49.0
+
