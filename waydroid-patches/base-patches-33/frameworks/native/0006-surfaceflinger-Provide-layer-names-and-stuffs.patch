@@ -1,58 +1,36 @@
-From a553c02b7974c85ad5755957dd5c8d701eea2cf7 Mon Sep 17 00:00:00 2001
+From 3e2d224ccb516dec106467662080eeb42b55c327 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Tue, 24 Aug 2021 22:45:23 +0430
-Subject: [PATCH 06/12] surfaceflinger: Provide layer names and stuffs
+Subject: [PATCH] surfaceflinger: Provide layer names and stuffs
 
 Co-authored-by: Alessandro Astone <ales.astone@gmail.com>
 Change-Id: I06d399a1cbcac1a9c423e49b8ded24305b3c960e
 ---
- services/surfaceflinger/Android.bp            |  4 ++
- .../CompositionEngine/Android.bp              |  2 +
+ services/surfaceflinger/Android.bp            |  3 ++
  .../compositionengine/impl/OutputLayer.h      |  3 +-
- .../CompositionEngine/src/OutputLayer.cpp     | 16 +++++++-
+ .../CompositionEngine/src/OutputLayer.cpp     | 16 +++++-
  .../DisplayHardware/AidlComposerHal.h         |  4 ++
  .../DisplayHardware/ComposerHal.h             |  4 ++
- .../surfaceflinger/DisplayHardware/HWC2.cpp   | 12 ++++++
- .../surfaceflinger/DisplayHardware/HWC2.h     |  8 ++++
- .../DisplayHardware/HidlComposerHal.cpp       | 41 +++++++++++++++++++
- .../DisplayHardware/HidlComposerHal.h         | 12 ++++++
- 10 files changed, 103 insertions(+), 3 deletions(-)
+ .../surfaceflinger/DisplayHardware/HWC2.cpp   | 12 +++++
+ .../surfaceflinger/DisplayHardware/HWC2.h     |  8 +++
+ .../DisplayHardware/HidlComposerHal.cpp       | 52 +++++++++++++++++++
+ .../DisplayHardware/HidlComposerHal.h         | 13 +++++
+ 9 files changed, 112 insertions(+), 3 deletions(-)
 
 diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
-index 7548380a58..117f158af1 100644
+index 7548380a58..0cf45373ba 100644
 --- a/services/surfaceflinger/Android.bp
 +++ b/services/surfaceflinger/Android.bp
-@@ -72,6 +72,8 @@ cc_defaults {
+@@ -72,6 +72,9 @@ cc_defaults {
          "libutils",
          "libSurfaceFlingerProp",
          "server_configurable_flags",
 +        "vendor.waydroid.display@1.0",
 +        "vendor.waydroid.display@1.1",
++        "vendor.waydroid.display@1.2",
      ],
      static_libs: [
          "libaidlcommonsupport",
-@@ -110,6 +112,8 @@ cc_defaults {
-         "android.hardware.power@1.3",
-         "libhidlbase",
-         "libtimestats",
-+        "vendor.waydroid.display@1.0",
-+        "vendor.waydroid.display@1.1",
-     ],
-     // TODO (marissaw): this library is not used by surfaceflinger. This is here so
-     // the library compiled in a way that is accessible to system partition when running
-diff --git a/services/surfaceflinger/CompositionEngine/Android.bp b/services/surfaceflinger/CompositionEngine/Android.bp
-index abc3478313..8a29e63536 100644
---- a/services/surfaceflinger/CompositionEngine/Android.bp
-+++ b/services/surfaceflinger/CompositionEngine/Android.bp
-@@ -35,6 +35,8 @@ cc_defaults {
-         "libtimestats",
-         "libui",
-         "libutils",
-+        "vendor.waydroid.display@1.0",
-+        "vendor.waydroid.display@1.1",
-     ],
-     static_libs: [
-         "libmath",
 diff --git a/services/surfaceflinger/CompositionEngine/include/compositionengine/impl/OutputLayer.h b/services/surfaceflinger/CompositionEngine/include/compositionengine/impl/OutputLayer.h
 index ecd432f629..4b9535e428 100644
 --- a/services/surfaceflinger/CompositionEngine/include/compositionengine/impl/OutputLayer.h
@@ -188,20 +166,21 @@ index 24aef9b73c..9a7865398a 100644
      hal::Error setLayerGenericMetadata(const std::string& name, bool mandatory,
                                         const std::vector<uint8_t>& value) override;
 diff --git a/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp b/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
-index 2597ae6091..55d0893b11 100644
+index 2597ae6091..f7ace8fa2a 100644
 --- a/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
 +++ b/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
-@@ -270,6 +270,9 @@ void HidlComposer::registerCallback(const sp<IComposerCallback>& callback) {
-     if (!ret.isOk()) {
-         ALOGE("failed to register IComposerCallback");
-     }
-+
+@@ -190,6 +190,10 @@ std::vector<To> translate(const hidl_vec<From>& in) {
+ HidlComposer::HidlComposer(const std::string& serviceName) : mWriter(kWriterInitialSize) {
+     mComposer = V2_1::IComposer::getService(serviceName);
+ 
 +    mWaydroidDisplay = V1_0::IWaydroidDisplay::getService();
 +    mWaydroidDisplay_1 = V1_1::IWaydroidDisplay::castFrom(mWaydroidDisplay);
- }
- 
- void HidlComposer::resetCommands() {
-@@ -349,6 +352,7 @@ Error HidlComposer::createLayer(Display display, Layer* outLayer) {
++    mWaydroidDisplay_2 = V1_2::IWaydroidDisplay::castFrom(mWaydroidDisplay);
++
+     if (mComposer == nullptr) {
+         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
+     }
+@@ -349,6 +353,7 @@ Error HidlComposer::createLayer(Display display, Layer* outLayer) {
  }
  
  Error HidlComposer::destroyLayer(Display display, Layer layer) {
@@ -209,7 +188,7 @@ index 2597ae6091..55d0893b11 100644
      auto ret = mClient->destroyLayer(display, layer);
      return unwrapRet(ret);
  }
-@@ -573,6 +577,10 @@ Error HidlComposer::setClientTarget(Display display, uint32_t slot, const sp<Gra
+@@ -573,6 +578,10 @@ Error HidlComposer::setClientTarget(Display display, uint32_t slot, const sp<Gra
  
      const native_handle_t* handle = nullptr;
      if (target.get()) {
@@ -220,7 +199,7 @@ index 2597ae6091..55d0893b11 100644
          handle = target->getNativeBuffer()->handle;
      }
  
-@@ -811,6 +819,7 @@ Error HidlComposer::setLayerZOrder(Display display, Layer layer, uint32_t z) {
+@@ -811,6 +820,7 @@ Error HidlComposer::setLayerZOrder(Display display, Layer layer, uint32_t z) {
      mWriter.selectDisplay(display);
      mWriter.selectLayer(layer);
      mWriter.setLayerZOrder(z);
@@ -228,7 +207,31 @@ index 2597ae6091..55d0893b11 100644
      return Error::NONE;
  }
  
-@@ -1352,6 +1361,38 @@ void HidlComposer::registerCallback(ComposerCallback& callback) {
+@@ -1265,6 +1275,12 @@ V2_4::Error HidlComposer::setLayerGenericMetadata(Display display, Layer layer,
+                                                   const std::vector<uint8_t>& value) {
+     using Error = V2_4::Error;
+     if (!mClient_2_4) {
++        if (mWaydroidDisplay_2) {
++            Parcel p;
++            p.setData(value.data(), value.size());
++            mWaydroidDisplay_2->setMouseMetadata(layer, p.readInt32(), p.readFloat(), p.readFloat());
++            return Error::NONE;
++        }
+         return Error::UNSUPPORTED;
+     }
+     mWriter.selectDisplay(display);
+@@ -1277,6 +1293,10 @@ V2_4::Error HidlComposer::getLayerGenericMetadataKeys(
+         std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) {
+     using Error = V2_4::Error;
+     if (!mClient_2_4) {
++        if (mWaydroidDisplay) {
++            *outKeys = {{"org.chromium.arc.V1_0.CursorInfo", true}};
++            return Error::NONE;
++        }
+         return Error::UNSUPPORTED;
+     }
+     Error error = kDefaultError_2_4;
+@@ -1352,6 +1372,38 @@ void HidlComposer::registerCallback(ComposerCallback& callback) {
      registerCallback(sp<ComposerCallbackBridge>::make(callback, vsyncSwitchingSupported));
  }
  
@@ -268,14 +271,14 @@ index 2597ae6091..55d0893b11 100644
      resetData();
  }
 diff --git a/services/surfaceflinger/DisplayHardware/HidlComposerHal.h b/services/surfaceflinger/DisplayHardware/HidlComposerHal.h
-index d0d3c2e6d7..dc162a4825 100644
+index d0d3c2e6d7..ad66985394 100644
 --- a/services/surfaceflinger/DisplayHardware/HidlComposerHal.h
 +++ b/services/surfaceflinger/DisplayHardware/HidlComposerHal.h
 @@ -29,6 +29,7 @@
  #pragma clang diagnostic ignored "-Wconversion"
  #pragma clang diagnostic ignored "-Wextra"
  
-+#include <vendor/waydroid/display/1.1/IWaydroidDisplay.h>
++#include <vendor/waydroid/display/1.2/IWaydroidDisplay.h>
  #include <composer-command-buffer/2.4/ComposerCommandBuffer.h>
  #include <gui/BufferQueue.h>
  #include <gui/HdrMetadata.h>
@@ -298,12 +301,13 @@ index d0d3c2e6d7..dc162a4825 100644
      // Composer HAL 2.2
      Error setLayerPerFrameMetadata(
              Display display, Layer layer,
-@@ -359,6 +365,12 @@ private:
+@@ -359,6 +365,13 @@ private:
      sp<V2_3::IComposerClient> mClient_2_3;
      sp<IComposerClient> mClient_2_4;
  
 +    sp<V1_0::IWaydroidDisplay> mWaydroidDisplay;
 +    sp<V1_1::IWaydroidDisplay> mWaydroidDisplay_1;
++    sp<V1_2::IWaydroidDisplay> mWaydroidDisplay_2;
 +    std::map<Layer, int32_t> mLayersZMap;
 +    std::map<int32_t, std::string> mLayersNameMap;
 +    std::map<int32_t, const native_handle_t*> mLayersHandleMap;
@@ -312,5 +316,5 @@ index d0d3c2e6d7..dc162a4825 100644
      static constexpr size_t kWriterInitialSize = 64 * 1024 / sizeof(uint32_t) - 16;
      // Max number of buffers that may be cached for a given layer
 -- 
-2.48.1
+2.49.0
 
