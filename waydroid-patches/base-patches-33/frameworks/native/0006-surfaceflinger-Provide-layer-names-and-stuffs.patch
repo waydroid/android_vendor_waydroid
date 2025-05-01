@@ -1,4 +1,4 @@
-From 3e2d224ccb516dec106467662080eeb42b55c327 Mon Sep 17 00:00:00 2001
+From 24fdcbe01c31dc62d98dd2d110a02fc9862c6cea Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Tue, 24 Aug 2021 22:45:23 +0430
 Subject: [PATCH] surfaceflinger: Provide layer names and stuffs
@@ -6,16 +6,16 @@ Subject: [PATCH] surfaceflinger: Provide layer names and stuffs
 Co-authored-by: Alessandro Astone <ales.astone@gmail.com>
 Change-Id: I06d399a1cbcac1a9c423e49b8ded24305b3c960e
 ---
- services/surfaceflinger/Android.bp            |  3 ++
+ services/surfaceflinger/Android.bp            |  3 +
  .../compositionengine/impl/OutputLayer.h      |  3 +-
  .../CompositionEngine/src/OutputLayer.cpp     | 16 +++++-
  .../DisplayHardware/AidlComposerHal.h         |  4 ++
  .../DisplayHardware/ComposerHal.h             |  4 ++
- .../surfaceflinger/DisplayHardware/HWC2.cpp   | 12 +++++
+ .../surfaceflinger/DisplayHardware/HWC2.cpp   | 12 ++++
  .../surfaceflinger/DisplayHardware/HWC2.h     |  8 +++
- .../DisplayHardware/HidlComposerHal.cpp       | 52 +++++++++++++++++++
+ .../DisplayHardware/HidlComposerHal.cpp       | 55 +++++++++++++++++++
  .../DisplayHardware/HidlComposerHal.h         | 13 +++++
- 9 files changed, 112 insertions(+), 3 deletions(-)
+ 9 files changed, 115 insertions(+), 3 deletions(-)
 
 diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
 index 7548380a58..0cf45373ba 100644
@@ -166,7 +166,7 @@ index 24aef9b73c..9a7865398a 100644
      hal::Error setLayerGenericMetadata(const std::string& name, bool mandatory,
                                         const std::vector<uint8_t>& value) override;
 diff --git a/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp b/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
-index 2597ae6091..f7ace8fa2a 100644
+index 2597ae6091..5451250b1b 100644
 --- a/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
 +++ b/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
 @@ -190,6 +190,10 @@ std::vector<To> translate(const hidl_vec<From>& in) {
@@ -207,20 +207,23 @@ index 2597ae6091..f7ace8fa2a 100644
      return Error::NONE;
  }
  
-@@ -1265,6 +1275,12 @@ V2_4::Error HidlComposer::setLayerGenericMetadata(Display display, Layer layer,
+@@ -1265,6 +1275,15 @@ V2_4::Error HidlComposer::setLayerGenericMetadata(Display display, Layer layer,
                                                    const std::vector<uint8_t>& value) {
      using Error = V2_4::Error;
      if (!mClient_2_4) {
 +        if (mWaydroidDisplay_2) {
 +            Parcel p;
 +            p.setData(value.data(), value.size());
-+            mWaydroidDisplay_2->setMouseMetadata(layer, p.readInt32(), p.readFloat(), p.readFloat());
++            int32_t cursorStyle = p.readInt32();
++            float cursorHotspotX = p.readFloat();
++            float cursorHotspotY = p.readFloat();
++            mWaydroidDisplay_2->setMouseMetadata(layer, cursorStyle, cursorHotspotX, cursorHotspotY);
 +            return Error::NONE;
 +        }
          return Error::UNSUPPORTED;
      }
      mWriter.selectDisplay(display);
-@@ -1277,6 +1293,10 @@ V2_4::Error HidlComposer::getLayerGenericMetadataKeys(
+@@ -1277,6 +1296,10 @@ V2_4::Error HidlComposer::getLayerGenericMetadataKeys(
          std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) {
      using Error = V2_4::Error;
      if (!mClient_2_4) {
@@ -231,7 +234,7 @@ index 2597ae6091..f7ace8fa2a 100644
          return Error::UNSUPPORTED;
      }
      Error error = kDefaultError_2_4;
-@@ -1352,6 +1372,38 @@ void HidlComposer::registerCallback(ComposerCallback& callback) {
+@@ -1352,6 +1375,38 @@ void HidlComposer::registerCallback(ComposerCallback& callback) {
      registerCallback(sp<ComposerCallbackBridge>::make(callback, vsyncSwitchingSupported));
  }
  
