@@ -1,13 +1,117 @@
-From c03bbdb36d67b88d0641d2c1c10e246b50da3f36 Mon Sep 17 00:00:00 2001
+From 7083155ea318db75699e4e8ed12a744601f31ccf Mon Sep 17 00:00:00 2001
 From: Simon Fels <morphis@gravedo.de>
 Date: Thu, 8 Dec 2016 17:28:54 +0100
-Subject: [PATCH 07/29] wm: Include task id in surface name for easier tracking
+Subject: [PATCH] wm: Include task id in surface name for easier tracking
 
 Change-Id: Ia64c3e8ef8e4514223649417d843d7ef65e2f5ba
 ---
- .../java/com/android/server/wm/WindowStateAnimator.java    | 7 ++++++-
- 1 file changed, 6 insertions(+), 1 deletion(-)
+ .../startingsurface/StartingSurfaceDrawer.java    |  2 +-
+ .../shell/startingsurface/TaskSnapshotWindow.java |  4 ++--
+ .../wm/shell/windowdecor/WindowDecoration.java    |  6 +++---
+ .../com/android/server/wm/SurfaceFreezer.java     | 15 ++++++++++++++-
+ .../android/server/wm/WindowStateAnimator.java    |  7 ++++++-
+ 5 files changed, 26 insertions(+), 8 deletions(-)
 
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/StartingSurfaceDrawer.java b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/StartingSurfaceDrawer.java
+index 22e804547d5c..05f0e5faa516 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/StartingSurfaceDrawer.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/StartingSurfaceDrawer.java
+@@ -309,7 +309,7 @@ public class StartingSurfaceDrawer {
+             params.privateFlags |= WindowManager.LayoutParams.PRIVATE_FLAG_COMPATIBLE_WINDOW;
+         }
+ 
+-        params.setTitle("Splash Screen " + activityInfo.packageName);
++        params.setTitle(activityInfo.packageName + "/SplashScreen");
+ 
+         // TODO(b/173975965) tracking performance
+         // Prepare the splash screen content view on splash screen worker thread in parallel, so the
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/TaskSnapshotWindow.java b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/TaskSnapshotWindow.java
+index 7b498e4f54ec..fe6929d16ae7 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/TaskSnapshotWindow.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/TaskSnapshotWindow.java
+@@ -119,7 +119,7 @@ public class TaskSnapshotWindow {
+             | FLAG_SECURE;
+ 
+     private static final String TAG = StartingWindowController.TAG;
+-    private static final String TITLE_FORMAT = "SnapshotStartingWindow for taskId=%s";
++    private static final String TITLE_FORMAT = "/SnapshotStartingWindow";
+ 
+     private static final long DELAY_REMOVAL_TIME_GENERAL = 100;
+     /**
+@@ -197,7 +197,7 @@ public class TaskSnapshotWindow {
+         layoutParams.setFitInsetsSides(attrs.getFitInsetsSides());
+         layoutParams.setFitInsetsIgnoringVisibility(attrs.isFitInsetsIgnoringVisibility());
+ 
+-        layoutParams.setTitle(String.format(TITLE_FORMAT, taskId));
++        layoutParams.setTitle(mainWindowParams.packageName + TITLE_FORMAT);
+ 
+         final Point taskSize = snapshot.getTaskSize();
+         final Rect taskBounds = new Rect(0, 0, taskSize.x, taskSize.y);
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/WindowDecoration.java b/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/WindowDecoration.java
+index f8e6ecc4499a..8734f931acc1 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/WindowDecoration.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/WindowDecoration.java
+@@ -201,7 +201,7 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
+         if (mDecorationContainerSurface == null) {
+             final SurfaceControl.Builder builder = mSurfaceControlBuilderSupplier.get();
+             mDecorationContainerSurface = builder
+-                    .setName("Decor container of Task=" + mTaskInfo.taskId)
++                    .setName("TID:" + mTaskInfo.taskId + "#" + mTaskInfo.baseActivity.getPackageName() + "/DecorContainer")
+                     .setContainerLayer()
+                     .setParent(mTaskSurface)
+                     .build();
+@@ -232,7 +232,7 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
+         if (mTaskBackgroundSurface == null) {
+             final SurfaceControl.Builder builder = mSurfaceControlBuilderSupplier.get();
+             mTaskBackgroundSurface = builder
+-                    .setName("Background of Task=" + mTaskInfo.taskId)
++                    .setName("TID:" + mTaskInfo.taskId + "#" + mTaskInfo.baseActivity.getPackageName() + "/Background")
+                     .setEffectLayer()
+                     .setParent(mTaskSurface)
+                     .build();
+@@ -255,7 +255,7 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
+         if (mCaptionContainerSurface == null) {
+             final SurfaceControl.Builder builder = mSurfaceControlBuilderSupplier.get();
+             mCaptionContainerSurface = builder
+-                    .setName("Caption container of Task=" + mTaskInfo.taskId)
++                    .setName("TID:" + mTaskInfo.taskId + "#" + mTaskInfo.baseActivity.getPackageName() + "/CaptionContainer")
+                     .setContainerLayer()
+                     .setParent(mDecorationContainerSurface)
+                     .build();
+diff --git a/services/core/java/com/android/server/wm/SurfaceFreezer.java b/services/core/java/com/android/server/wm/SurfaceFreezer.java
+index a7ef36b01d91..6b5746e336ba 100644
+--- a/services/core/java/com/android/server/wm/SurfaceFreezer.java
++++ b/services/core/java/com/android/server/wm/SurfaceFreezer.java
+@@ -21,6 +21,8 @@ import static com.android.server.wm.SurfaceAnimator.ANIMATION_TYPE_SCREEN_ROTATI
+ 
+ import android.annotation.NonNull;
+ import android.annotation.Nullable;
++import android.content.ComponentName;
++import android.content.Intent;
+ import android.graphics.GraphicBuffer;
+ import android.graphics.PixelFormat;
+ import android.graphics.Point;
+@@ -223,8 +225,19 @@ class SurfaceFreezer {
+                 SurfaceControl.ScreenshotHardwareBuffer screenshotBuffer, SurfaceControl parent) {
+             GraphicBuffer graphicBuffer = createFromHardwareBufferInner(screenshotBuffer);
+ 
++            String surfaceName = "snapshot anim: " + mAnimatable.toString();
++            if (mAnimatable instanceof Task) {
++                Task task = (Task)mAnimatable;
++                Intent intent = task.getBaseIntent();
++                if (intent != null) {
++                    ComponentName component = intent.getComponent();
++                    if (component != null) {
++                        surfaceName = "TID:" + task.mTaskId + "#" + component.getPackageName() + "/SnapshotAnim";
++                    }
++                }
++            }
+             mSurfaceControl = mAnimatable.makeAnimationLeash()
+-                    .setName("snapshot anim: " + mAnimatable.toString())
++                    .setName(surfaceName)
+                     .setFormat(PixelFormat.TRANSLUCENT)
+                     .setParent(parent)
+                     .setSecure(screenshotBuffer.containsSecureLayers())
 diff --git a/services/core/java/com/android/server/wm/WindowStateAnimator.java b/services/core/java/com/android/server/wm/WindowStateAnimator.java
 index f3642480da58..191e66f43eb6 100644
 --- a/services/core/java/com/android/server/wm/WindowStateAnimator.java
@@ -27,5 +131,5 @@ index f3642480da58..191e66f43eb6 100644
              mSurfaceController.setColorSpaceAgnostic((attrs.privateFlags
                      & WindowManager.LayoutParams.PRIVATE_FLAG_COLOR_SPACE_AGNOSTIC) != 0);
 -- 
-2.48.1
+2.49.0
 
