@@ -1,0 +1,135 @@
+From 1486050726da14a455065e8681f8e5cf60065d48 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 2 May 2025 16:09:27 +0200
+Subject: [PATCH] surfaceflinger: Send cursor style and hotspot to
+ IWaydroidDisplay
+
+Change-Id: I5b806aa2f51b659f2e58b887df22af44ecd9ee38
+---
+ libs/vr/libvrflinger/Android.bp               |  1 +
+ services/surfaceflinger/Android.bp            |  2 ++
+ .../CompositionEngine/Android.bp              |  1 +
+ .../DisplayHardware/ComposerHal.cpp           | 20 ++++++++++++++++---
+ .../DisplayHardware/ComposerHal.h             |  3 ++-
+ 5 files changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/libs/vr/libvrflinger/Android.bp b/libs/vr/libvrflinger/Android.bp
+index e3d8fb684f..494adc30e3 100644
+--- a/libs/vr/libvrflinger/Android.bp
++++ b/libs/vr/libvrflinger/Android.bp
+@@ -62,6 +62,7 @@ sharedLibraries = [
+     "libpdx_default_transport",
+     "vendor.waydroid.display@1.0",
+     "vendor.waydroid.display@1.1",
++    "vendor.waydroid.display@1.2",
+ ]
+ 
+ headerLibraries = [
+diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
+index ecf07c99e6..ab4f73eaf1 100644
+--- a/services/surfaceflinger/Android.bp
++++ b/services/surfaceflinger/Android.bp
+@@ -64,6 +64,7 @@ cc_defaults {
+         "libSurfaceFlingerProp",
+         "vendor.waydroid.display@1.0",
+         "vendor.waydroid.display@1.1",
++        "vendor.waydroid.display@1.2",
+     ],
+     // VrComposer is not used when building surfaceflinger for vendors
+     target: {
+@@ -105,6 +106,7 @@ cc_defaults {
+         "libtimestats",
+         "vendor.waydroid.display@1.0",
+         "vendor.waydroid.display@1.1",
++        "vendor.waydroid.display@1.2",
+     ],
+     // TODO (marissaw): this library is not used by surfaceflinger. This is here so
+     // the library compiled in a way that is accessible to system partition when running
+diff --git a/services/surfaceflinger/CompositionEngine/Android.bp b/services/surfaceflinger/CompositionEngine/Android.bp
+index 0e85a09b42..308dc4ad8b 100644
+--- a/services/surfaceflinger/CompositionEngine/Android.bp
++++ b/services/surfaceflinger/CompositionEngine/Android.bp
+@@ -26,6 +26,7 @@ cc_defaults {
+         "libutils",
+         "vendor.waydroid.display@1.0",
+         "vendor.waydroid.display@1.1",
++        "vendor.waydroid.display@1.2",
+     ],
+     static_libs: [
+         "libmath",
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
+index 386217a568..3bd3c2c50c 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.cpp
+@@ -224,6 +224,10 @@ Composer::Composer(const std::string& serviceName)
+         }
+     }
+ #endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
++
++    mWaydroidDisplay = V1_0::IWaydroidDisplay::getService();
++    mWaydroidDisplay_1 = V1_1::IWaydroidDisplay::castFrom(mWaydroidDisplay);
++    mWaydroidDisplay_2 = V1_2::IWaydroidDisplay::castFrom(mWaydroidDisplay);
+ }
+ 
+ Composer::~Composer() = default;
+@@ -260,9 +264,6 @@ void Composer::registerCallback(const sp<IComposerCallback>& callback)
+     if (!ret.isOk()) {
+         ALOGE("failed to register IComposerCallback");
+     }
+-
+-    mWaydroidDisplay = V1_0::IWaydroidDisplay::getService();
+-    mWaydroidDisplay_1 = V1_1::IWaydroidDisplay::castFrom(mWaydroidDisplay);
+ }
+ 
+ bool Composer::isRemote() {
+@@ -1337,6 +1338,15 @@ V2_4::Error Composer::setLayerGenericMetadata(Display display, Layer layer, cons
+                                               bool mandatory, const std::vector<uint8_t>& value) {
+     using Error = V2_4::Error;
+     if (!mClient_2_4) {
++        if (mWaydroidDisplay_2 && key == "org.chromium.arc.V1_0.CursorInfo") {
++            Parcel p;
++            p.setData(value.data(), value.size());
++            int32_t cursorStyle = p.readInt32();
++            float cursorHotspotX = p.readFloat();
++            float cursorHotspotY = p.readFloat();
++            mWaydroidDisplay_2->setMouseMetadata(layer, cursorStyle, cursorHotspotX, cursorHotspotY);
++            return Error::NONE;
++        }
+         return Error::UNSUPPORTED;
+     }
+     mWriter.selectDisplay(display);
+@@ -1349,6 +1359,10 @@ V2_4::Error Composer::getLayerGenericMetadataKeys(
+         std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) {
+     using Error = V2_4::Error;
+     if (!mClient_2_4) {
++        if (mWaydroidDisplay_2) {
++            *outKeys = {{"org.chromium.arc.V1_0.CursorInfo", true}};
++            return Error::NONE;
++        }
+         return Error::UNSUPPORTED;
+     }
+     Error error = kDefaultError_2_4;
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.h b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+index 75d5e0a39e..429db99018 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.h
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+@@ -33,7 +33,7 @@
+ #include <android/hardware/graphics/common/1.1/types.h>
+ #include <android/hardware/graphics/composer/2.4/IComposer.h>
+ #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
+-#include <vendor/waydroid/display/1.1/IWaydroidDisplay.h>
++#include <vendor/waydroid/display/1.2/IWaydroidDisplay.h>
+ #include <composer-command-buffer/2.4/ComposerCommandBuffer.h>
+ #include <gui/HdrMetadata.h>
+ #include <math/mat4.h>
+@@ -549,6 +549,7 @@ private:
+ 
+     sp<V1_0::IWaydroidDisplay> mWaydroidDisplay;
+     sp<V1_1::IWaydroidDisplay> mWaydroidDisplay_1;
++    sp<V1_2::IWaydroidDisplay> mWaydroidDisplay_2;
+     std::map<Layer, int32_t> mLayersZMap;
+     std::map<int32_t, std::string> mLayersNameMap;
+     std::map<int32_t, const native_handle_t*> mLayersHandleMap;
+-- 
+2.49.0
+
