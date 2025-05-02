@@ -1,4 +1,4 @@
-From 24fdcbe01c31dc62d98dd2d110a02fc9862c6cea Mon Sep 17 00:00:00 2001
+From 2b22d2ce7078eec3c130128b5d5c484caad5b2d1 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Tue, 24 Aug 2021 22:45:23 +0430
 Subject: [PATCH] surfaceflinger: Provide layer names and stuffs
@@ -166,7 +166,7 @@ index 24aef9b73c..9a7865398a 100644
      hal::Error setLayerGenericMetadata(const std::string& name, bool mandatory,
                                         const std::vector<uint8_t>& value) override;
 diff --git a/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp b/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
-index 2597ae6091..5451250b1b 100644
+index 2597ae6091..949bf02fd6 100644
 --- a/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
 +++ b/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
 @@ -190,6 +190,10 @@ std::vector<To> translate(const hidl_vec<From>& in) {
@@ -211,7 +211,7 @@ index 2597ae6091..5451250b1b 100644
                                                    const std::vector<uint8_t>& value) {
      using Error = V2_4::Error;
      if (!mClient_2_4) {
-+        if (mWaydroidDisplay_2) {
++        if (mWaydroidDisplay_2 && key == "org.chromium.arc.V1_0.CursorInfo") {
 +            Parcel p;
 +            p.setData(value.data(), value.size());
 +            int32_t cursorStyle = p.readInt32();
@@ -227,7 +227,7 @@ index 2597ae6091..5451250b1b 100644
          std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) {
      using Error = V2_4::Error;
      if (!mClient_2_4) {
-+        if (mWaydroidDisplay) {
++        if (mWaydroidDisplay_2) {
 +            *outKeys = {{"org.chromium.arc.V1_0.CursorInfo", true}};
 +            return Error::NONE;
 +        }
