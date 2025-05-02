@@ -1,0 +1,28 @@
+From 957a342b106f510ed7b04d81e8e29ffd2db56ea1 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 2 May 2025 12:46:03 +0200
+Subject: [PATCH] hwc2on1: Fixup HWC_IS_CURSOR_LAYER flag
+
+This is defined as a flag, not as a hint.
+
+Change-Id: Ic9d9a91805d433b43c33477a0022c1837fe747c4
+---
+ graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp b/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+index 37021716c..6a2253bd5 100644
+--- a/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
++++ b/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+@@ -2215,7 +2215,7 @@ void HWC2On1Adapter::Layer::applyCompositionType(hwc_layer_1_t& hwc1Layer) {
+         case Composition::Cursor:
+             hwc1Layer.compositionType = HWC_FRAMEBUFFER;
+             if (mDisplay.getDevice().getHwc1MinorVersion() >= 4) {
+-                hwc1Layer.hints |= HWC_IS_CURSOR_LAYER;
++                hwc1Layer.flags |= HWC_IS_CURSOR_LAYER;
+             }
+             break;
+         case Composition::Sideband:
+-- 
+2.49.0
+
