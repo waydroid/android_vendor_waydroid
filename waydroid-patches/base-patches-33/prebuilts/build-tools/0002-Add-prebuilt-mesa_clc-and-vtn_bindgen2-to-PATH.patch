@@ -1,0 +1,32 @@
+From f6c19859dc3bb2b0f709405d55b35f4e93c77a94 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sat, 3 May 2025 00:23:25 +0200
+Subject: [PATCH] Add prebuilt mesa_clc and vtn_bindgen2 to PATH
+
+Change-Id: I5575c882ada7d560f16c89a887f2d6b70d3f9eeb
+---
+ path/linux-x86/mesa_clc     | 1 +
+ path/linux-x86/vtn_bindgen2 | 1 +
+ 2 files changed, 2 insertions(+)
+ create mode 120000 path/linux-x86/mesa_clc
+ create mode 120000 path/linux-x86/vtn_bindgen2
+
+diff --git a/path/linux-x86/mesa_clc b/path/linux-x86/mesa_clc
+new file mode 120000
+index 0000000..152ea76
+--- /dev/null
++++ b/path/linux-x86/mesa_clc
+@@ -0,0 +1 @@
++../../../intel-clc/mesa_clc
+\ No newline at end of file
+diff --git a/path/linux-x86/vtn_bindgen2 b/path/linux-x86/vtn_bindgen2
+new file mode 120000
+index 0000000..17d470d
+--- /dev/null
++++ b/path/linux-x86/vtn_bindgen2
+@@ -0,0 +1 @@
++../../../intel-clc/vtn_bindgen2
+\ No newline at end of file
+-- 
+2.49.0
+
