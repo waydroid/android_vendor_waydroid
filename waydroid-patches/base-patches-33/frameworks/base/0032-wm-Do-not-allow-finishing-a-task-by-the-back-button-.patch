@@ -1,0 +1,55 @@
+From bbcf60ee6cea0933bcb9af5b48bef82731dbd919 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sat, 10 May 2025 21:23:57 +0200
+Subject: [PATCH] wm: Do not allow finishing a task by the back button except
+ in full-ui mode
+
+Change-Id: I491a2ee119591db8f1b95cd517d18854885a26d9
+---
+ .../com/android/server/wm/ActivityClientController.java  | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/wm/ActivityClientController.java b/services/core/java/com/android/server/wm/ActivityClientController.java
+index 4792d1180a11..f6fb0eca4913 100644
+--- a/services/core/java/com/android/server/wm/ActivityClientController.java
++++ b/services/core/java/com/android/server/wm/ActivityClientController.java
+@@ -75,6 +75,7 @@ import android.os.Parcel;
+ import android.os.PersistableBundle;
+ import android.os.RemoteException;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.os.Trace;
+ import android.os.UserHandle;
+ import android.service.voice.VoiceInteractionManagerInternal;
+@@ -1436,6 +1437,7 @@ class ActivityClientController extends IActivityClientController.Stub {
+             final Intent baseActivityIntent;
+             final boolean launchedFromHome;
+             final boolean isLastRunningActivity;
++            final boolean isTaskRoot;
+             synchronized (mGlobalLock) {
+                 final ActivityRecord r = ActivityRecord.isInRootTaskLocked(token);
+                 if (r == null) return;
+@@ -1443,7 +1445,7 @@ class ActivityClientController extends IActivityClientController.Stub {
+                 final Task task = r.getTask();
+                 final ActivityRecord root = task.getRootActivity(false /*ignoreRelinquishIdentity*/,
+                         true /*setToBottomIfNone*/);
+-                final boolean isTaskRoot = r == root;
++                isTaskRoot = r == root;
+                 if (isTaskRoot) {
+                     if (mService.mWindowOrganizerController.mTaskOrganizerController
+                         .handleInterceptBackPressedOnTaskRoot(r.getRootTask())) {
+@@ -1465,6 +1467,11 @@ class ActivityClientController extends IActivityClientController.Stub {
+                 launchedFromHome = root.isLaunchSourceType(ActivityRecord.LAUNCH_SOURCE_TYPE_HOME);
+             }
+ 
++            if  (isTaskRoot && !SystemProperties.get("waydroid.active_apps", "none").equals("Waydroid")) {
++                // Do not allow finishing a task by the back button except in full-ui mode
++                return;
++            }
++
+             // If the activity is one of the main entry points for the application, then we should
+             // refrain from finishing the activity and instead move it to the back to keep it in
+             // memory. The requirements for this are:
+-- 
+2.49.0
+
