@@ -1,0 +1,42 @@
+From 11fb1f5c77c39c77401441c8ad2405f23cdcbfbf Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Thu, 22 May 2025 21:47:34 +0200
+Subject: [PATCH] init: Do not try to mount binderfs
+
+We handle binder devices through the LXC container
+
+Change-Id: I88c23191b217f8d77492183fe4bebec0f4d51bc9
+---
+ rootdir/init.rc | 13 -------------
+ 1 file changed, 13 deletions(-)
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 345504807..44a6ad3f2 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -239,22 +239,9 @@ on init
+     chmod 0770 /config/sdcardfs
+     chown system package_info /config/sdcardfs
+ 
+-    # Mount binderfs
+-    mkdir /dev/binderfs
+-    mount binder binder /dev/binderfs stats=global
+-    chmod 0755 /dev/binderfs
+-
+     # Mount fusectl
+     mount fusectl none /sys/fs/fuse/connections
+ 
+-    symlink /dev/binderfs/binder /dev/binder
+-    symlink /dev/binderfs/hwbinder /dev/hwbinder
+-    symlink /dev/binderfs/vndbinder /dev/vndbinder
+-
+-    chmod 0666 /dev/binderfs/hwbinder
+-    chmod 0666 /dev/binderfs/binder
+-    chmod 0666 /dev/binderfs/vndbinder
+-
+     mkdir /mnt/secure 0700 root root
+     mkdir /mnt/secure/asec 0700 root root
+     mkdir /mnt/asec 0755 root system
+-- 
+2.49.0
+
