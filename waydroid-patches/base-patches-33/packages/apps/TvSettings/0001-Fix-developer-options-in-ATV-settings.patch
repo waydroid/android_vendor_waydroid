@@ -1,0 +1,26 @@
+From 2b77b0f7918e023df336d2a1b473534d5484f0a1 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Thu, 10 Jul 2025 17:07:37 +0000
+Subject: [PATCH] Fix developer options in ATV settings
+
+Change-Id: I74bb098115df7b4dc35d1b619fed741aed37ed6a
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ .../tv/settings/system/development/DevelopmentFragment.java      | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Settings/src/com/android/tv/settings/system/development/DevelopmentFragment.java b/Settings/src/com/android/tv/settings/system/development/DevelopmentFragment.java
+index 46b7493c1..d296324c5 100644
+--- a/Settings/src/com/android/tv/settings/system/development/DevelopmentFragment.java
++++ b/Settings/src/com/android/tv/settings/system/development/DevelopmentFragment.java
+@@ -1470,6 +1470,7 @@ public class DevelopmentFragment extends SettingsPreferenceFragment
+     }
+ 
+     private void updateUsbConfigurationValues() {
++        if (true) return;
+         final UsbManager manager = (UsbManager) getActivity().getSystemService(Context.USB_SERVICE);
+         if (mUsbConfiguration == null) {
+             return;
+-- 
+2.50.0
+
