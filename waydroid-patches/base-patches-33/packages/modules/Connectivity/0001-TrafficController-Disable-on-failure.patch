@@ -1,0 +1,66 @@
+From 9c7813e44d1854c6d02449ca04598ff937890383 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Tue, 22 Jul 2025 22:58:58 +0200
+Subject: [PATCH] TrafficController: Disable on failure
+
+Some HALIUM devices have enough BPF support to initialize TrafficController,
+but eventually fail on some operation. When that happens, reset the active BPF
+maps and disable TrafficController to keep the network accessible.
+There may still be some logspam.
+
+This effectively disables TrafficController or devices where it doesn't work
+while keeping it enabled on newer devices/kernels.
+
+Change-Id: I7d1d6a48498e77247a71dafb010ca0e20afbf173
+---
+ service/native/TrafficController.cpp       | 14 ++++++++++++++
+ service/native/include/TrafficController.h |  1 +
+ 2 files changed, 15 insertions(+)
+
+diff --git a/service/native/TrafficController.cpp b/service/native/TrafficController.cpp
+index 4923b006f..575053fb3 100644
+--- a/service/native/TrafficController.cpp
++++ b/service/native/TrafficController.cpp
+@@ -170,6 +170,19 @@ StatusOr<std::unique_ptr<NetlinkListenerInterface>> TrafficController::makeSkDes
+     return listener;
+ }
+ 
++void TrafficController::resetMaps() {
++    mCookieTagMap.clear(); mCookieTagMap.reset();
++    mUidCounterSetMap.clear(); mUidCounterSetMap.reset();
++    mAppUidStatsMap.clear(); mAppUidStatsMap.reset();
++    mStatsMapA.clear(); mStatsMapA.reset();
++    mStatsMapB.clear(); mStatsMapB.reset();
++    mIfaceIndexNameMap.clear(); mIfaceIndexNameMap.reset();
++    mIfaceStatsMap.clear(); mIfaceStatsMap.reset();
++    mConfigurationMap.clear(); mConfigurationMap.reset();
++    mUidOwnerMap.clear(); mUidOwnerMap.reset();
++    mUidPermissionMap.clear(); mUidPermissionMap.reset();
++}
++
+ Status TrafficController::initMaps() {
+     std::lock_guard guard(mMutex);
+ 
+@@ -545,6 +558,7 @@ Status TrafficController::swapActiveStatsMap() {
+     auto res = mConfigurationMap.writeValue(CURRENT_STATS_MAP_CONFIGURATION_KEY, newConfigure,
+                                             BPF_EXIST);
+     if (!res.ok()) {
++        resetMaps();
+         ALOGE("Failed to toggle the stats map: %s", strerror(res.error().code()));
+         return res;
+     }
+diff --git a/service/native/include/TrafficController.h b/service/native/include/TrafficController.h
+index c019ce78b..88731e9e7 100644
+--- a/service/native/include/TrafficController.h
++++ b/service/native/include/TrafficController.h
+@@ -180,6 +180,7 @@ class TrafficController {
+     std::mutex mMutex;
+ 
+     netdutils::Status initMaps() EXCLUDES(mMutex);
++    void resetMaps() REQUIRES(mMutex);
+ 
+     // Keep track of uids that have permission UPDATE_DEVICE_STATS so we don't
+     // need to call back to system server for permission check.
+-- 
+2.49.0
+
