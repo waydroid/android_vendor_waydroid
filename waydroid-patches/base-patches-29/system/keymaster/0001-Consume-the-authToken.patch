@@ -1,0 +1,56 @@
+From 4a8bc7d804eefd713d99ae010749322e4df7cb92 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 17 Aug 2025 00:17:46 +0200
+Subject: [PATCH] Consume the authToken
+
+Partial cherry-pick of da49575 ("Update softkeymaster for KM4.1")
+
+Change-Id: I28006e38fe789f26f0b7de7455526eed5963f0ad
+---
+ ng/AndroidKeymaster4Device.cpp | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/ng/AndroidKeymaster4Device.cpp b/ng/AndroidKeymaster4Device.cpp
+index 70060d6..3f34587 100644
+--- a/ng/AndroidKeymaster4Device.cpp
++++ b/ng/AndroidKeymaster4Device.cpp
+@@ -21,6 +21,7 @@
+ #include "include/AndroidKeymaster4Device.h"
+ 
+ #include <keymasterV4_0/authorization_set.h>
++#include <keymasterV4_0/keymaster_utils.h>
+ 
+ #include <keymaster/android_keymaster.h>
+ #include <keymaster/android_keymaster_messages.h>
+@@ -30,6 +31,8 @@
+ #include <keymaster/keymaster_enforcement.h>
+ #include <keymaster/km_openssl/soft_keymaster_enforcement.h>
+ 
++using android::hardware::keymaster::V4_0::support::authToken2HidlVec;
++
+ namespace keymaster {
+ namespace V4_0 {
+ namespace ng {
+@@ -478,7 +481,7 @@ Return<ErrorCode> AndroidKeymaster4Device::destroyAttestationIds() {
+ 
+ Return<void> AndroidKeymaster4Device::begin(KeyPurpose purpose, const hidl_vec<uint8_t>& key,
+                                             const hidl_vec<KeyParameter>& inParams,
+-                                            const HardwareAuthToken& /* authToken */,
++                                            const HardwareAuthToken& authToken,
+                                             begin_cb _hidl_cb) {
+ 
+     BeginOperationRequest request;
+@@ -486,6 +489,10 @@ Return<void> AndroidKeymaster4Device::begin(KeyPurpose purpose, const hidl_vec<u
+     request.SetKeyMaterial(key.data(), key.size());
+     request.additional_params.Reinitialize(KmParamSet(inParams));
+ 
++    hidl_vec<uint8_t> hidl_vec_token = authToken2HidlVec(authToken);
++    request.additional_params.push_back(
++        TAG_AUTH_TOKEN, reinterpret_cast<uint8_t*>(hidl_vec_token.data()), hidl_vec_token.size());
++
+     BeginOperationResponse response;
+     impl_->BeginOperation(request, &response);
+ 
+-- 
+2.49.0
+
