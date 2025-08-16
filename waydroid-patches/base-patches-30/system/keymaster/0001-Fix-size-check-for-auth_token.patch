@@ -1,0 +1,30 @@
+From b40c526b2c697fb0d748cef5664f9567d8b0879f Mon Sep 17 00:00:00 2001
+From: Matthew Maurer <mmaurer@google.com>
+Date: Wed, 13 May 2020 15:03:00 -0700
+Subject: [PATCH] Fix size check for auth_token
+
+auth_token is a const **hw_auth_token_t, so comparing against
+sizeof(*auth_token) was incorrect.
+
+Bug: 156418145
+Change-Id: I54cc23d7e36902fa63445754e72910774a4e02f1
+---
+ android_keymaster/keymaster_enforcement.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/android_keymaster/keymaster_enforcement.cpp b/android_keymaster/keymaster_enforcement.cpp
+index 2db7165..bfaaf08 100644
+--- a/android_keymaster/keymaster_enforcement.cpp
++++ b/android_keymaster/keymaster_enforcement.cpp
+@@ -458,7 +458,7 @@ bool KeymasterEnforcement::GetAndValidateAuthToken(const AuthorizationSet& opera
+         return false;
+     }
+ 
+-    if (auth_token_blob.data_length != sizeof(*auth_token)) {
++    if (auth_token_blob.data_length != sizeof(**auth_token)) {
+         LOG_E("Bug: Auth token is the wrong size (%d expected, %d found)", sizeof(hw_auth_token_t),
+               auth_token_blob.data_length);
+         return false;
+-- 
+2.49.0
+
