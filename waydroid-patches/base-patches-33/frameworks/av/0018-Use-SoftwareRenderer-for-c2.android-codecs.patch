@@ -1,0 +1,64 @@
+From d96a26508a9a0fc702afddff812b662b7b6b1d03 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 15 Sep 2025 10:47:16 +0330
+Subject: [PATCH] Use SoftwareRenderer for c2.android codecs
+
+Change-Id: I966217a82b9b84f27fee600c0085f70cad70e677
+---
+ media/codec2/sfplugin/CCodec.cpp              | 5 ++++-
+ media/codec2/sfplugin/CCodecBufferChannel.cpp | 2 +-
+ media/libstagefright/MediaCodec.cpp           | 2 +-
+ 3 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/media/codec2/sfplugin/CCodec.cpp b/media/codec2/sfplugin/CCodec.cpp
+index feb0876b18..02e42b11e3 100644
+--- a/media/codec2/sfplugin/CCodec.cpp
++++ b/media/codec2/sfplugin/CCodec.cpp
+@@ -853,7 +853,8 @@ void CCodec::configure(const sp<AMessage> &msg) {
+         status_t err = OK;
+         sp<RefBase> obj;
+         sp<Surface> surface;
+-        if (msg->findObject("native-window", &obj)) {
++        bool usingSwRenderer = comp->getName().find("c2.android.") == 0;
++        if (!usingSwRenderer && msg->findObject("native-window", &obj)) {
+             surface = static_cast<Surface *>(obj.get());
+             // setup tunneled playback
+             if (surface != nullptr) {
+@@ -894,6 +895,8 @@ void CCodec::configure(const sp<AMessage> &msg) {
+ 
+         Mutexed<std::unique_ptr<Config>>::Locked configLocked(mConfig);
+         const std::unique_ptr<Config> &config = *configLocked;
++        if (usingSwRenderer)
++            config->mOutputFormat->setInt32("using-sw-renderer", 1);
+         config->mUsingSurface = surface != nullptr;
+         config->mBuffersBoundToCodec = ((flags & CONFIGURE_FLAG_USE_BLOCK_MODEL) == 0);
+         ALOGD("[%s] buffers are %sbound to CCodec for this session",
+diff --git a/media/codec2/sfplugin/CCodecBufferChannel.cpp b/media/codec2/sfplugin/CCodecBufferChannel.cpp
+index db939b2d13..9a32cc7f65 100644
+--- a/media/codec2/sfplugin/CCodecBufferChannel.cpp
++++ b/media/codec2/sfplugin/CCodecBufferChannel.cpp
+@@ -794,7 +794,7 @@ status_t CCodecBufferChannel::renderOutputBuffer(
+     {
+         Mutexed<OutputSurface>::Locked output(mOutputSurface);
+         if (output->surface == nullptr) {
+-            ALOGI("[%s] cannot render buffer without surface", mName);
++            //ALOGI("[%s] cannot render buffer without surface", mName);
+             return OK;
+         }
+         int64_t frameIndex;
+diff --git a/media/libstagefright/MediaCodec.cpp b/media/libstagefright/MediaCodec.cpp
+index 3044c2091d..dcfdf47a1b 100644
+--- a/media/libstagefright/MediaCodec.cpp
++++ b/media/libstagefright/MediaCodec.cpp
+@@ -3462,7 +3462,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
+                     }
+ 
+                     const char *owner = mCodecInfo ? mCodecInfo->getOwnerName() : "";
+-                    if (mComponentName.startsWith("OMX.google.")
++                    if ((mComponentName.startsWith("OMX.google.") || mComponentName.startsWith("c2.android.")) 
+                             && strncmp(owner, "default", 8) == 0) {
+                         mFlags |= kFlagUsesSoftwareRenderer;
+                     } else {
+-- 
+2.49.0
+
