@@ -1,0 +1,126 @@
+From 721a86ba3ec27a71d989ec39ac8c8cd474466bd3 Mon Sep 17 00:00:00 2001
+From: Your Name <you@example.com>
+Date: Tue, 16 Sep 2025 07:34:22 +0000
+Subject: [PATCH] Fix YVU420 format
+
+---
+ gbm_mesa_driver/gbm_mesa_internals.cpp | 29 +++++++++++++++++++++-----
+ gbm_mesa_driver/gbm_mesa_wrapper.cpp   |  2 ++
+ 2 files changed, 26 insertions(+), 5 deletions(-)
+
+diff --git a/gbm_mesa_driver/gbm_mesa_internals.cpp b/gbm_mesa_driver/gbm_mesa_internals.cpp
+index 6900396..8b7029c 100644
+--- a/gbm_mesa_driver/gbm_mesa_internals.cpp
++++ b/gbm_mesa_driver/gbm_mesa_internals.cpp
+@@ -20,6 +20,7 @@ extern "C" {
+ #include "drv_helpers.h"
+ }
+ 
++#include "../drv.h"
+ #include "gbm_mesa_wrapper.h"
+ 
+ #include "UniqueFd.h"
+@@ -332,12 +333,12 @@ int gbm_mesa_bo_create(struct bo *bo, uint32_t width, uint32_t height, uint32_t
+ 	/* Alignment for RPI4 CSI camera. Since we do not care about other cameras, keep this
+ 	 * globally for now.
+ 	 * TODO: Create/use constraints table for camera/codecs */
+-	if (use_flags & (BO_USE_CAMERA_READ | BO_USE_CAMERA_WRITE)) {
++	/*if (use_flags & (BO_USE_CAMERA_READ | BO_USE_CAMERA_WRITE)) {
+ 		scanout_strong = true;
+ 		alloc_args.use_scanout = true;
+ 		alloc_args.width = ALIGN(alloc_args.width, 32);
+ 		size_align = 4096;
+-	}
++	}*/
+ 
+ 	if (alloc_args.drm_format == 0) {
+ 		/* Always use linear for spoofed format allocations. */
+@@ -362,6 +363,12 @@ int gbm_mesa_bo_create(struct bo *bo, uint32_t width, uint32_t height, uint32_t
+ 			 alloc_args.height);
+ 	}
+ 
++	if (format == DRM_FORMAT_YVU420_ANDROID) {
++		alloc_args.width /= 2;
++		alloc_args.height += height / 2;
++		bo->meta.num_planes = drv_num_planes_from_format(DRM_FORMAT_R8);
++	}
++
+ 	err = wr->alloc(&alloc_args);
+ 
+ 	if (err && !scanout_strong) {
+@@ -376,7 +383,7 @@ int gbm_mesa_bo_create(struct bo *bo, uint32_t width, uint32_t height, uint32_t
+ 	}
+ 
+ 	if (!bo_layout_ready)
+-		drv_bo_from_format(bo, alloc_args.out_stride, alloc_args.height, format);
++		drv_bo_from_format(bo, alloc_args.out_stride, alloc_args.height, (format == DRM_FORMAT_YVU420_ANDROID) ? DRM_FORMAT_R8 : format);
+ 
+ 	drv_logv("Allocated: %dx%d, stride: %d, map_stride: %d", width, height,
+ 		 alloc_args.out_stride, alloc_args.out_map_stride);
+@@ -404,6 +411,10 @@ int gbm_mesa_bo_import(struct bo *bo, struct drv_import_fd_data *data)
+ 		return -EINVAL;
+ 	}
+ 	auto priv = new GbmMesaBoPriv();
++
++	if (data->format == DRM_FORMAT_YVU420_ANDROID) {
++		bo->meta.num_planes = drv_num_planes_from_format(DRM_FORMAT_R8);
++	}
+ 	for (size_t plane = 0; plane < bo->meta.num_planes; plane++) {
+ 		priv->fds[plane] = UniqueFd(dup(data->fds[plane]));
+ 	}
+@@ -421,7 +432,10 @@ int gbm_mesa_bo_import(struct bo *bo, struct drv_import_fd_data *data)
+ 			s_height = 1;
+ 			s_format = DRM_FORMAT_R8;
+ 		}
+-
++		if (s_format == DRM_FORMAT_YVU420_ANDROID) {
++			s_width /= 2;
++			s_height += data->height / 2;
++		}
+ 		priv->drv = drv;
+ 		priv->gbm_bo = wr->import(drv->gbm_dev, data->fds[0], s_width, s_height,
+ 					  data->strides[0], data->format_modifier, s_format);
+@@ -467,6 +481,10 @@ void *gbm_mesa_bo_map(struct bo *bo, struct vma *vma, size_t plane, uint32_t map
+ 		s_width = bo->meta.total_size;
+ 		s_height = 1;
+ 	}
++	if (s_format == DRM_FORMAT_YVU420_ANDROID) {
++		s_width /= 2;
++		s_height += bo->meta.height / 2;
++	}
+ 
+ 	wr->map(priv->gbm_bo, s_width, s_height, &buf, &vma->priv);
+ 
+@@ -481,7 +499,8 @@ int gbm_mesa_bo_unmap(struct bo *bo, struct vma *vma)
+ 	auto priv = (GbmMesaBoPriv *)bo->priv;
+ 	assert(priv->gbm_bo != nullptr);
+ 	assert(vma->priv != nullptr);
+-	wr->unmap(priv->gbm_bo, vma->priv);
++	if (priv->gbm_bo && vma->priv)
++		wr->unmap(priv->gbm_bo, vma->priv);
+ 	vma->priv = nullptr;
+ 	return 0;
+ }
+diff --git a/gbm_mesa_driver/gbm_mesa_wrapper.cpp b/gbm_mesa_driver/gbm_mesa_wrapper.cpp
+index 876580b..f066e83 100644
+--- a/gbm_mesa_driver/gbm_mesa_wrapper.cpp
++++ b/gbm_mesa_driver/gbm_mesa_wrapper.cpp
+@@ -18,6 +18,7 @@
+ 
+ #include <gbm.h>
+ 
++#include "../drv.h"
+ #include "gbm_mesa_wrapper.h"
+ 
+ #include <drm_fourcc.h>
+@@ -56,6 +57,7 @@ static const struct {
+ 	DRM_TO_GBM_FORMAT(FORMAT_ABGR2101010),
+ 	DRM_TO_GBM_FORMAT(FORMAT_XBGR16161616F),
+ 	DRM_TO_GBM_FORMAT(FORMAT_ABGR16161616F),
++	{DRM_FORMAT_YVU420_ANDROID, GBM_FORMAT_GR88},
+ };
+ 
+ static std::unordered_map<uint32_t, std::vector<uint64_t>> gbm_format_modifiers_map;
+-- 
+2.34.1
+
