@@ -1,0 +1,125 @@
+From c2a79b4f057d0fb1b473879b2d377cb4956a4344 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Mon, 15 Sep 2025 05:52:04 +0330
+Subject: [PATCH] C2Gralloc: Drop lockYCbCr use
+
+Change-Id: I04c77d2e92ffd33b292f4e1c3d85d578cea24c84
+---
+ media/codec2/vndk/C2AllocatorGralloc.cpp | 83 +++++++++++-------------
+ 1 file changed, 39 insertions(+), 44 deletions(-)
+
+diff --git a/media/codec2/vndk/C2AllocatorGralloc.cpp b/media/codec2/vndk/C2AllocatorGralloc.cpp
+index bc4053d362..c170dc5832 100644
+--- a/media/codec2/vndk/C2AllocatorGralloc.cpp
++++ b/media/codec2/vndk/C2AllocatorGralloc.cpp
+@@ -632,37 +632,32 @@ c2_status_t C2AllocationGralloc::map(
+         case static_cast<uint32_t>(PixelFormat4::YCBCR_420_888):
+             // fall-through
+         case static_cast<uint32_t>(PixelFormat4::YV12): {
+-            android_ycbcr ycbcrLayout;
+-
+-            status_t err = GraphicBufferMapper::get().lockYCbCr(
+-                    const_cast<native_handle_t*>(mBuffer), grallocUsage, rect, &ycbcrLayout);
++            void *pointer = nullptr;
++            status_t err = GraphicBufferMapper::get().lock(
++                    const_cast<native_handle_t *>(mBuffer), grallocUsage, rect, &pointer);
+             if (err) {
+-                ALOGE("failed transaction: lockYCbCr (err=%d)", err);
++                ALOGE("failed transaction: lock(YUV)");
+                 return C2_CORRUPTED;
+             }
+-            if (!ycbcrLayout.y || !ycbcrLayout.cb || !ycbcrLayout.cr
+-                    || ycbcrLayout.ystride == 0
+-                    || ycbcrLayout.cstride == 0
+-                    || ycbcrLayout.chroma_step == 0) {
+-                ALOGE("invalid layout: lockYCbCr (y=%s cb=%s cr=%s "
+-                        "ystride=%zu cstride=%zu chroma_step=%zu)",
+-                        ycbcrLayout.y ? "(non-null)" : "(null)",
+-                        ycbcrLayout.cb ? "(non-null)" : "(null)",
+-                        ycbcrLayout.cr ? "(non-null)" : "(null)",
+-                        ycbcrLayout.ystride, ycbcrLayout.cstride, ycbcrLayout.chroma_step);
+-                return C2_CORRUPTED;
+-            }
+-
+-            addr[C2PlanarLayout::PLANE_Y] = (uint8_t *)ycbcrLayout.y;
+-            addr[C2PlanarLayout::PLANE_U] = (uint8_t *)ycbcrLayout.cb;
+-            addr[C2PlanarLayout::PLANE_V] = (uint8_t *)ycbcrLayout.cr;
++            
++            uint32_t align = 16;
++            uint32_t yStride = (mWidth + (align - 1)) & ~(align - 1);  // 16-byte aligned
++            uint32_t cStride = (yStride / 2 + (align - 1)) & ~(align - 1);  // 16-byte aligned chroma
++            uint32_t cSize = cStride * rect.height() / 2;
++            uint32_t vOffset = yStride * rect.height();
++            uint32_t uOffset = vOffset + cSize;
++            
++            // All formats: Y plane, then V plane, then U plane (YV12 order)
++            addr[C2PlanarLayout::PLANE_Y] = (uint8_t *)pointer;
++            addr[C2PlanarLayout::PLANE_V] = (uint8_t *)pointer + vOffset;
++            addr[C2PlanarLayout::PLANE_U] = (uint8_t *)pointer + uOffset;
+             layout->type = C2PlanarLayout::TYPE_YUV;
+             layout->numPlanes = 3;
+             layout->rootPlanes = 3;
+             layout->planes[C2PlanarLayout::PLANE_Y] = {
+                 C2PlaneInfo::CHANNEL_Y,         // channel
+                 1,                              // colInc
+-                (int32_t)ycbcrLayout.ystride,   // rowInc
++                static_cast<int32_t>(yStride),  // rowInc - use calculated yStride
+                 1,                              // mColSampling
+                 1,                              // mRowSampling
+                 8,                              // allocatedDepth
+@@ -673,30 +668,30 @@ c2_status_t C2AllocationGralloc::map(
+                 0,                              // offset
+             };
+             layout->planes[C2PlanarLayout::PLANE_U] = {
+-                C2PlaneInfo::CHANNEL_CB,          // channel
+-                (int32_t)ycbcrLayout.chroma_step, // colInc
+-                (int32_t)ycbcrLayout.cstride,     // rowInc
+-                2,                                // mColSampling
+-                2,                                // mRowSampling
+-                8,                                // allocatedDepth
+-                8,                                // bitDepth
+-                0,                                // rightShift
+-                C2PlaneInfo::NATIVE,              // endianness
+-                C2PlanarLayout::PLANE_U,          // rootIx
+-                0,                                // offset
++                C2PlaneInfo::CHANNEL_CB,        // channel
++                1,                              // colInc
++                static_cast<int32_t>(cStride),  // rowInc - use calculated cStride
++                2,                              // mColSampling
++                2,                              // mRowSampling
++                8,                              // allocatedDepth
++                8,                              // bitDepth
++                0,                              // rightShift
++                C2PlaneInfo::NATIVE,            // endianness
++                C2PlanarLayout::PLANE_U,        // rootIx
++                0,                              // offset
+             };
+             layout->planes[C2PlanarLayout::PLANE_V] = {
+-                C2PlaneInfo::CHANNEL_CR,          // channel
+-                (int32_t)ycbcrLayout.chroma_step, // colInc
+-                (int32_t)ycbcrLayout.cstride,     // rowInc
+-                2,                                // mColSampling
+-                2,                                // mRowSampling
+-                8,                                // allocatedDepth
+-                8,                                // bitDepth
+-                0,                                // rightShift
+-                C2PlaneInfo::NATIVE,              // endianness
+-                C2PlanarLayout::PLANE_V,          // rootIx
+-                0,                                // offset
++                C2PlaneInfo::CHANNEL_CR,        // channel
++                1,                              // colInc
++                static_cast<int32_t>(cStride),  // rowInc - use calculated cStride
++                2,                              // mColSampling
++                2,                              // mRowSampling
++                8,                              // allocatedDepth
++                8,                              // bitDepth
++                0,                              // rightShift
++                C2PlaneInfo::NATIVE,            // endianness
++                C2PlanarLayout::PLANE_V,        // rootIx
++                0,                              // offset
+             };
+             break;
+         }
+-- 
+2.49.0
+
