@@ -1,0 +1,500 @@
+From 97bcd3b377e7c17763b791d53f17919fd23fa913 Mon Sep 17 00:00:00 2001
+From: rikka <ayasa0520@gmail.com>
+Date: Tue, 28 Oct 2025 10:45:08 +0800
+Subject: [PATCH] Fake wifi connection for select apps
+
+Change-Id: I318840607b9623b2dddcec79137540802127007d
+---
+ framework/java/android/net/wifi/FakeWifi.java | 427 ++++++++++++++++++
+ .../java/android/net/wifi/WifiManager.java    |  12 +
+ 2 files changed, 439 insertions(+)
+ create mode 100644 framework/java/android/net/wifi/FakeWifi.java
+
+diff --git a/framework/java/android/net/wifi/FakeWifi.java b/framework/java/android/net/wifi/FakeWifi.java
+new file mode 100644
+index 0000000000..ada5d7083a
+--- /dev/null
++++ b/framework/java/android/net/wifi/FakeWifi.java
+@@ -0,0 +1,427 @@
++package android.net.wifi;
++
++import android.content.Context;
++import android.net.ConnectivityManager;
++import android.net.DhcpInfo;
++import android.net.NetworkInfo;
++import android.os.IBinder;
++import android.os.PatternMatcher;
++import android.os.SystemProperties;
++import android.util.Log;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.net.InetAddress;
++import java.net.NetworkInterface;
++import java.util.Arrays;
++import java.util.Collections;
++import java.util.List;
++import java.util.regex.Pattern;
++
++import android.annotation.NonNull;
++import android.annotation.Nullable;
++
++/**
++ * FakeWifi - A utility class to fake WiFi connectivity for specific apps in Waydroid.
++ * 
++ * This class provides methods to simulate WiFi connectivity even when the device is using
++ * Ethernet or other network connections. This is useful for apps that refuse to work
++ * without WiFi connectivity.
++ * 
++ * Apps to fake WiFi for are configured via the system property:
++ *   persist.waydroid.fake_wifi
++ * 
++ * The property should contain a comma-separated list of package name patterns.
++ * Wildcards (*) are supported. Example:
++ *   persist.waydroid.fake_wifi=com.example.app,com.google.*
++ */
++public final class FakeWifi {
++    private static final String LOG_TAG = "FakeWifi";
++    private static final String PROPERTY_NAME = "persist.waydroid.fake_wifi";
++    
++    // Cache for package manager service (using reflection)
++    private static Object sPackageManager = null;
++    private static Method sGetPackagesForUidMethod = null;
++    private static boolean sReflectionFailed = false;
++
++    private FakeWifi() {}
++
++    /**
++     * Get the package manager service using reflection.
++     * This allows us to access IPackageManager without directly importing hidden APIs.
++     * 
++     * @return IPackageManager instance (as Object), or null if reflection fails
++     */
++    private static Object getPackageManager() {
++        if (sReflectionFailed) {
++            return null;
++        }
++        
++        if (sPackageManager == null) {
++            try {
++                // Use reflection to call ServiceManager.getService("package")
++                Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
++                Method getServiceMethod = serviceManagerClass.getMethod("getService", String.class);
++                IBinder binder = (IBinder) getServiceMethod.invoke(null, "package");
++                
++                if (binder != null) {
++                    // Use reflection to call IPackageManager.Stub.asInterface(binder)
++                    Class<?> stubClass = Class.forName("android.content.pm.IPackageManager$Stub");
++                    Method asInterfaceMethod = stubClass.getMethod("asInterface", IBinder.class);
++                    sPackageManager = asInterfaceMethod.invoke(null, binder);
++                    
++                    // Cache the getPackagesForUid method
++                    if (sPackageManager != null) {
++                        Class<?> iPackageManagerClass = Class.forName("android.content.pm.IPackageManager");
++                        sGetPackagesForUidMethod = iPackageManagerClass.getMethod("getPackagesForUid", int.class);
++                    }
++                }
++            } catch (Exception e) {
++                Log.w(LOG_TAG, "Failed to get PackageManager via reflection: " + e);
++                sReflectionFailed = true;
++                return null;
++            }
++        }
++        return sPackageManager;
++    }
++
++    /**
++     * Check if FakeWifi hack is enabled for the given context's package.
++     * 
++     * @param context The application context
++     * @return true if FakeWifi should be enabled for this package
++     */
++    public static boolean isHackEnabled(@NonNull Context context) {
++        String packageName = context.getOpPackageName();
++        return isHackEnabledForPackage(packageName);
++    }
++
++    /**
++     * Check if FakeWifi hack is enabled for the given package name.
++     * 
++     * @param packageName The package name to check
++     * @return true if FakeWifi should be enabled for this package
++     */
++    public static boolean isHackEnabledForPackage(@NonNull String packageName) {
++        try {
++            String property = SystemProperties.get(PROPERTY_NAME, "");
++            if (property.isEmpty()) {
++                return false;
++            }
++
++            boolean enabled = Arrays.stream(property.split(","))
++                .map(String::trim)
++                .filter(x -> !x.isEmpty())
++                .map(x -> x.replace(".", "\\."))
++                .map(x -> x.replace("*", ".*"))
++                .map(x -> new PatternMatcher(x, PatternMatcher.PATTERN_SIMPLE_GLOB))
++                .anyMatch(p -> p.match(packageName));
++
++            if (enabled) {
++                Log.d(LOG_TAG, "Faking wifi for " + packageName);
++            }
++
++            return enabled;
++        } catch (Exception e) {
++            Log.w(LOG_TAG, "Failed to check if hack is enabled: " + e);
++            return false;
++        }
++    }
++
++    /**
++     * Check if FakeWifi hack is enabled for the given UID.
++     * This is used when we don't have a Context available.
++     * 
++     * Uses reflection to access IPackageManager to avoid direct dependency on hidden APIs.
++     * 
++     * @param uid The UID to check
++     * @return true if FakeWifi should be enabled for this UID
++     */
++    public static boolean isHackEnabledForUid(int uid) {
++        try {
++            // Get package names from UID using reflection
++            Object pm = getPackageManager();
++            if (pm == null || sGetPackagesForUidMethod == null) {
++                return false;
++            }
++            
++            String[] packages = (String[]) sGetPackagesForUidMethod.invoke(pm, uid);
++            if (packages == null || packages.length == 0) {
++                return false;
++            }
++            
++            // Check if any package matches the FakeWifi patterns
++            for (String packageName : packages) {
++                if (isHackEnabledForPackage(packageName)) {
++                    return true;
++                }
++            }
++            
++            return false;
++        } catch (Exception e) {
++            Log.w(LOG_TAG, "Failed to check if hack is enabled for UID " + uid + ": " + e);
++            return false;
++        }
++    }
++
++    /**
++     * Check if FakeWifi hack is enabled for the current calling UID.
++     * This is a convenience method for use in system services.
++     * 
++     * @return true if FakeWifi should be enabled for the calling UID
++     */
++    public static boolean isHackEnabledForCurrentUid() {
++        return isHackEnabledForUid(android.os.Binder.getCallingUid());
++    }
++
++    // ============= NetworkInfo Methods (for Connectivity module) =============
++
++    /**
++     * Create a fake NetworkInfo object representing a connected WiFi network.
++     * 
++     * @return A NetworkInfo object with WiFi type and connected state
++     */
++    @NonNull
++    public static NetworkInfo getFakeNetworkInfo() {
++        return createNetworkInfo(ConnectivityManager.TYPE_WIFI, true);
++    }
++
++    /**
++     * Create a NetworkInfo object with the specified type and connection state.
++     * 
++     * @param type The network type (e.g., TYPE_WIFI)
++     * @param connected Whether the network should appear connected
++     * @return A configured NetworkInfo object
++     */
++    @NonNull
++    public static NetworkInfo createNetworkInfo(final int type, final boolean connected) {
++        NetworkInfo networkInfo = new NetworkInfo(type, 0, "WIFI", null);
++        networkInfo.setDetailedState(NetworkInfo.DetailedState.CONNECTED, null, null);
++
++        // Set the network as available using reflection
++        // (mIsAvailable is a private field)
++        try {
++            Field isAvailable = networkInfo.getClass().getDeclaredField("mIsAvailable");
++            isAvailable.setAccessible(true);
++            isAvailable.setBoolean(networkInfo, true);
++        } catch (Exception e) {
++            Log.w(LOG_TAG, "Failed to set mIsAvailable field: " + e);
++        }
++
++        return networkInfo;
++    }
++
++    /**
++     * Override a NetworkInfo object with fake WiFi information if needed.
++     * 
++     * If the network is null, not WiFi, or not connected, it will be replaced
++     * with a fake connected WiFi NetworkInfo.
++     * 
++     * @param network The original NetworkInfo, may be null
++     * @return The original NetworkInfo if it's a connected WiFi, or a fake one otherwise
++     */
++    @Nullable
++    public static NetworkInfo maybeOverwrite(@Nullable NetworkInfo network) {
++        if (network == null || 
++            network.getType() != ConnectivityManager.TYPE_WIFI || 
++            !network.isConnected()) {
++            network = getFakeNetworkInfo();
++        }
++        return network;
++    }
++
++    // ============= WifiInfo/DhcpInfo Methods (for Wifi module) =============
++
++    /**
++     * Create a fake WifiInfo object with reasonable default values.
++     * 
++     * @return A configured WifiInfo object
++     */
++    @NonNull
++    public static WifiInfo createWifiInfo() {
++        IpInfo ip = getIpInfo();
++        InetAddress addr = (ip != null ? ip.getAddr() : null);
++
++        WifiInfo.Builder builder = new WifiInfo.Builder()
++                .setNetworkId(1)
++                .setBssid("66:55:44:33:22:11")
++                .setRssi(200) // MAX_RSSI
++                .setSsid("FakeWifi".getBytes());
++
++        WifiInfo info = builder.build();
++        
++        info.setSupplicantState(SupplicantState.COMPLETED);
++        info.setMacAddress("11:22:33:44:55:66");
++        if (addr != null) {
++            info.setInetAddress(addr);
++        }
++        info.setLinkSpeed(65);  // 65 Mbps
++        info.setFrequency(5000); // 5GHz
++        
++        return info;
++    }
++
++    /**
++     * Create a fake DhcpInfo object with current network information.
++     * 
++     * @return A configured DhcpInfo object, or null if IP info is not available
++     */
++    @Nullable
++    public static DhcpInfo createDhcpInfo() {
++        IpInfo ip = getIpInfo();
++        if (ip == null) {
++            return null;
++        }
++        
++        DhcpInfo info = new DhcpInfo();
++        info.ipAddress = ip.getIpHex();
++        info.netmask = ip.getNetmaskHex();
++        info.dns1 = 0x04040404; // 4.4.4.4
++        info.dns2 = 0x08080808; // 8.8.8.8
++        // gateway and leaseDuration are left as 0
++        
++        return info;
++    }
++
++    // ============= IP Helper Methods =============
++
++    /**
++     * Helper class to store IP information.
++     */
++    public static class IpInfo {
++        @Nullable
++        private NetworkInterface mIntf;
++        @Nullable
++        private InetAddress mAddr;
++        @Nullable
++        private String mIp;
++        private int mIpHex;
++        private int mNetmaskHex;
++
++        @Nullable
++        public NetworkInterface getIntf() {
++            return mIntf;
++        }
++
++        public void setIntf(@Nullable NetworkInterface intf) {
++            mIntf = intf;
++        }
++
++        @Nullable
++        public InetAddress getAddr() {
++            return mAddr;
++        }
++
++        public void setAddr(@Nullable InetAddress addr) {
++            mAddr = addr;
++        }
++
++        @Nullable
++        public String getIp() {
++            return mIp;
++        }
++
++        public void setIp(@Nullable String ip) {
++            mIp = ip;
++        }
++
++        public int getIpHex() {
++            return mIpHex;
++        }
++
++        public void setIpHex(int ipHex) {
++            mIpHex = ipHex;
++        }
++
++        public int getNetmaskHex() {
++            return mNetmaskHex;
++        }
++
++        public void setNetmaskHex(int netmaskHex) {
++            mNetmaskHex = netmaskHex;
++        }
++    }
++
++    /**
++     * Get the current IP address and netmask from active network interfaces.
++     * 
++     * @return IpInfo object with network information, or null if not available
++     */
++    @Nullable
++    public static IpInfo getIpInfo() {
++        try {
++            List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
++            for (NetworkInterface intf : interfaces) {
++                List<InetAddress> addrs = Collections.list(intf.getInetAddresses());
++                for (InetAddress addr : addrs) {
++                    if (!addr.isLoopbackAddress()) {
++                        String sAddr = addr.getHostAddress();
++                        if (sAddr != null && isIPv4Address(sAddr)) {
++                            IpInfo info = new IpInfo();
++                            info.setAddr(addr);
++                            info.setIntf(intf);
++                            info.setIp(sAddr);
++                            info.setIpHex(InetAddress_to_hex(addr));
++                            
++                            // Get netmask from interface
++                            if (!intf.getInterfaceAddresses().isEmpty()) {
++                                short prefixLength = intf.getInterfaceAddresses().get(0).getNetworkPrefixLength();
++                                info.setNetmaskHex(netmask_to_hex(prefixLength));
++                            } else {
++                                info.setNetmaskHex(netmask_to_hex(24)); // Default to /24
++                            }
++                            
++                            return info;
++                        }
++                    }
++                }
++            }
++        } catch (Exception ex) {
++            Log.w(LOG_TAG, "Failed to get IP info: " + ex);
++        }
++        return null;
++    }
++
++    /**
++     * Check if a string is a valid IPv4 address.
++     * 
++     * @param input The string to check
++     * @return true if it's a valid IPv4 address
++     */
++    public static boolean isIPv4Address(@NonNull String input) {
++        Pattern IPV4_PATTERN = Pattern.compile(
++            "^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$"
++        );
++        return IPV4_PATTERN.matcher(input).matches();
++    }
++
++    /**
++     * Convert a CIDR prefix length to a netmask in hex format.
++     * 
++     * @param netmask_slash The CIDR prefix length (e.g., 24 for /24)
++     * @return The netmask as an integer in hex format
++     */
++    public static int netmask_to_hex(int netmask_slash) {
++        int r = 0;
++        int b = 1;
++        for (int i = 0; i < netmask_slash; i++, b = b << 1) {
++            r |= b;
++        }
++        return r;
++    }
++
++    /**
++     * Convert an InetAddress to hex format for DhcpInfo.
++     * 
++     * @param a The InetAddress to convert
++     * @return The address as an integer in hex format
++     */
++    private static int InetAddress_to_hex(InetAddress a) {
++        int result = 0;
++        byte b[] = a.getAddress();
++        for (int i = 0; i < 4; i++) {
++            result |= (b[i] & 0xff) << (8 * i);
++        }
++        return result;
++    }
++}
+\ No newline at end of file
+diff --git a/framework/java/android/net/wifi/WifiManager.java b/framework/java/android/net/wifi/WifiManager.java
+index e99b50fbb5..9f25ecb3be 100644
+--- a/framework/java/android/net/wifi/WifiManager.java
++++ b/framework/java/android/net/wifi/WifiManager.java
+@@ -52,6 +52,7 @@ import android.net.NetworkStack;
+ import android.net.Uri;
+ import android.net.wifi.hotspot2.IProvisioningCallback;
+ import android.net.wifi.hotspot2.OsuProvider;
++import android.net.wifi.FakeWifi;
+ import android.net.wifi.hotspot2.PasspointConfiguration;
+ import android.net.wifi.hotspot2.ProvisioningCallback;
+ import android.os.Binder;
+@@ -3697,6 +3698,8 @@ public class WifiManager {
+     @Deprecated
+     @RequiresPermission(allOf = {ACCESS_WIFI_STATE, ACCESS_FINE_LOCATION}, conditional = true)
+     public WifiInfo getConnectionInfo() {
++        if (FakeWifi.isHackEnabled(mContext))
++            return FakeWifi.createWifiInfo();
+         try {
+             return mService.getConnectionInfo(mContext.getOpPackageName(),
+                     mContext.getAttributionTag());
+@@ -4064,6 +4067,9 @@ public class WifiManager {
+      */
+     @Deprecated
+     public DhcpInfo getDhcpInfo() {
++        if (FakeWifi.isHackEnabled(mContext) && FakeWifi.getIpInfo() != null)
++            return FakeWifi.createDhcpInfo();
++
+         try {
+             return mService.getDhcpInfo(mContext.getOpPackageName());
+         } catch (RemoteException e) {
+@@ -4278,6 +4284,9 @@ public class WifiManager {
+      * @see #isWifiEnabled()
+      */
+     public int getWifiState() {
++        if (FakeWifi.isHackEnabled(mContext))
++            return WifiManager.WIFI_STATE_ENABLED;
++
+         try {
+             return mService.getWifiEnabledState();
+         } catch (RemoteException e) {
+@@ -4291,6 +4300,9 @@ public class WifiManager {
+      * @see #getWifiState()
+      */
+     public boolean isWifiEnabled() {
++        if (FakeWifi.isHackEnabled(mContext))
++            return true;
++
+         return getWifiState() == WIFI_STATE_ENABLED;
+     }
+ 
+-- 
+2.51.1
+

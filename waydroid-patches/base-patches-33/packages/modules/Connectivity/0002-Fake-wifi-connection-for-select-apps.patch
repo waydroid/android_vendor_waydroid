@@ -1,0 +1,201 @@
+From 9b63311a97286e0cff6a407e86066218be2d51de Mon Sep 17 00:00:00 2001
+From: rikka <ayasa0520@gmail.com>
+Date: Tue, 28 Oct 2025 10:43:06 +0800
+Subject: [PATCH] Fake wifi connection for select apps
+
+Change-Id: If940f3ef034503135b281d4b60928dc814df5b38
+---
+ .../src/android/net/ConnectivityManager.java  | 44 +++++++++++++++++--
+ .../src/android/net/NetworkCapabilities.java  | 19 ++++++++
+ framework/src/android/net/NetworkInfo.java    | 27 ++++++++++++
+ 3 files changed, 87 insertions(+), 3 deletions(-)
+
+diff --git a/framework/src/android/net/ConnectivityManager.java b/framework/src/android/net/ConnectivityManager.java
+index 0a05d4308..8c83d65b7 100644
+--- a/framework/src/android/net/ConnectivityManager.java
++++ b/framework/src/android/net/ConnectivityManager.java
+@@ -47,6 +47,7 @@ import android.net.SocketKeepalive.Callback;
+ import android.net.TetheringManager.StartTetheringCallback;
+ import android.net.TetheringManager.TetheringEventCallback;
+ import android.net.TetheringManager.TetheringRequest;
++import android.net.wifi.FakeWifi;
+ import android.os.Binder;
+ import android.os.Build;
+ import android.os.Build.VERSION_CODES;
+@@ -1303,7 +1304,10 @@ public class ConnectivityManager {
+     @Nullable
+     public NetworkInfo getActiveNetworkInfo() {
+         try {
+-            return mService.getActiveNetworkInfo();
++            NetworkInfo network = mService.getActiveNetworkInfo();
++            if (FakeWifi.isHackEnabled(mContext))
++                return FakeWifi.maybeOverwrite(network);
++            return network;
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
+         }
+@@ -1543,7 +1547,10 @@ public class ConnectivityManager {
+     @Nullable
+     public NetworkInfo getNetworkInfo(int networkType) {
+         try {
+-            return mService.getNetworkInfo(networkType);
++            NetworkInfo network = mService.getNetworkInfo(networkType);
++            if (networkType == ConnectivityManager.TYPE_WIFI && FakeWifi.isHackEnabled(mContext))
++                return FakeWifi.maybeOverwrite(network);
++            return network;
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
+         }
+@@ -1592,7 +1599,35 @@ public class ConnectivityManager {
+     @NonNull
+     public NetworkInfo[] getAllNetworkInfo() {
+         try {
+-            return mService.getAllNetworkInfo();
++            NetworkInfo[] networks = mService.getAllNetworkInfo();
++            if (!FakeWifi.isHackEnabled(mContext))
++                return networks;
++
++            int i;
++            boolean wifi_found = false;
++            for (i = 0; i < networks.length; i++) {
++                if (networks[i].getType() == ConnectivityManager.TYPE_WIFI) {
++                    wifi_found = true;
++                    break;
++                }
++            }
++
++            // If WiFi is already connected, don't fake it
++            if (wifi_found && networks[i].isConnected())
++                return networks;
++
++            // Replace existing WiFi entry or add a new one
++            if (wifi_found) {
++                networks[i] = FakeWifi.getFakeNetworkInfo();
++            } else {
++                NetworkInfo[] extended = new NetworkInfo[networks.length + 1];
++                for (i = 0; i < networks.length; i++)
++                    extended[i] = networks[i];
++                extended[networks.length] = FakeWifi.getFakeNetworkInfo();
++                networks = extended;
++            }
++            
++            return networks;
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
+         }
+@@ -3532,6 +3567,9 @@ public class ConnectivityManager {
+      */
+     @RequiresPermission(android.Manifest.permission.ACCESS_NETWORK_STATE)
+     public boolean isActiveNetworkMetered() {
++        if (FakeWifi.isHackEnabled(mContext))
++            return false;
++
+         try {
+             return mService.isActiveNetworkMetered();
+         } catch (RemoteException e) {
+diff --git a/framework/src/android/net/NetworkCapabilities.java b/framework/src/android/net/NetworkCapabilities.java
+index 97b1f3267..338dcef76 100644
+--- a/framework/src/android/net/NetworkCapabilities.java
++++ b/framework/src/android/net/NetworkCapabilities.java
+@@ -38,6 +38,7 @@ import android.util.Range;
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.net.module.util.CollectionUtils;
+ import com.android.net.module.util.NetworkCapabilitiesUtils;
++import android.net.wifi.FakeWifi;
+ 
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+@@ -1252,6 +1253,24 @@ public final class NetworkCapabilities implements Parcelable {
+      * @return {@code true} if set on this instance.
+      */
+     public boolean hasTransport(@Transport int transportType) {
++        // Hook for FakeWifi: if checking for TRANSPORT_WIFI and FakeWifi is enabled
++        // for the calling app, always return true
++        // This is critical for modern Android apps that use NetworkCapabilities API
++        if (transportType == TRANSPORT_WIFI) {
++            try {
++                // Use UID-based check to determine if FakeWifi should be enabled
++                // This works even without Context since we can get the calling UID
++                int callingUid = android.os.Binder.getCallingUid();
++                if (FakeWifi.isHackEnabledForUid(callingUid)) {
++                    android.util.Log.d("NetworkCapabilities", 
++                        "FakeWifi: returning true for hasTransport(WIFI) for UID " + callingUid);
++                    return true;
++                }
++            } catch (Exception e) {
++                // Silently ignore exceptions to avoid breaking normal functionality
++                android.util.Log.w("NetworkCapabilities", "FakeWifi hook failed: " + e);
++            }
++        }
+         return isValidTransport(transportType) && ((mTransportTypes & (1 << transportType)) != 0);
+     }
+ 
+diff --git a/framework/src/android/net/NetworkInfo.java b/framework/src/android/net/NetworkInfo.java
+index b7ec519d2..e560138e2 100644
+--- a/framework/src/android/net/NetworkInfo.java
++++ b/framework/src/android/net/NetworkInfo.java
+@@ -22,6 +22,7 @@ import android.compat.annotation.UnsupportedAppUsage;
+ import android.os.Parcel;
+ import android.os.Parcelable;
+ import android.text.TextUtils;
++import android.net.wifi.FakeWifi;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.modules.utils.build.SdkLevel;
+@@ -218,6 +219,11 @@ public class NetworkInfo implements Parcelable {
+      */
+     @Deprecated
+     public int getType() {
++        // Hook for FakeWifi: return TYPE_WIFI if hack is enabled
++        if (FakeWifi.isHackEnabledForCurrentUid()) {
++            return ConnectivityManager.TYPE_WIFI;
++        }
++        
+         synchronized (this) {
+             return mNetworkType;
+         }
+@@ -273,6 +279,11 @@ public class NetworkInfo implements Parcelable {
+      */
+     @Deprecated
+     public String getTypeName() {
++        // Hook for FakeWifi: return "WIFI" if hack is enabled
++        if (FakeWifi.isHackEnabledForCurrentUid()) {
++            return "WIFI";
++        }
++        
+         synchronized (this) {
+             return mTypeName;
+         }
+@@ -328,6 +339,14 @@ public class NetworkInfo implements Parcelable {
+      */
+     @Deprecated
+     public boolean isConnected() {
++        // Hook for FakeWifi: return true if hack is enabled
++        // This ensures apps see the network as connected
++        if (FakeWifi.isHackEnabledForCurrentUid()) {
++            synchronized (this) {
++                return mDetailedState == DetailedState.CONNECTED;
++            }
++        }
++        
+         synchronized (this) {
+             return mState == State.CONNECTED;
+         }
+@@ -356,6 +375,14 @@ public class NetworkInfo implements Parcelable {
+      */
+     @Deprecated
+     public boolean isAvailable() {
++        // Hook for FakeWifi: return true if hack is enabled
++        // This ensures apps see the network as available
++        if (FakeWifi.isHackEnabledForCurrentUid()) {
++            synchronized (this) {
++                return mIsAvailable;
++            }
++        }
++        
+         synchronized (this) {
+             return mIsAvailable;
+         }
+-- 
+2.51.1
+
