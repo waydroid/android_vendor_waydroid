@@ -1,4 +1,4 @@
-From 552b326b1de4a0cca814401b64097c6f9dec14af Mon Sep 17 00:00:00 2001
+From 221209db3da116e9b65c9ba081b048df5a5448ae Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Fri, 30 Jul 2021 23:27:33 +0430
 Subject: [PATCH] sdk: Introduce WayDroid Service
@@ -9,7 +9,7 @@ Change-Id: Ic8c45e896b7f08b371aaa78c75188679b4f36ce0
  api/lineage_current.txt                       |  60 +++
  .../platform/internal/WayDroidService.java    | 468 ++++++++++++++++++
  lineage/res/res/values/config.xml             |   1 +
- .../app/LineageContextConstants.java          |  38 +-
+ .../app/LineageContextConstants.java          |  28 ++
  sdk/src/java/lineageos/waydroid/AppInfo.aidl  |  20 +
  sdk/src/java/lineageos/waydroid/AppInfo.java  |  57 +++
  .../java/lineageos/waydroid/Clipboard.java    |  98 ++++
@@ -20,7 +20,7 @@ Change-Id: Ic8c45e896b7f08b371aaa78c75188679b4f36ce0
  .../java/lineageos/waydroid/IUserMonitor.aidl |  23 +
  sdk/src/java/lineageos/waydroid/Platform.java | 235 +++++++++
  .../java/lineageos/waydroid/UserMonitor.java  | 100 ++++
- 15 files changed, 1323 insertions(+), 6 deletions(-)
+ 15 files changed, 1318 insertions(+), 1 deletion(-)
  create mode 100644 lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
  create mode 100644 sdk/src/java/lineageos/waydroid/AppInfo.aidl
  create mode 100644 sdk/src/java/lineageos/waydroid/AppInfo.java
@@ -47,10 +47,10 @@ index 412ce301..3accd69a 100644
  lineage_framework_module := $(LOCAL_INSTALLED_MODULE)
  
 diff --git a/api/lineage_current.txt b/api/lineage_current.txt
-index 03c9aeec..0e46f61c 100644
+index 3b12335a..96d3ac30 100644
 --- a/api/lineage_current.txt
 +++ b/api/lineage_current.txt
-@@ -845,3 +845,63 @@ package lineageos.util {
+@@ -844,3 +844,63 @@ package lineageos.util {
    }
  
  }
@@ -589,10 +589,10 @@ index 00000000..474492d0
 +    };
 +}
 diff --git a/lineage/res/res/values/config.xml b/lineage/res/res/values/config.xml
-index de59ce52..cbdd57ea 100644
+index fc6e553e..10a75748 100644
 --- a/lineage/res/res/values/config.xml
 +++ b/lineage/res/res/values/config.xml
-@@ -107,6 +107,7 @@
+@@ -111,6 +111,7 @@
          <item>org.lineageos.platform.internal.LineageSettingsService</item>
          <item>org.lineageos.platform.internal.LineageGlobalActionsService</item>
          <item>org.lineageos.platform.internal.health.HealthInterfaceService</item>
@@ -601,47 +601,25 @@ index de59ce52..cbdd57ea 100644
  
      <!-- The LineageSystemServer class that is invoked from Android's SystemServer -->
 diff --git a/sdk/src/java/lineageos/app/LineageContextConstants.java b/sdk/src/java/lineageos/app/LineageContextConstants.java
-index 20dc63e3..379004d4 100644
+index 26baa6ae..aca3b36c 100644
 --- a/sdk/src/java/lineageos/app/LineageContextConstants.java
 +++ b/sdk/src/java/lineageos/app/LineageContextConstants.java
-@@ -70,6 +70,17 @@ public final class LineageContextConstants {
+@@ -85,6 +85,34 @@ public final class LineageContextConstants {
       */
-     public static final String LINEAGE_LIVEDISPLAY_SERVICE = "lineagelivedisplay";
+     public static final String LINEAGE_HEALTH_INTERFACE = "lineagehealth";
  
 +    /**
-+     * Use with {@link android.content.Context#getSystemService} to retrieve a
-+     * {@link lineageos.health.HealthInterface} to access the Health interface.
-+     *
-+     * @see android.content.Context#getSystemService
-+     * @see lineageos.health.HealthInterface
-+     *
-+     * @hide
-+     */
-+    public static final String LINEAGE_HEALTH_INTERFACE = "lineagehealth";
-+
-     /**
-      * Use with {@link android.content.Context#getSystemService} to retrieve a
-      * {@link lineageos.trust.TrustInterface} to access the Trust interface.
-@@ -82,15 +93,32 @@ public final class LineageContextConstants {
-     public static final String LINEAGE_TRUST_INTERFACE = "lineagetrust";
- 
-     /**
--     * Use with {@link android.content.Context#getSystemService} to retrieve a
--     * {@link lineageos.health.HealthInterface} to access the Health interface.
 +     * Manages waydroid platform
-      *
--     * @see android.content.Context#getSystemService
--     * @see lineageos.health.HealthInterface
++     *
 +     * @hide
 +     */
 +    public static final String WAYDROID_PLATFORM_SERVICE = "waydroidplatform";
 +
 +    /**
 +     * Manages waydroid clipboard
-      *
-      * @hide
-      */
--    public static final String LINEAGE_HEALTH_INTERFACE = "lineagehealth";
++     *
++     * @hide
++     */
 +    public static final String WAYDROID_CLIPBOARD_SERVICE = "waydroidclipboard";
 +
 +    /**
@@ -657,9 +635,10 @@ index 20dc63e3..379004d4 100644
 +     * @hide
 +     */
 +    public static final String WAYDROID_USERMONITOR_SERVICE = "waydroidusermonitor";
- 
++
      /**
       * Update power menu (GlobalActions)
+      *
 diff --git a/sdk/src/java/lineageos/waydroid/AppInfo.aidl b/sdk/src/java/lineageos/waydroid/AppInfo.aidl
 new file mode 100644
 index 00000000..3d427ce5
@@ -1481,5 +1460,5 @@ index 00000000..e89da404
 +    }
 +}
 -- 
-2.41.0
+2.51.1
 
