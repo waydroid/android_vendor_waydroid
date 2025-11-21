@@ -1,4 +1,4 @@
-From 32f3e1ee1bbde776987994adbb81723c843a1235 Mon Sep 17 00:00:00 2001
+From e580cec46e2055a6f6302fbc85f882be8cce60c6 Mon Sep 17 00:00:00 2001
 From: Alessandro Astone <ales.astone@gmail.com>
 Date: Sun, 16 Nov 2025 01:44:09 +0100
 Subject: [PATCH] WayDroidService: Add notification manager
@@ -9,16 +9,16 @@ Closes: https://github.com/waydroid/waydroid/issues/211
 
 Change-Id: Ie413d32ac6e2545bb93e98d2520efe57b54ef25e
 ---
- .../platform/internal/WayDroidService.java    | 216 ++++++++++++++++--
+ .../platform/internal/WayDroidService.java    | 220 ++++++++++++++++--
  .../app/LineageContextConstants.java          |   7 +
  .../lineageos/waydroid/INotifications.aidl    |  48 ++++
  .../lineageos/waydroid/Notifications.java     | 117 ++++++++++
- 4 files changed, 368 insertions(+), 20 deletions(-)
+ 4 files changed, 372 insertions(+), 20 deletions(-)
  create mode 100644 sdk/src/java/lineageos/waydroid/INotifications.aidl
  create mode 100644 sdk/src/java/lineageos/waydroid/Notifications.java
 
 diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
-index 474492d0..e41c0879 100644
+index 474492d0..b90590bd 100644
 --- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
 +++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
 @@ -16,9 +16,11 @@
@@ -79,11 +79,15 @@ index 474492d0..e41c0879 100644
  
      public WayDroidService(Context context) {
          super(context);
-@@ -92,12 +110,16 @@ public class WayDroidService extends LineageSystemService {
+@@ -92,12 +110,20 @@ public class WayDroidService extends LineageSystemService {
          publishBinderService(LineageContextConstants.WAYDROID_PLATFORM_SERVICE, mPlatformService);
          if (mContext != null) {
              mUM = UserMonitor.getInstance(mContext);
-+            mWaydroidNotifications = Notifications.getInstance(mContext);
++            try {
++                mWaydroidNotifications = Notifications.getInstance(mContext);
++            } catch (Exception e) {
++                Log.w(TAG, e.getMessage());
++            }
          } else {
              Log.w(TAG, "No context available");
          }
@@ -96,7 +100,7 @@ index 474492d0..e41c0879 100644
      }
  
      @Override
-@@ -134,7 +156,7 @@ public class WayDroidService extends LineageSystemService {
+@@ -134,7 +160,7 @@ public class WayDroidService extends LineageSystemService {
          if (icon == null)
              return;
  
@@ -105,7 +109,7 @@ index 474492d0..e41c0879 100644
          File imageFile = new File(ICONS_DIR, packageName + ".png");
          FileOutputStream fileOutStream = null;
          try {
-@@ -155,8 +177,8 @@ public class WayDroidService extends LineageSystemService {
+@@ -155,8 +181,8 @@ public class WayDroidService extends LineageSystemService {
          imageFile.setWritable(true, false);
      }
  
@@ -116,7 +120,7 @@ index 474492d0..e41c0879 100644
              return ((BitmapDrawable)drawable).getBitmap();
  
          Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Config.ARGB_8888);
-@@ -199,6 +221,175 @@ public class WayDroidService extends LineageSystemService {
+@@ -199,6 +225,175 @@ public class WayDroidService extends LineageSystemService {
          monitor.register(mContext, BackgroundThread.getHandler().getLooper(), UserHandle.ALL, true);
      }
  
@@ -292,7 +296,7 @@ index 474492d0..e41c0879 100644
      /* Service */
      private final IBinder mPlatformService = new IPlatform.Stub() {
          @Override
-@@ -397,22 +588,7 @@ public class WayDroidService extends LineageSystemService {
+@@ -397,22 +592,7 @@ public class WayDroidService extends LineageSystemService {
  
          @Override
          public String getAppName(String packageName) {
