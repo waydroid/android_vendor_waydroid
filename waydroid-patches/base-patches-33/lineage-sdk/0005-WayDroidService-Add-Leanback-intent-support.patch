@@ -1,0 +1,77 @@
+From 4d053e23070b28ecc67fc1d563cd5f5c9dee8aff Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sun, 4 Jan 2026 14:32:23 +0000
+Subject: [PATCH] WayDroidService: Add Leanback intent support
+
+Check for Leanback intent first when running on ATV targets
+
+Change-Id: Ia6c8901b0cfdf44a8cd19c85430dd70fe1d9b058
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ .../platform/internal/WayDroidService.java    | 22 +++++++++++++++----
+ 1 file changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index b90590b..9cf6dd3 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -132,7 +132,7 @@ public class WayDroidService extends LineageSystemService {
+         for (int n = 0; n < apps.size(); n++) {
+             ApplicationInfo appInfo = apps.get(n);
+ 
+-            Intent launchIntent = mPm.getLaunchIntentForPackage(appInfo.packageName);
++            Intent launchIntent = getAppLaunchIntent(appInfo.packageName);
+             if (launchIntent == null) {
+                 continue;
+             }
+@@ -150,6 +150,20 @@ public class WayDroidService extends LineageSystemService {
+         }
+     }
+ 
++    private Intent getAppLaunchIntent(String packageName) {
++        Intent launchIntent = null;
++
++        if (mPm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
++            launchIntent = mPm.getLeanbackLaunchIntentForPackage(packageName);
++        }
++
++        if (launchIntent == null) {
++            launchIntent = mPm.getLaunchIntentForPackage(packageName);
++        }
++
++        return launchIntent;
++    }
++
+     private void saveApplicationIcon(String packageName) {
+         Drawable icon = null;
+         try {
+@@ -417,7 +431,7 @@ public class WayDroidService extends LineageSystemService {
+             for (int n = 0; n < apps.size(); n++) {
+                 ApplicationInfo appInfo = apps.get(n);
+ 
+-                Intent launchIntent = mPm.getLaunchIntentForPackage(appInfo.packageName);
++                Intent launchIntent = getAppLaunchIntent(appInfo.packageName);
+                 if (launchIntent == null) {
+                     continue;
+                 }
+@@ -455,7 +469,7 @@ public class WayDroidService extends LineageSystemService {
+             } catch (NameNotFoundException e) {
+                 return null;
+             }
+-            Intent launchIntent = mPm.getLaunchIntentForPackage(appInfo.packageName);
++            Intent launchIntent = getAppLaunchIntent(appInfo.packageName);
+             if (launchIntent == null) {
+                 return null;
+             }
+@@ -559,7 +573,7 @@ public class WayDroidService extends LineageSystemService {
+                 Log.e(TAG, e.getMessage());
+                 return;
+             }
+-            Intent launchIntent = mPm.getLaunchIntentForPackage(appInfo.packageName);
++            Intent launchIntent = getAppLaunchIntent(appInfo.packageName);
+             if (launchIntent == null) {
+                 return;
+             }
+-- 
+2.52.0
+
