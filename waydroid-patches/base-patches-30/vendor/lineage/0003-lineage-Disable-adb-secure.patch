@@ -1,4 +1,4 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From bb9db4d5a20d830ca17ee643bbcfbf3429232a68 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Tue, 19 Oct 2021 13:45:09 +0800
 Subject: [PATCH] lineage: Disable adb secure
@@ -9,17 +9,20 @@ Change-Id: I9f72839a9363b6e829c344c011034c347747cdc8
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/config/common.mk b/config/common.mk
-index 574d9db..e4d81b5 100644
+index d34413b9..6bd565b6 100644
 --- a/config/common.mk
 +++ b/config/common.mk
-@@ -17,8 +17,8 @@ ifeq ($(TARGET_BUILD_VARIANT),eng)
- # Disable ADB authentication
+@@ -21,8 +21,8 @@ ifdef WITH_ADB_INSECURE
+ # Forcebly disable ADB authentication
  PRODUCT_SYSTEM_DEFAULT_PROPERTIES += ro.adb.secure=0
  else
 -# Enable ADB authentication
 -PRODUCT_SYSTEM_DEFAULT_PROPERTIES += ro.adb.secure=1
 +# Disable ADB authentication
 +PRODUCT_SYSTEM_DEFAULT_PROPERTIES += ro.adb.secure=0
+ endif
  
  # Disable extra StrictMode features on all non-engineering builds
- PRODUCT_SYSTEM_DEFAULT_PROPERTIES += persist.sys.strictmode.disable=true
+-- 
+2.53.0
+
