@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: countgitmick <countgitmick@users.noreply.github.com>
+Date: Tue, 4 Mar 2026 00:00:00 +0000
+Subject: [PATCH] IPlatform: Add getRunningTasks for idle detection
+
+Add a getRunningTasks() method to the IPlatform binder interface that
+returns the number of non-home running tasks. This is the Android-side
+companion to the host-side idle monitor in waydroid/waydroid, which
+polls this method to detect when all app windows have been closed.
+
+Uses ActivityManager.getRunningTasks() and filters out the home/launcher
+task to return only user-launched activity count.
+---
+ .../platform/internal/WayDroidService.java    | 19 +++++++++++++++++++
+ .../java/lineageos/waydroid/IPlatform.aidl    |  1 +
+ 2 files changed, 20 insertions(+)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -18,6 +18,7 @@
+
+ package org.lineageos.platform.internal;
+
++import android.app.ActivityManager;
+ import android.app.Notification;
+ import android.app.PendingIntent;
+ import android.annotation.NonNull;
+@@ -588,5 +589,23 @@ public class WayDroidService extends LineageSystemService {
+             }
+             return Platform.ERROR_UNDEFINED;
+         }
++
++        @Override
++        public int getRunningTasks() {
++            ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
++            if (am == null) return 0;
++
++            List<ActivityManager.RunningTaskInfo> tasks = am.getRunningTasks(100);
++            if (tasks == null) return 0;
++
++            Intent homeIntent = new Intent(Intent.ACTION_MAIN);
++            homeIntent.addCategory(Intent.CATEGORY_HOME);
++            ResolveInfo homeInfo = mPm.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY);
++            String homePackage = homeInfo != null ? homeInfo.activityInfo.packageName : "";
++
++            int count = 0;
++            for (ActivityManager.RunningTaskInfo task : tasks) {
++                if (task.topActivity != null && !task.topActivity.getPackageName().equals(homePackage)) {
++                    count++;
++                }
++            }
++            return count;
++        }
+     };
+ }
+diff --git a/sdk/src/java/lineageos/waydroid/IPlatform.aidl b/sdk/src/java/lineageos/waydroid/IPlatform.aidl
+--- a/sdk/src/java/lineageos/waydroid/IPlatform.aidl
++++ b/sdk/src/java/lineageos/waydroid/IPlatform.aidl
+@@ -35,4 +35,5 @@ interface IPlatform {
+     void settingsPutInt(int mode, String key, int value);
+     int settingsGetInt(int mode, String key);
+     String launchIntent(String action, String uri);
++    int getRunningTasks();
+ }
