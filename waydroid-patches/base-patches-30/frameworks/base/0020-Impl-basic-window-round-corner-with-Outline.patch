@@ -1,7 +1,7 @@
-From ee64c334b540c260476a5d999f9ad49c823b46f2 Mon Sep 17 00:00:00 2001
+From 68a9eb34a836ceeb21be2549a7670a29a2badb24 Mon Sep 17 00:00:00 2001
 From: utzcoz <utzcoz@outlook.com>
 Date: Thu, 3 Sep 2020 00:09:53 +0800
-Subject: [PATCH 20/35] Impl basic window round corner with Outline
+Subject: [PATCH] Impl basic window round corner with Outline
 
 Signed-off-by: utzcoz <utzcoz@outlook.com>
 ---
@@ -11,10 +11,10 @@ Signed-off-by: utzcoz <utzcoz@outlook.com>
  3 files changed, 35 insertions(+)
 
 diff --git a/core/java/com/android/internal/policy/DecorView.java b/core/java/com/android/internal/policy/DecorView.java
-index 76aa232bb41c..365f87f41ccb 100644
+index b730d51f0918..eacdbda84bb8 100644
 --- a/core/java/com/android/internal/policy/DecorView.java
 +++ b/core/java/com/android/internal/policy/DecorView.java
-@@ -281,6 +281,15 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+@@ -283,6 +283,15 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
      private Insets mLastBackgroundInsets = Insets.NONE;
      private boolean mDrawLegacyNavigationBarBackground;
  
@@ -30,7 +30,7 @@ index 76aa232bb41c..365f87f41ccb 100644
      private PendingInsetsController mPendingInsetsController = new PendingInsetsController();
  
      DecorView(Context context, int featureId, PhoneWindow window,
-@@ -312,6 +321,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+@@ -314,6 +323,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
          initResizingPaints();
  
          mLegacyNavigationBarBackgroundPaint.setColor(Color.BLACK);
@@ -40,7 +40,7 @@ index 76aa232bb41c..365f87f41ccb 100644
      }
  
      void setBackgroundFallback(@Nullable Drawable fallbackDrawable) {
-@@ -2076,6 +2088,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+@@ -2098,6 +2110,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
              // Configuration now requires a caption.
              final LayoutInflater inflater = mWindow.getLayoutInflater();
              mDecorCaptionView = createDecorCaptionView(inflater);
@@ -50,7 +50,7 @@ index 76aa232bb41c..365f87f41ccb 100644
              if (mDecorCaptionView != null) {
                  if (mDecorCaptionView.getParent() == null) {
                      addView(mDecorCaptionView, 0,
-@@ -2102,6 +2117,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+@@ -2124,6 +2139,9 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
          }
  
          mDecorCaptionView = createDecorCaptionView(inflater);
@@ -60,7 +60,7 @@ index 76aa232bb41c..365f87f41ccb 100644
          final View root = inflater.inflate(layoutResource, null);
          if (mDecorCaptionView != null) {
              if (mDecorCaptionView.getParent() == null) {
-@@ -2202,6 +2220,17 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
+@@ -2224,6 +2242,17 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
          }
      }
  
@@ -91,17 +91,17 @@ index d165930d3c94..308187d257d6 100644
 +    <!-- endregion -->
  </resources>
 diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
-index 32481df6996e..a88d4b3ca9a6 100644
+index c8ed2c66c1df..68176ab23ede 100644
 --- a/core/res/res/values/symbols.xml
 +++ b/core/res/res/values/symbols.xml
-@@ -4069,4 +4069,7 @@
-   <java-symbol type="array" name="config_notificationMsgPkgsAllowedAsConvos" />
+@@ -4074,4 +4074,7 @@
+   <!-- List of protected packages that require biometric authentication for modification -->
+   <java-symbol type="array" name="config_biometric_protected_package_names" />
  
-   <java-symbol type="array" name="config_keep_warming_services" />
 +  <!-- region @boringdroid -->
 +  <java-symbol type="dimen" name="decor_corner_radius" />
 +  <!-- endregion -->
  </resources>
 -- 
-2.37.2
+2.53.0
 
