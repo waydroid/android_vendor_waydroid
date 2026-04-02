@@ -2,6 +2,5 @@
 <manifest>
   <!-- Remotes -->
   <remote name="ghub" fetch="https://github.com/" />
-  <remote name="gitlab" fetch="https://gitlab.com/" />
 
 </manifest>
