@@ -1,0 +1,128 @@
+From 677cb55133a55c47bfa1dc1c5bde1f5ef994d09a Mon Sep 17 00:00:00 2001
+From: Alessio Balsini <balsini@google.com>
+Date: Thu, 28 Jan 2021 19:30:27 +0000
+Subject: [PATCH 2/5] DO NOT MERGE FUSE passthrough: handle unstable kernel
+ interface
+
+The interface for FUSE passthrough is still under discussion upstream,
+thus this change fixes the issue of being able to support multiple
+interfaces for passthrough, depending on what the kernel provides.
+
+This implementation tries to explore the different FUSE passthrough
+interface implementation and updates an index to the one that has
+been found working.
+
+Bug: 174548608
+Test: Manual read/write of passthrough files with extra printks
+Signed-off-by: Alessio Balsini <balsini@google.com>
+Change-Id: I74e0e6c0691b37160a00af77fb18eda5342630f5
+---
+ include/fuse_kernel.h |  5 ++--
+ lib/fuse_lowlevel.c   | 64 ++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 60 insertions(+), 9 deletions(-)
+
+diff --git a/include/fuse_kernel.h b/include/fuse_kernel.h
+index 8bd7f0d..55d8e2c 100644
+--- a/include/fuse_kernel.h
++++ b/include/fuse_kernel.h
+@@ -575,7 +575,7 @@ struct fuse_read_in {
+ 	uint32_t	padding;
+ };
+ 
+-struct fuse_passthrough_out {
++struct fuse_passthrough_out_v0 {
+ 	uint32_t	fd;
+ 	/* For future implementation */
+ 	uint32_t	len;
+@@ -834,7 +834,8 @@ struct fuse_notify_retrieve_in {
+ 
+ /* Device ioctls: */
+ #define FUSE_DEV_IOC_CLONE	      _IOR(229, 0, uint32_t)
+-#define FUSE_DEV_IOC_PASSTHROUGH_OPEN _IOW(229, 1, struct fuse_passthrough_out)
++#define FUSE_DEV_IOC_PASSTHROUGH_OPEN_V0 _IOW(229, 1, struct fuse_passthrough_out_v0)
++#define FUSE_DEV_IOC_PASSTHROUGH_OPEN_V1 _IOW(229, 127, struct fuse_passthrough_out_v0)
+ 
+ struct fuse_lseek_in {
+ 	uint64_t	fh;
+diff --git a/lib/fuse_lowlevel.c b/lib/fuse_lowlevel.c
+index c7efc3d..baa6d2b 100644
+--- a/lib/fuse_lowlevel.c
++++ b/lib/fuse_lowlevel.c
+@@ -459,17 +459,67 @@ int fuse_reply_canonical_path(fuse_req_t req, const char *path)
+ 	return send_reply_ok(req, path, strlen(path) + 1);
+ }
+ 
++enum {
++	FUSE_PASSTHROUGH_API_UNAVAILABLE,
++	FUSE_PASSTHROUGH_API_V0,
++	FUSE_PASSTHROUGH_API_V1,
++	FUSE_PASSTHROUGH_API_STABLE,
++};
++
++/*
++ * Requests the FUSE passthrough feature to be enabled on a specific file
++ * through the passed fd.
++ * This function returns an identifier that must be used as passthrough_fh
++ * when the open/create_open request reply is sent back to /dev/fuse.
++ * As for the current FUSE passthrough implementation, passthrough_fh values
++ * are only valid if > 0, so in case the FUSE passthrough open ioctl returns
++ * a value <= 0, this must be considered an error and is returned as-is by
++ * this function.
++ */
+ int fuse_passthrough_enable(fuse_req_t req, unsigned int fd) {
+-    struct fuse_passthrough_out out = {};
+-    int ret;
++	static sig_atomic_t passthrough_version = FUSE_PASSTHROUGH_API_STABLE;
++	int ret = 0; /* values <= 0 represent errors in FUSE passthrough */
+ 
+-    out.fd = fd;
++	/*
++	 * The interface of FUSE passthrough is still unstable in the kernel,
++	 * so the following solution is to search for the most updated API
++	 * version and, if not found, fall back to an older one.
++	 * This happens when ioctl() returns -1 and errno is set to ENOTTY,
++	 * an error code that corresponds to the lack of a specific ioctl.
++	 */
++	switch (passthrough_version) {
++	case FUSE_PASSTHROUGH_API_STABLE:
++		/* There is not a stable API yet */
++		passthrough_version = FUSE_PASSTHROUGH_API_V1;
++	case FUSE_PASSTHROUGH_API_V1: {
++		struct fuse_passthrough_out_v0 out = {};
++		out.fd = fd;
++
++		ret = ioctl(req->se->fd, FUSE_DEV_IOC_PASSTHROUGH_OPEN_V1, &out);
++		if (ret == -1 && errno == ENOTTY)
++			passthrough_version = FUSE_PASSTHROUGH_API_V0;
++		else
++			break;
++	}
++	case FUSE_PASSTHROUGH_API_V0: {
++		struct fuse_passthrough_out_v0 out = {};
++		out.fd = fd;
+ 
+-    ret = ioctl(req->se->fd, FUSE_DEV_IOC_PASSTHROUGH_OPEN, &out);
+-    if (ret <= 0)
+-        fuse_log(FUSE_LOG_ERR, "fuse: passthrough_enable: %s\n", strerror(errno));
++		ret = ioctl(req->se->fd, FUSE_DEV_IOC_PASSTHROUGH_OPEN_V0, &out);
++		if (ret == -1 && errno == ENOTTY)
++			passthrough_version = FUSE_PASSTHROUGH_API_UNAVAILABLE;
++		else
++			break;
++	}
++	default:
++		fuse_log(FUSE_LOG_ERR, "fuse: passthrough_enable no valid API\n");
++		return -ENOTTY;
++	}
++
++	if (ret <= 0)
++		fuse_log(FUSE_LOG_ERR, "fuse: passthrough_enable: %s\n", strerror(errno));
+ 
+-    return ret;
++	return ret;
+ }
+ 
+ int fuse_reply_open(fuse_req_t req, const struct fuse_file_info *f)
+-- 
+2.48.1
+

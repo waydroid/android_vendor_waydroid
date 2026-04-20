@@ -1,0 +1,35 @@
+From 8156e5656a4cdcb5d0f4a57899310491e4345711 Mon Sep 17 00:00:00 2001
+From: Alessio Balsini <balsini@google.com>
+Date: Fri, 28 Jan 2022 12:19:06 +0000
+Subject: [PATCH 2/3] Use 64-bit mask for initialization flags
+
+With the latest kernel version the FUSE flags span on 2 32-bit fields.
+libfuse can be just extended with fuse_conn_info.capable and
+fuse_conn_info.want from 32 to 64 bits. As a result, to be able to use all the
+flags, FuseDaemon, should extend its mask to 64 bits.
+
+Test: launch_cvd (both android-mainline and android13-5.10) \
+  `logcat FuseDaemon:V \*:S` shows no FUSE passthrough errors
+Bug: 215310351
+Signed-off-by: Alessio Balsini <balsini@google.com>
+Change-Id: I352d4ce6f325c499434a679d2af93c32f7c0b2e2
+---
+ jni/FuseDaemon.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/jni/FuseDaemon.cpp b/jni/FuseDaemon.cpp
+index a10900f10..a58a08325 100644
+--- a/jni/FuseDaemon.cpp
++++ b/jni/FuseDaemon.cpp
+@@ -475,7 +475,7 @@ static void pf_init(void* userdata, struct fuse_conn_info* conn) {
+ 
+     // We don't want a getattr request with every read request
+     conn->want &= ~FUSE_CAP_AUTO_INVAL_DATA & ~FUSE_CAP_READDIRPLUS_AUTO;
+-    unsigned mask = (FUSE_CAP_SPLICE_WRITE | FUSE_CAP_SPLICE_MOVE | FUSE_CAP_SPLICE_READ |
++    uint64_t mask = (FUSE_CAP_SPLICE_WRITE | FUSE_CAP_SPLICE_MOVE | FUSE_CAP_SPLICE_READ |
+                      FUSE_CAP_ASYNC_READ | FUSE_CAP_ATOMIC_O_TRUNC | FUSE_CAP_WRITEBACK_CACHE |
+                      FUSE_CAP_EXPORT_SUPPORT | FUSE_CAP_FLOCK_LOCKS);
+ 
+-- 
+2.48.1
+
