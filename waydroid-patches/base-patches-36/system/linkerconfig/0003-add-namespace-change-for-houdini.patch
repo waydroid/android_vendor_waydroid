@@ -1,0 +1,48 @@
+From 4156b386a1cedf1cee9002e32a9887f22cd70265 Mon Sep 17 00:00:00 2001
+From: Tanuj Tekriwal <tanuj.tekriwal@intel.com>
+Date: Fri, 27 Feb 2026 08:36:22 +0000
+Subject: [PATCH 3/3] add namespace change for houdini
+
+Change-Id: I59b9af80d76dcbdc6d7216e7706755a13cd53464
+Signed-off-by: kexx <xiaox.ke@intel.com>
+---
+ contents/namespace/sphal.cc         | 6 ++++++
+ contents/namespace/systemdefault.cc | 5 +++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/contents/namespace/sphal.cc b/contents/namespace/sphal.cc
+index cd4ce7c..61f6dd5 100644
+--- a/contents/namespace/sphal.cc
++++ b/contents/namespace/sphal.cc
+@@ -63,6 +63,12 @@ Namespace BuildSphalNamespace([[maybe_unused]] const Context& ctx) {
+     ns.GetLink(ctx.GetSystemNamespaceName()).AddSharedLib("libft2.so");
+   }
+ 
++  // libhoudini
++  ns.AddSearchPath("/system/${LIB}/arm");
++  ns.AddPermittedPath("/system/${LIB}/arm");
++  ns.AddSearchPath("/system/${LIB}/arm64");
++  ns.AddPermittedPath("/system/${LIB}/arm64");
++
+   AddLlndkLibraries(ctx, &ns, VndkUserPartition::Vendor);
+ 
+   if (ctx.IsApexBinaryConfig()) {
+diff --git a/contents/namespace/systemdefault.cc b/contents/namespace/systemdefault.cc
+index 2ae0ad6..41dea8f 100644
+--- a/contents/namespace/systemdefault.cc
++++ b/contents/namespace/systemdefault.cc
+@@ -71,6 +71,11 @@ void SetupSystemPermittedPaths(Namespace* ns) {
+       "/mnt/expand",
+       "/apex/com.android.runtime/${LIB}/bionic",
+       "/system/${LIB}/bootstrap",
++
++      // libhoudini
++      "/system/${LIB}",
++      "/system/${LIB}/arm",
++      "/system/${LIB}/arm64",
+   };
+ 
+   for (const std::string& path : permitted_paths) {
+-- 
+2.55.0
+

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+
+  <!-- WayDroid -->
+  <project path="device/waydroid/waydroid" name="WayDroid-ATV/android_device_waydroid_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-23.2" />
+  <project path="hardware/waydroid" name="WayDroid-ATV/android_hardware_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-21" />
+  <project path="vendor/extra" name="WayDroid-ATV/android_vendor_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-23.2" />
+  <project path="vendor/waydroid/init" name="WayDroid-ATV/android_vendor_waydroid_init" remote="ghub" clone-depth="1" revision="refs/heads/main" />
+  <project path="packages/apps/WaydroidUpdater" name="WayDroid/android_packages_apps_WaydroidUpdater" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
+
+  <!-- Audio -->
+  <project path="external/alsa-lib" name="WayDroid-ATV/android_external_alsa-lib" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
+  <project path="external/alsa-plugins" name="WayDroid-ATV/android_external_alsa-plugins" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
+  <project path="external/libsndfile" name="WayDroid-ATV/android_external_libsndfile" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
+  <project path="external/pulseaudio" name="WayDroid-ATV/android_external_pulseaudio" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
+
+  <!-- Display -->
+  <project path="external/drm_hwcomposer" name="android-generic/external_drm_hwcomposer" remote="ghub" clone-depth="1" revision="refs/heads/main" />
+  <project path="external/mesa3d" name="WayDroid-ATV/android_external_mesa3d" remote="ghub" clone-depth="1" revision="refs/heads/lineage-18.1" />
+  <project path="external/minigbm" name="WayDroid-ATV/android_external_minigbm" remote="ghub" clone-depth="1" revision="refs/heads/lineage-23.2" />
+  <project path="external/libdrm" name="WayDroid-ATV/android_external_libdrm" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
+  <project path="external/llvm-project" name="android-generic/external_llvm-project" remote="ghub" clone-depth="1" revision="refs/heads/release_22.x"/>
+  <project path="external/rust/hbm" name="WayDroid-ATV/android_external_rust_hbm" remote="ghub" clone-depth="1" revision="refs/heads/main" />
+
+  <!-- Media -->
+  <project path="external/ffmpeg" name="WayDroid-ATV/android_external_ffmpeg" remote="ghub" clone-depth="1" revision="refs/heads/release/7.1/14-x86" />
+  <project path="external/stagefright-plugins" name="WayDroid-ATV/android_external_stagefright-plugins" remote="ghub" clone-depth="1" revision="refs/heads/14-x86/ffmpeg-7.1" />
+
+  <!-- VA-API -->
+  <project path="external/libva" name="WayDroid-ATV/android_external_libva" clone-depth="1" remote="ghub" revision="refs/heads/14-x86" />
+  <project path="external/libva-utils" name="intel/libva-utils" clone-depth="1" remote="ghub" revision="refs/tags/2.23.0" />
+  <project path="vendor/intel/gmmlib" name="intel/gmmlib" clone-depth="1" remote="ghub" revision="refs/tags/intel-gmmlib-22.10.0" />
+  <project path="vendor/intel/media-driver" name="intel/media-driver" clone-depth="1" remote="ghub" revision="refs/tags/intel-media-26.1.5" />
+  <project path="vendor/intel/vaapi-driver" name="WayDroid-ATV/android_vendor_intel_vaapi-driver" clone-depth="1" remote="ghub" revision="refs/heads/14-x86" />
+
+  <!-- Widevine -->
+  <project path="vendor/google/proprietary/widevine-prebuilt" name="supremegamers/vendor_google_proprietary_widevine-prebuilt" clone-depth="1" remote="ghub" revision="refs/heads/celadon" />
+
+  <!-- Native Bridge -->
+  <project path="vendor/google/proprietary/ndk_translation-prebuilt" name="WayDroid-ATV/vendor_google_proprietary_ndk_translation-prebuilt" clone-depth="1" remote="ghub" revision="refs/heads/16arm64_qpr2" />
+
+  <!-- GApps -->
+  <project path="vendor/gapps" name="WayDroid-ATV/vendor_gapps" clone-depth="1" remote="gitlab" revision="refs/heads/baklava" />
+  <project path="vendor/gapps_tv" name="WayDroid-ATV/vendor_gapps_tv" clone-depth="1" remote="gitlab" revision="refs/heads/baklava" />
+
+  <!-- Build -->
+  <project path="external/rust/ninja-to-soong" name="WayDroid-ATV/android_external_rust_ninja-to-soong" clone-depth="1" remote="ghub" revision="refs/heads/main" />
+  <project path="prebuilts/mesa-tools" name="WayDroid/android_prebuilts_mesa-tools" groups="pdk" clone-depth="1" remote="ghub" revision="refs/heads/main" />
+
+  <!-- Others -->
+  <project path="lineage-sdk" name="WayDroid-ATV/android_lineage-sdk" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
+  <project path="frameworks/av" name="WayDroid-ATV/android_frameworks_av" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
+  <project path="frameworks/base" name="WayDroid-ATV/android_frameworks_base" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
+  <project path="frameworks/native" name="WayDroid-ATV/android_frameworks_native" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
+  <project path="system/core" name="WayDroid-ATV/android_system_core" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
+  <project path="system/vold" name="WayDroid-ATV/android_system_vold" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
+  <project path="packages/apps/TvSettings" name="WayDroid-ATV/android_packages_apps_TvSettings" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
+  <project path="external/redroid-prebuilts" name="WayDroid-ATV/android_external_redroid-prebuilts" remote="ghub" clone-depth="1" revision="refs/heads/master" />
+  <project path="external/rust/android-crates-io" name="WayDroid-ATV/android_external_rust_android-crates-io" clone-depth="1" remote="ghub" revision="refs/heads/android16-qpr2-release" />
+</manifest>

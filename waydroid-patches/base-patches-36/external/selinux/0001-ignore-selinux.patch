@@ -1,0 +1,165 @@
+From 176735e63830826d4dc3b1a01dd13c7075a1fc36 Mon Sep 17 00:00:00 2001
+From: Ziyang Zhou <ziyang.zhou@outlook.com>
+Date: Sun, 9 May 2021 23:44:12 +0800
+Subject: [PATCH 1/2] ignore selinux
+
+---
+ libselinux/include/selinux/selinux.h | 4 ++++
+ libselinux/src/checkAccess.c         | 1 +
+ libselinux/src/getenforce.c          | 1 +
+ libselinux/src/getfilecon.c          | 1 +
+ libselinux/src/getpeercon.c          | 1 +
+ libselinux/src/init.c                | 1 +
+ libselinux/src/label.c               | 1 +
+ libselinux/src/lgetfilecon.c         | 1 +
+ libselinux/src/lsetfilecon.c         | 1 +
+ libselinux/src/procattr.c            | 2 ++
+ libselinux/src/sestatus.c            | 1 +
+ 11 files changed, 15 insertions(+)
+
+diff --git a/libselinux/include/selinux/selinux.h b/libselinux/include/selinux/selinux.h
+index 50419a7..01e4a3f 100644
+--- a/libselinux/include/selinux/selinux.h
++++ b/libselinux/include/selinux/selinux.h
+@@ -4,6 +4,10 @@
+ #include <sys/types.h>
+ #include <stdarg.h>
+ 
++#define SE_HACK
++#define se_hack() if (1) return
++#define se_hack1(p) if (1) return p
++
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+diff --git a/libselinux/src/checkAccess.c b/libselinux/src/checkAccess.c
+index 022cd6b..a23bffc 100644
+--- a/libselinux/src/checkAccess.c
++++ b/libselinux/src/checkAccess.c
+@@ -20,6 +20,7 @@ static void avc_init_once(void)
+ }
+ 
+ int selinux_check_access(const char *scon, const char *tcon, const char *class, const char *perm, void *aux) {
++    se_hack1(0);
+ 	int rc;
+ 	security_id_t scon_id;
+ 	security_id_t tcon_id;
+diff --git a/libselinux/src/getenforce.c b/libselinux/src/getenforce.c
+index 3f1e200..bf16227 100644
+--- a/libselinux/src/getenforce.c
++++ b/libselinux/src/getenforce.c
+@@ -11,6 +11,7 @@
+ 
+ int security_getenforce(void)
+ {
++	se_hack1(0);
+ 	int fd, ret, enforce = 0;
+ 	char path[PATH_MAX];
+ 	char buf[20];
+diff --git a/libselinux/src/getfilecon.c b/libselinux/src/getfilecon.c
+index 4bee313..f8b159a 100644
+--- a/libselinux/src/getfilecon.c
++++ b/libselinux/src/getfilecon.c
+@@ -52,6 +52,7 @@ int getfilecon_raw(const char *path, char ** context)
+ 
+ int getfilecon(const char *path, char ** context)
+ {
++    se_hack1((*context = calloc(7, 1), memcpy(*context, "HACKED", 6), 0));
+ 	int ret;
+ 	char * rcontext = NULL;
+ 
+diff --git a/libselinux/src/getpeercon.c b/libselinux/src/getpeercon.c
+index a9dca73..10771cb 100644
+--- a/libselinux/src/getpeercon.c
++++ b/libselinux/src/getpeercon.c
+@@ -46,6 +46,7 @@ int getpeercon_raw(int fd, char ** context)
+ 
+ int getpeercon(int fd, char ** context)
+ {
++    se_hack1((*context = calloc(7, 1), memcpy(*context, "HACKED", 6), 0));
+ 	int ret;
+ 	char * rcontext;
+ 
+diff --git a/libselinux/src/init.c b/libselinux/src/init.c
+index 439da41..41268a7 100644
+--- a/libselinux/src/init.c
++++ b/libselinux/src/init.c
+@@ -139,6 +139,7 @@ void fini_selinuxmnt(void)
+ 
+ void set_selinuxmnt(const char *mnt)
+ {
++    se_hack();
+ 	selinux_mnt = strdup(mnt);
+ }
+ 
+diff --git a/libselinux/src/label.c b/libselinux/src/label.c
+index 08bbac2..c87f05a 100644
+--- a/libselinux/src/label.c
++++ b/libselinux/src/label.c
+@@ -303,6 +303,7 @@ bool selabel_hash_all_partial_matches(struct selabel_handle *rec,
+ int selabel_lookup_best_match(struct selabel_handle *rec, char **con,
+ 			      const char *key, const char **aliases, int type)
+ {
++    se_hack1((*con = calloc(7, 1), memcpy(*con, "HACKED", 6), 0));
+ 	struct selabel_lookup_rec *lr;
+ 
+ 	if (!rec->func_lookup_best_match) {
+diff --git a/libselinux/src/lgetfilecon.c b/libselinux/src/lgetfilecon.c
+index d1fb821..0d3b0ac 100644
+--- a/libselinux/src/lgetfilecon.c
++++ b/libselinux/src/lgetfilecon.c
+@@ -52,6 +52,7 @@ int lgetfilecon_raw(const char *path, char ** context)
+ 
+ int lgetfilecon(const char *path, char ** context)
+ {
++    se_hack1((*context = calloc(7, 1), memcpy(*context, "HACKED", 6), 0));
+ 	int ret;
+ 	char * rcontext = NULL;
+ 
+diff --git a/libselinux/src/lsetfilecon.c b/libselinux/src/lsetfilecon.c
+index 213fb68..c73c152 100644
+--- a/libselinux/src/lsetfilecon.c
++++ b/libselinux/src/lsetfilecon.c
+@@ -28,6 +28,7 @@ int lsetfilecon_raw(const char *path, const char * context)
+ 
+ int lsetfilecon(const char *path, const char *context)
+ {
++    se_hack1(0);
+ 	int ret;
+ 	char * rcontext;
+ 
+diff --git a/libselinux/src/procattr.c b/libselinux/src/procattr.c
+index b7a93a2..a1478c7 100644
+--- a/libselinux/src/procattr.c
++++ b/libselinux/src/procattr.c
+@@ -175,6 +175,7 @@ static int getprocattrcon_raw(char **context, pid_t pid, const char *attr,
+ static int getprocattrcon(char **context, pid_t pid, const char *attr,
+ 			  const char *prev_context)
+ {
++    se_hack1((*context = calloc(7, 1), memcpy(*context, "HACKED", 6), 0));
+ 	int ret;
+ 	char * rcontext;
+ 
+@@ -239,6 +240,7 @@ out:
+ static int setprocattrcon(const char *context, const char *attr,
+ 			  char **prev_context)
+ {
++    se_hack1(0);
+ 	int ret;
+ 	char * rcontext;
+ 
+diff --git a/libselinux/src/sestatus.c b/libselinux/src/sestatus.c
+index fbe6430..bafe6bb 100644
+--- a/libselinux/src/sestatus.c
++++ b/libselinux/src/sestatus.c
+@@ -277,6 +277,7 @@ static int fallback_cb_policyload(int policyload)
+  */
+ int selinux_status_open(int fallback)
+ {
++    se_hack1(0);
+ 	int		fd;
+ 	char		path[PATH_MAX];
+ 	long		pagesize;
+-- 
+2.55.0
+

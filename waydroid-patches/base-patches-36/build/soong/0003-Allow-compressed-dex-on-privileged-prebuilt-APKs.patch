@@ -1,0 +1,29 @@
+From a2874b4305e000dc97bca8a695c6f94dfbe42aa9 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Tue, 31 Mar 2026 10:11:54 +0000
+Subject: [PATCH 3/5] Allow compressed dex on privileged prebuilt APKs
+
+Change-Id: I54a365dbe1a1389593658321c216c7dbd0324ae1
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ scripts/check_prebuilt_presigned_apk.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/scripts/check_prebuilt_presigned_apk.py b/scripts/check_prebuilt_presigned_apk.py
+index db64f90..91661d8 100755
+--- a/scripts/check_prebuilt_presigned_apk.py
++++ b/scripts/check_prebuilt_presigned_apk.py
+@@ -39,8 +39,8 @@ def has_preprocessed_issues(args, *, fail=False):
+             # It's ok for non-privileged apps to have compressed dex files
+             if args.privileged and args.uncompress_priv_app_dex:
+                 if info.filename.endswith('.dex') and info.compress_type != zipfile.ZIP_STORED:
+-                    if fail:
+-                        sys.exit(args.apk + ': Contains compressed dex files and is privileged')
++                    # if fail:
++                    #     sys.exit(args.apk + ': Contains compressed dex files and is privileged')
+                     return True
+     return False
+ 
+-- 
+2.55.0
+

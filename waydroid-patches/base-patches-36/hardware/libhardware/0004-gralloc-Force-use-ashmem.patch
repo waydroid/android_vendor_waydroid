@@ -1,0 +1,34 @@
+From 14b6e0ea57fbec54a0cc5bbdfc530626c304becd Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Sun, 26 Sep 2021 04:50:03 +0330
+Subject: [PATCH 4/6] gralloc: Force use ashmem
+
+---
+ modules/gralloc/gralloc.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/modules/gralloc/gralloc.cpp b/modules/gralloc/gralloc.cpp
+index f7ea01c..69c6cd9 100644
+--- a/modules/gralloc/gralloc.cpp
++++ b/modules/gralloc/gralloc.cpp
+@@ -239,7 +239,7 @@ static int gralloc_alloc(alloc_device_t* dev,
+     size_t size = align(height, tileHeight) * stride * bytesPerPixel + 4;
+ 
+     int err;
+-    if (usage & GRALLOC_USAGE_HW_FB) {
++    if (0) {
+         err = gralloc_alloc_framebuffer(dev, size, format, usage, pHandle);
+     } else {
+         err = gralloc_alloc_buffer(dev, size, usage, pHandle);
+@@ -296,7 +296,7 @@ int gralloc_device_open(const hw_module_t* module, const char* name,
+         hw_device_t** device)
+ {
+     int status = -EINVAL;
+-    if (!strcmp(name, GRALLOC_HARDWARE_GPU0)) {
++    if (1) {
+         gralloc_context_t *dev;
+         dev = (gralloc_context_t*)malloc(sizeof(*dev));
+ 
+-- 
+2.55.0
+

@@ -1,0 +1,41 @@
+From 0969a0dde8a5d40e4cdb46cbdf27a15f039bddce Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Mon, 27 Apr 2026 12:26:23 +0000
+Subject: [PATCH 2/2] Allow building on 32-bit x86
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ Android.bp | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/Android.bp b/Android.bp
+index b177feb..2dd7cd9 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -136,7 +136,11 @@ cc_library_shared {
+     ],
+ 
+     enabled: false,
++    compile_multilib: "first",
+     arch: {
++        x86: {
++            enabled: true,
++        },
+         x86_64: {
+             enabled: true,
+         },
+@@ -153,7 +157,11 @@ cc_library_headers {
+     ],
+ 
+     enabled: false,
++    compile_multilib: "first",
+     arch: {
++        x86: {
++            enabled: true,
++        },
+         x86_64: {
+             enabled: true,
+         },
+-- 
+2.55.0
+

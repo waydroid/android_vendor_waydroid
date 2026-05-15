@@ -1,0 +1,29 @@
+From 752523459a939fa0eb3e42128413d337e9b4ded2 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 23 May 2025 00:16:25 +0200
+Subject: [PATCH] logd: Do not block waiting for LogcatManagerService
+
+We've been seeing logcat get stuck outputing nothing.
+It's unclear what goes wrong but this solves it without any apparent issue.
+
+Change-Id: Ic745442efa890ddc9d2b713b7272f146ffe3d146
+---
+ logd/LogReaderList.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/logd/LogReaderList.cpp b/logd/LogReaderList.cpp
+index c31aa27..f197f27 100644
+--- a/logd/LogReaderList.cpp
++++ b/logd/LogReaderList.cpp
+@@ -27,7 +27,7 @@ using android::os::logcat::ILogcatManagerService;
+ 
+ static sp<ILogcatManagerService> InitLogcatService() {
+     return android::interface_cast<ILogcatManagerService>(
+-            defaultServiceManager()->waitForService(String16("logcat")));
++            defaultServiceManager()->checkService(String16("logcat")));
+ }
+ 
+ static sp<ILogcatManagerService> GetLogcatService() {
+-- 
+2.55.0
+

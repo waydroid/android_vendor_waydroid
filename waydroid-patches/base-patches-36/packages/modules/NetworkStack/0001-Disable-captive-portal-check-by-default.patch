@@ -1,0 +1,29 @@
+From 01353545d3974a6e5da378bd932701f5fcfd7fc9 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Tue, 3 Mar 2026 19:38:17 +0000
+Subject: [PATCH] Disable captive portal check by default
+
+It breaks ethernet on A16
+
+Change-Id: I512108607fea198aa54dcecd1418e27c8972d62e
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ src/com/android/server/connectivity/NetworkMonitor.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/com/android/server/connectivity/NetworkMonitor.java b/src/com/android/server/connectivity/NetworkMonitor.java
+index fe0ac5f..1a44eb1 100755
+--- a/src/com/android/server/connectivity/NetworkMonitor.java
++++ b/src/com/android/server/connectivity/NetworkMonitor.java
+@@ -2424,7 +2424,7 @@ public class NetworkMonitor extends StateMachine {
+     private static boolean getIsCaptivePortalCheckEnabled(@NonNull Context context,
+             @NonNull Dependencies dependencies) {
+         String symbol = CAPTIVE_PORTAL_MODE;
+-        int defaultValue = CAPTIVE_PORTAL_MODE_PROMPT;
++        int defaultValue = CAPTIVE_PORTAL_MODE_IGNORE;
+         int mode = dependencies.getSetting(context, symbol, defaultValue);
+         return mode != CAPTIVE_PORTAL_MODE_IGNORE;
+     }
+-- 
+2.55.0
+

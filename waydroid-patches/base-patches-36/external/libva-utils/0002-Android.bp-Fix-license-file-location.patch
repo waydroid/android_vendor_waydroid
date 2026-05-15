@@ -1,0 +1,26 @@
+From acf089958145fd0d10cd325046c76c1596391890 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sun, 1 Mar 2026 04:06:27 +0800
+Subject: [PATCH 2/2] Android.bp: Fix license file location
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ Android.bp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Android.bp b/Android.bp
+index db494ae..5d65b75 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -36,7 +36,7 @@ license {
+         "SPDX-license-identifier-MIT",
+     ],
+     license_text: [
+-        "LICENSE",
++        "COPYING",
+     ],
+ }
+ 
+-- 
+2.55.0
+

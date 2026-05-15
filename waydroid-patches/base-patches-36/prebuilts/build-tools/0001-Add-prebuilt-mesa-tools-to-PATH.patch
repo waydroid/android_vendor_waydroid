@@ -1,0 +1,51 @@
+From beaa646e731aaf8ef936874c5d7592fe45938dfc Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 13 Oct 2024 18:52:35 +0200
+Subject: [PATCH] Add prebuilt mesa tools to PATH
+
+---
+ path/linux-x86/asahi_clc        | 1 +
+ path/linux-x86/mesa_clc         | 1 +
+ path/linux-x86/panfrost_compile | 1 +
+ path/linux-x86/vtn_bindgen2     | 1 +
+ 4 files changed, 4 insertions(+)
+ create mode 120000 path/linux-x86/asahi_clc
+ create mode 120000 path/linux-x86/mesa_clc
+ create mode 120000 path/linux-x86/panfrost_compile
+ create mode 120000 path/linux-x86/vtn_bindgen2
+
+diff --git a/path/linux-x86/asahi_clc b/path/linux-x86/asahi_clc
+new file mode 120000
+index 0000000..4ba2c6c
+--- /dev/null
++++ b/path/linux-x86/asahi_clc
+@@ -0,0 +1 @@
++../../../mesa-tools/asahi_clc
+\ No newline at end of file
+diff --git a/path/linux-x86/mesa_clc b/path/linux-x86/mesa_clc
+new file mode 120000
+index 0000000..10d490e
+--- /dev/null
++++ b/path/linux-x86/mesa_clc
+@@ -0,0 +1 @@
++../../../mesa-tools/mesa_clc
+\ No newline at end of file
+diff --git a/path/linux-x86/panfrost_compile b/path/linux-x86/panfrost_compile
+new file mode 120000
+index 0000000..2c48181
+--- /dev/null
++++ b/path/linux-x86/panfrost_compile
+@@ -0,0 +1 @@
++../../../mesa-tools/panfrost_compile
+\ No newline at end of file
+diff --git a/path/linux-x86/vtn_bindgen2 b/path/linux-x86/vtn_bindgen2
+new file mode 120000
+index 0000000..3104b7c
+--- /dev/null
++++ b/path/linux-x86/vtn_bindgen2
+@@ -0,0 +1 @@
++../../../mesa-tools/vtn_bindgen2
+\ No newline at end of file
+-- 
+2.55.0
+

@@ -1,0 +1,63 @@
+From aef025074b987e69119305e85ce011574f24370c Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 14 Mar 2026 14:20:47 +0000
+Subject: [PATCH] Lift maxUiWidth restiction on ATV
+
+Change-Id: Ie4830efbfc7bfb70cf25471e67227c489ce79ee7
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ overlay/TvFrameworkOverlay/res/values-tvdpi/config.xml   | 2 +-
+ overlay/TvFrameworkOverlay/res/values-xhdpi/config.xml   | 2 +-
+ overlay/TvFrameworkOverlay/res/values-xxxhdpi/config.xml | 2 +-
+ overlay/TvFrameworkOverlay/res/values/config.xml         | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/overlay/TvFrameworkOverlay/res/values-tvdpi/config.xml b/overlay/TvFrameworkOverlay/res/values-tvdpi/config.xml
+index 9204303..03e8dbe 100644
+--- a/overlay/TvFrameworkOverlay/res/values-tvdpi/config.xml
++++ b/overlay/TvFrameworkOverlay/res/values-tvdpi/config.xml
+@@ -20,5 +20,5 @@
+          constraint will be enforced.
+          ATV tvdpi devices limits the UI graphics width to 1280 because higher resolution is
+          unnecessary and causes too much overhead on the GPU for Android TV devices. -->
+-    <integer name="config_maxUiWidth">1280</integer>
++    <integer name="config_maxUiWidth">0</integer>
+ </resources>
+diff --git a/overlay/TvFrameworkOverlay/res/values-xhdpi/config.xml b/overlay/TvFrameworkOverlay/res/values-xhdpi/config.xml
+index 63fbc2a..038db9c 100644
+--- a/overlay/TvFrameworkOverlay/res/values-xhdpi/config.xml
++++ b/overlay/TvFrameworkOverlay/res/values-xhdpi/config.xml
+@@ -20,5 +20,5 @@
+          constraint will be enforced.
+          ATV xdpi devices limits the UI graphics width to 1920 because higher resolution is
+          unnecessary and causes too much overhead on the GPU for Android TV devices. -->
+-    <integer name="config_maxUiWidth">1920</integer>
++    <integer name="config_maxUiWidth">0</integer>
+ </resources>
+diff --git a/overlay/TvFrameworkOverlay/res/values-xxxhdpi/config.xml b/overlay/TvFrameworkOverlay/res/values-xxxhdpi/config.xml
+index 329440f..a28720a 100644
+--- a/overlay/TvFrameworkOverlay/res/values-xxxhdpi/config.xml
++++ b/overlay/TvFrameworkOverlay/res/values-xxxhdpi/config.xml
+@@ -20,5 +20,5 @@
+          constraint will be enforced.
+          ATV xxxhdpi devices limits the UI graphics width to 3840 because higher resolution is
+          unnecessary and causes too much overhead on the GPU for Android TV devices. -->
+-    <integer name="config_maxUiWidth">3840</integer>
++    <integer name="config_maxUiWidth">0</integer>
+ </resources>
+diff --git a/overlay/TvFrameworkOverlay/res/values/config.xml b/overlay/TvFrameworkOverlay/res/values/config.xml
+index 7331d81..1890593 100644
+--- a/overlay/TvFrameworkOverlay/res/values/config.xml
++++ b/overlay/TvFrameworkOverlay/res/values/config.xml
+@@ -170,7 +170,7 @@
+          constraint will be enforced.
+          ATV default dpis limits the UI graphics width to 1920 because higher resolution is
+          unnecessary and causes too much overhead on the GPU for Android TV devices. -->
+-    <integer name="config_maxUiWidth">1920</integer>
++    <integer name="config_maxUiWidth">0</integer>
+ 
+     <!-- Whether the device supports quick settings and its associated APIs -->
+     <bool name="config_quickSettingsSupported">false</bool>
+-- 
+2.55.0
+

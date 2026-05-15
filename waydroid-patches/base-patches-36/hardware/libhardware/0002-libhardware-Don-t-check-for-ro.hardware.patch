@@ -1,0 +1,26 @@
+From 740abca5213efc7e9348886cb0c74ce827b5b86e Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Tue, 20 Apr 2021 16:31:17 +0800
+Subject: [PATCH 2/6] libhardware: Don't check for ro.hardware
+
+Change-Id: Ib1f999cc47f1643690a38de7c8fa96378533c9d8
+---
+ hardware.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/hardware.c b/hardware.c
+index a0cdea2..b347512 100644
+--- a/hardware.c
++++ b/hardware.c
+@@ -62,8 +62,6 @@
+  */
+ 
+ static const char *variant_keys[] = {
+-    "ro.hardware",  /* This goes first so that it can pick up a different
+-                       file on the emulator. */
+     "ro.product.board",
+     "ro.board.platform",
+     "ro.arch"
+-- 
+2.55.0
+

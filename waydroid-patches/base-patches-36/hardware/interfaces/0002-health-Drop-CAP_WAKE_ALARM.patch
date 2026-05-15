@@ -1,0 +1,27 @@
+From b449cc883333e7bc59c819dc6c5c5a2e741a3e6a Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sun, 18 Jan 2026 13:02:21 +0000
+Subject: [PATCH 2/3] health: Drop CAP_WAKE_ALARM
+
+Change-Id: Ic558010a83f17207ef8cf60b2cdc89f28983c2d7
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ health/aidl/default/android.hardware.health-service.example.rc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/health/aidl/default/android.hardware.health-service.example.rc b/health/aidl/default/android.hardware.health-service.example.rc
+index e052024..0e99c47 100644
+--- a/health/aidl/default/android.hardware.health-service.example.rc
++++ b/health/aidl/default/android.hardware.health-service.example.rc
+@@ -2,7 +2,7 @@ service vendor.health-default /vendor/bin/hw/android.hardware.health-service.exa
+     class hal
+     user system
+     group system
+-    capabilities WAKE_ALARM BLOCK_SUSPEND
++    capabilities BLOCK_SUSPEND
+     file /dev/kmsg w
+ 
+ service vendor.charger /vendor/bin/hw/android.hardware.health-service.example --charger
+-- 
+2.55.0
+

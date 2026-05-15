@@ -1,0 +1,30 @@
+From cafcf5b02d888f8574d34ffad0644230d3cf3d24 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 30 May 2026 12:29:17 +0000
+Subject: [PATCH] lmkd: Do not fail when both vmpressure and psi monitors are
+ unavailable
+
+Change-Id: I4a067282d1d65625c5c5d3e82f421f060671aca6
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ lmkd.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/lmkd.cpp b/lmkd.cpp
+index b2cc335..c179e74 100644
+--- a/lmkd.cpp
++++ b/lmkd.cpp
+@@ -3720,8 +3720,8 @@ static bool init_monitors() {
+         (!init_mp_common(VMPRESS_LEVEL_LOW) ||
+         !init_mp_common(VMPRESS_LEVEL_MEDIUM) ||
+         !init_mp_common(VMPRESS_LEVEL_CRITICAL))) {
+-        ALOGE("Kernel does not support memory pressure events or in-kernel low memory killer");
+-        return false;
++        ALOGI("Kernel does not support memory pressure events or in-kernel low memory killer");
++        return true;
+     }
+     if (use_psi_monitors) {
+         ALOGI("Using psi monitors for memory pressure detection");
+-- 
+2.55.0
+

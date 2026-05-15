@@ -55,7 +55,7 @@ apply_patch() {
 
   echo -e ${reset}""${reset}
   echo -e ${teal}"Applying Patches"${reset}
-  echo -e ${reset}""${reset} 
+  echo -e ${reset}""${reset}
 
   for i in $pl
   do
@@ -66,7 +66,7 @@ apply_patch() {
       fi
       echo -e ${reset}""${reset}
       echo -e ${ltblue}"Project $current_project"${reset}
-      echo -e ${reset}""${reset} 
+      echo -e ${reset}""${reset}
       cd $top_dir
       project_revision=`repo --color=never info $current_project | grep 'Current revision: ' | sed 's/Current revision: //'`
       project_log=`git -C $current_project log --max-count=1000 --pretty="format:%aD, %s" $project_revision..`
@@ -77,7 +77,7 @@ apply_patch() {
     if [[ -n "$conflict_project" ]]; then
       echo -e ${reset}""${reset}
       echo -e ${ltgreen}"        Skipping          $i"${reset}
-      echo -e ${reset}""${reset} 
+      echo -e ${reset}""${reset}
     fi
 
     cd $top_dir/$current_project
@@ -137,7 +137,7 @@ apply_patch() {
   fi
 }
 
-sdkv=$(cat build/make/core/version_defaults.mk | grep "PLATFORM_SDK_VERSION :=" | grep -o "[[:digit:]]\+")
+sdkv=36
 patch_dir="${patch_dir}-${sdkv}"
 roms_patch_dir="${roms_patch_dir}-${sdkv}"
 

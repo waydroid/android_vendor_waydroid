@@ -1,0 +1,187 @@
+From d5077795cf01e4dbd9af013d41229dbb03e197db Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 23 May 2026 11:07:41 +0000
+Subject: [PATCH] apexd: Configure loop device on detached sysfs mount
+
+This allow us to configure loop device with read-only /sys mount
+
+Requires kernel 5.2+ to work
+
+Change-Id: I37c0832a669dd29dbf25f3d9dd6935afb4ba3af3
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ apexd/Android.bp     |  2 +-
+ apexd/apexd_loop.cpp | 59 +++++++++++++++++++++++++++++++++++++-------
+ 2 files changed, 51 insertions(+), 10 deletions(-)
+
+diff --git a/apexd/Android.bp b/apexd/Android.bp
+index 905035c..2694003 100644
+--- a/apexd/Android.bp
++++ b/apexd/Android.bp
+@@ -50,6 +50,7 @@ cc_defaults {
+         "-Wall",
+         "-Wextra",
+         "-Werror",
++        "-Wno-unused-function",
+         "-Wno-unused-parameter",
+ 
+         // Some extra flags.
+@@ -62,7 +63,6 @@ cc_defaults {
+         "-Wunreachable-code",
+         "-Wunreachable-code-break",
+         "-Wunreachable-code-return",
+-        "-Wunused",
+         "-Wused-but-marked-unused",
+     ] + select(release_flag("RELEASE_AVF_ENABLE_EARLY_VM"), {
+         true: ["-DRELEASE_AVF_ENABLE_EARLY_VM"],
+diff --git a/apexd/apexd_loop.cpp b/apexd/apexd_loop.cpp
+index c31c5dc..1e08ad3 100644
+--- a/apexd/apexd_loop.cpp
++++ b/apexd/apexd_loop.cpp
+@@ -32,8 +32,10 @@
+ #include <linux/loop.h>
+ #include <string>
+ #include <sys/ioctl.h>
++#include <sys/mount.h>
+ #include <sys/stat.h>
+ #include <sys/statfs.h>
++#include <sys/syscall.h>
+ #include <sys/sysmacros.h>
+ #include <sys/types.h>
+ #include <unistd.h>
+@@ -67,6 +69,8 @@ namespace loop {
+ // 128 kB read-ahead, which we currently use for /system as well
+ static constexpr const unsigned int kReadAheadKb = 128;
+ 
++static int sysfs_mntfd = -1;
++
+ void LoopbackDeviceUniqueFd::MaybeCloseBad() {
+   if (device_fd.get() != -1) {
+     // Disassociate any files.
+@@ -76,19 +80,49 @@ void LoopbackDeviceUniqueFd::MaybeCloseBad() {
+   }
+ }
+ 
++static void OpenSysfsMount() {
++  int fsfd;
++
++  if ((fsfd = syscall(__NR_fsopen, "sysfs", FSOPEN_CLOEXEC)) == -1) {
++    PLOG(FATAL) << "Failed to create sysfs mount context";
++  }
++
++  syscall(__NR_fsconfig, fsfd, FSCONFIG_CMD_CREATE, NULL, NULL, 0);
++
++  if ((sysfs_mntfd = syscall(__NR_fsmount, fsfd, FSMOUNT_CLOEXEC, 0)) == -1) {
++    PLOG(FATAL) << "Failed to initialize sysfs mount";
++  }
++
++  // Remount sysfs in read-write mode
++  if (close(fsfd), (fsfd = syscall(__NR_fspick, sysfs_mntfd, "", FSPICK_EMPTY_PATH)) == -1) {
++    PLOG(FATAL) << "Failed to reconfigure sysfs mount";
++  }
++
++  syscall(__NR_fsconfig, fsfd, FSCONFIG_SET_FLAG, "rw", NULL, 0);
++  syscall(__NR_fsconfig, fsfd, FSCONFIG_CMD_RECONFIGURE, NULL, NULL, 0);
++  close(fsfd);
++}
++
++static bool ReadFileAtDirToString(borrowed_fd dirfd, const std::string& path, std::string* content) {
++  unique_fd fd(openat(dirfd.get(), path.c_str(), O_RDONLY | O_CLOEXEC));
++  return ReadFdToString(fd, content);
++}
++
+ Result<void> ConfigureScheduler(const std::string& device_path) {
+   ATRACE_NAME("ConfigureScheduler");
+   if (!StartsWith(device_path, "/dev/")) {
+     return Error() << "Invalid argument " << device_path;
+   }
+ 
++  if (sysfs_mntfd == -1) OpenSysfsMount();
++
+   const std::string device_name = Basename(device_path);
+ 
+   const std::string sysfs_path =
+-      StringPrintf("/sys/block/%s/queue/scheduler", device_name.c_str());
+-  unique_fd sysfs_fd(open(sysfs_path.c_str(), O_RDWR | O_CLOEXEC));
++      StringPrintf("block/%s/queue/scheduler", device_name.c_str());
++  unique_fd sysfs_fd(openat(sysfs_mntfd, sysfs_path.c_str(), O_RDWR | O_CLOEXEC));
+   if (sysfs_fd.get() == -1) {
+-    return ErrnoError() << "Failed to open " << sysfs_path;
++    return ErrnoError() << "Failed to open " << "/sys/" << sysfs_path;
+   }
+ 
+   // Kernels before v4.1 only support 'noop'. Kernels [v4.1, v5.0) support
+@@ -98,8 +132,8 @@ Result<void> ConfigureScheduler(const std::string& device_path) {
+ 
+   int ret = 0;
+   std::string cur_sched_str;
+-  if (!ReadFileToString(sysfs_path, &cur_sched_str)) {
+-    return ErrnoError() << "Failed to read " << sysfs_path;
++  if (!ReadFileAtDirToString(sysfs_mntfd, sysfs_path, &cur_sched_str)) {
++    return ErrnoError() << "Failed to read " << "/sys/" << sysfs_path;
+   }
+   cur_sched_str = android::base::Trim(cur_sched_str);
+   if (std::count(kNoScheduler.begin(), kNoScheduler.end(), cur_sched_str)) {
+@@ -114,7 +148,7 @@ Result<void> ConfigureScheduler(const std::string& device_path) {
+   }
+ 
+   if (ret <= 0) {
+-    return ErrnoError() << "Failed to write to " << sysfs_path;
++    return ErrnoError() << "Failed to write to " << "/sys/" << sysfs_path;
+   }
+ 
+   return {};
+@@ -168,6 +202,7 @@ static Result<std::string> BlockdevName(dev_t dev) {
+ // -> /dev/block/dm-1 (system_b; dm-linear)
+ // -> /dev/sda26
+ static Result<uint32_t> BlockDeviceQueueDepth(const std::string& file_path) {
++#if 0 // Disabled in Waydroid
+   static std::unordered_map<std::string, uint32_t> cache;
+   static std::mutex cache_mutex;
+ 
+@@ -230,6 +265,9 @@ static Result<uint32_t> BlockDeviceQueueDepth(const std::string& file_path) {
+     cache[blockdev] = result;
+   }
+   return result;
++#else
++  return Error() << "Disabled in Waydroid";
++#endif
+ }
+ 
+ // Set 'nr_requests' of `loop_device_path` equal to the queue depth of
+@@ -237,6 +275,7 @@ static Result<uint32_t> BlockDeviceQueueDepth(const std::string& file_path) {
+ Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
+                                  const std::string& file_path) {
+   ATRACE_NAME("ConfigureQueueDepth");
++#if 0 // Disabled in Waydroid
+   if (!StartsWith(loop_device_path, "/dev/")) {
+     return Error() << "Invalid argument " << loop_device_path;
+   }
+@@ -274,19 +313,21 @@ Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
+       *qd < cur_nr_requests) {
+     return ErrnoErrorf("Failed to write {} to {}", *qd, sysfs_path);
+   }
++#endif
+   return {};
+ }
+ 
+ Result<void> ConfigureReadAhead(const std::string& device_path) {
+   ATRACE_NAME("ConfigureReadAhead");
+   CHECK(StartsWith(device_path, "/dev/"));
++  if (sysfs_mntfd == -1) OpenSysfsMount();
+   std::string device_name = Basename(device_path);
+ 
+   std::string sysfs_device =
+-      StringPrintf("/sys/block/%s/queue/read_ahead_kb", device_name.c_str());
+-  unique_fd sysfs_fd(open(sysfs_device.c_str(), O_RDWR | O_CLOEXEC));
++      StringPrintf("block/%s/queue/read_ahead_kb", device_name.c_str());
++  unique_fd sysfs_fd(openat(sysfs_mntfd, sysfs_device.c_str(), O_RDWR | O_CLOEXEC));
+   if (sysfs_fd.get() == -1) {
+-    return ErrnoError() << "Failed to open " << sysfs_device;
++    return ErrnoError() << "Failed to open " << "/sys/" << sysfs_device;
+   }
+ 
+   std::string readAheadKb = std::to_string(
+-- 
+2.55.0
+

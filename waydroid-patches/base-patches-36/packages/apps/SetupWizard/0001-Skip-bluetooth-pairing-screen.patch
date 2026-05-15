@@ -1,0 +1,41 @@
+From f69ea674c185b6d3f185830071b8d762a8b6b5ae Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Tue, 31 Mar 2026 11:15:27 +0000
+Subject: [PATCH] Skip bluetooth pairing screen
+
+Change-Id: Iadc319e548703826d695e841f3a9623f14bcd88f
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ res/raw-television/lineage_wizard_script.xml | 2 +-
+ res/raw/lineage_wizard_script.xml            | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/res/raw-television/lineage_wizard_script.xml b/res/raw-television/lineage_wizard_script.xml
+index 6f8c978..8eb383c 100644
+--- a/res/raw-television/lineage_wizard_script.xml
++++ b/res/raw-television/lineage_wizard_script.xml
+@@ -5,7 +5,7 @@
+      SPDX-License-Identifier: Apache-2.0
+ -->
+ <WizardScript xmlns:wizard="http://schemas.android.com/apk/res/com.google.android.setupwizard"
+-    wizard:firstAction="bluetooth_setup">
++    wizard:firstAction="welcome">
+ 
+     <WizardAction
+         wizard:uri="intent:#Intent;action=org.lineageos.setupwizard.LINEAGE_BLUETOOTH_SETUP;end"
+diff --git a/res/raw/lineage_wizard_script.xml b/res/raw/lineage_wizard_script.xml
+index 0ecce5a..49e6322 100644
+--- a/res/raw/lineage_wizard_script.xml
++++ b/res/raw/lineage_wizard_script.xml
+@@ -5,7 +5,7 @@
+      SPDX-License-Identifier: Apache-2.0
+ -->
+ <WizardScript xmlns:wizard="http://schemas.android.com/apk/res/com.google.android.setupwizard"
+-    wizard:firstAction="bluetooth_setup">
++    wizard:firstAction="welcome">
+ 
+     <WizardAction
+         wizard:uri="intent:#Intent;action=org.lineageos.setupwizard.LINEAGE_BLUETOOTH_SETUP;end"
+-- 
+2.55.0
+

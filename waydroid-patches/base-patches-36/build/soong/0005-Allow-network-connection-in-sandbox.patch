@@ -1,0 +1,29 @@
+From afee40a351954fc2082f5d9b8908a9ac24da7732 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Thu, 2 Jul 2026 11:24:19 +0000
+Subject: [PATCH 5/5] Allow network connection in sandbox
+
+Required by mesa for downloading rust dependencies
+
+Change-Id: Iec9249be6b63ad83d1bfce2e251891264035e067
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ ui/build/sandbox_linux.go | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ui/build/sandbox_linux.go b/ui/build/sandbox_linux.go
+index ca8e8c2..833a40b 100644
+--- a/ui/build/sandbox_linux.go
++++ b/ui/build/sandbox_linux.go
+@@ -298,6 +298,8 @@ func (c *Cmd) wrapSandbox() {
+ 		// TODO: try out cgroups
+ 		"--disable_clone_newcgroup",
+ 
++		"--disable_clone_newnet",
++
+ 		// Only log important warnings / errors
+ 		"-q",
+ 	)
+-- 
+2.55.0
+

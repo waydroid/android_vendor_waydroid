@@ -1,0 +1,62 @@
+From a61a7c040a8c5c3dc3577b220e4432370b2d907c Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Tue, 2 Sep 2025 03:19:54 +0330
+Subject: [PATCH 3/3] hwc2on1: Handle primary hotplugs
+
+---
+ .../utils/hwc2on1adapter/HWC2On1Adapter.cpp    | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp b/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+index d13a483..7d684a2 100644
+--- a/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
++++ b/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+@@ -1121,6 +1121,8 @@ void HWC2On1Adapter::Display::populateConfigs() {
+         return;
+     }
+ 
++    mConfigs.clear();
++
+     const size_t MAX_NUM_CONFIGS = 128;
+     uint32_t configs[MAX_NUM_CONFIGS] = {};
+     size_t numConfigs = MAX_NUM_CONFIGS;
+@@ -2585,12 +2587,6 @@ void HWC2On1Adapter::hwc1Vsync(int hwc1DisplayId, int64_t timestamp) {
+ 
+ void HWC2On1Adapter::hwc1Hotplug(int hwc1DisplayId, int connected) {
+     ALOGV("Received hwc1Hotplug(%d, %d)", hwc1DisplayId, connected);
+-
+-    if (hwc1DisplayId != HWC_DISPLAY_EXTERNAL) {
+-        ALOGE("hwc1Hotplug: Received hotplug for non-external display");
+-        return;
+-    }
+-
+     std::unique_lock<std::recursive_timed_mutex> lock(mStateMutex);
+ 
+     hwc2_display_t displayId = UINT64_MAX;
+@@ -2609,7 +2605,7 @@ void HWC2On1Adapter::hwc1Hotplug(int hwc1DisplayId, int connected) {
+         mHwc1DisplayMap[HWC_DISPLAY_EXTERNAL] = displayId;
+         mDisplays.emplace(displayId, std::move(display));
+     } else {
+-        if (connected != 0) {
++        if (connected != 0 && hwc1DisplayId == HWC_DISPLAY_EXTERNAL) {
+             ALOGW("hwc1Hotplug: Received connect for previously connected "
+                     "display");
+             return;
+@@ -2617,8 +2613,12 @@ void HWC2On1Adapter::hwc1Hotplug(int hwc1DisplayId, int connected) {
+ 
+         // Disconnect an existing display
+         displayId = mHwc1DisplayMap[hwc1DisplayId];
+-        mHwc1DisplayMap.erase(HWC_DISPLAY_EXTERNAL);
+-        mDisplays.erase(displayId);
++        if (hwc1DisplayId == HWC_DISPLAY_EXTERNAL) {
++            mHwc1DisplayMap.erase(HWC_DISPLAY_EXTERNAL);
++            mDisplays.erase(displayId);
++        } else {
++            mDisplays[displayId]->populateConfigs();
++        }
+     }
+ 
+     // If the HWC2-side callback hasn't been registered yet, buffer this until
+-- 
+2.55.0
+

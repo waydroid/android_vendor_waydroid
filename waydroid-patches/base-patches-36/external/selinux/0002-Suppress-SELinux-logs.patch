@@ -1,0 +1,47 @@
+From f5fdcdd3fbb4fdf16ae99acb18b654f4261d4ac3 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Thu, 19 Feb 2026 16:17:23 +0000
+Subject: [PATCH 2/2] Suppress SELinux logs
+
+Change-Id: Ia051e1e5aa91e10c293c67ed923bd2e945b247cc
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ libselinux/src/android/android.c        | 2 ++
+ libselinux/src/android/android_device.c | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/libselinux/src/android/android.c b/libselinux/src/android/android.c
+index 66bec39..a2b7aca 100644
+--- a/libselinux/src/android/android.c
++++ b/libselinux/src/android/android.c
+@@ -165,11 +165,13 @@ struct selabel_handle* initialize_backend(
+ 								__FUNCTION__, name, strerror(errno));
+ 				return NULL;
+ 		}
++#if 0
+ 		selinux_log(SELINUX_INFO, "SELinux: Loaded %s context from:\n", name);
+ 		for (unsigned i = 0; i < nopts; i++) {
+ 			if (opts[i].type == SELABEL_OPT_PATH)
+ 				selinux_log(SELINUX_INFO, "		%s\n", opts[i].value);
+ 		}
++#endif
+ 		return sehandle;
+ }
+ 
+diff --git a/libselinux/src/android/android_device.c b/libselinux/src/android/android_device.c
+index 9339e8a..8c61c5e 100644
+--- a/libselinux/src/android/android_device.c
++++ b/libselinux/src/android/android_device.c
+@@ -458,7 +458,9 @@ static int selinux_android_restorecon_common(const char* pathname_orig,
+ 	}
+ 
+ 	if (is_selinux_enabled() <= 0) {
++#if 0
+ 		selinux_log(SELINUX_WARNING, "SELinux: SELinux is disabled, skipping restorecon");
++#endif
+ 		return 0;
+ 	}
+ 
+-- 
+2.55.0
+

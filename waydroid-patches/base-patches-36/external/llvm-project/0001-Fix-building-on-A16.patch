@@ -1,0 +1,53 @@
+From 0df3f27f65e6b7837f131ceed6e85118bcb438e2 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 28 Feb 2026 19:48:31 +0000
+Subject: [PATCH] Fix building on A16
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ llvm/soong/Android.bp    | 1 +
+ llvm/soong/min_tblgen.go | 2 +-
+ llvm/soong/tblgen.go     | 2 +-
+ 3 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/llvm/soong/Android.bp b/llvm/soong/Android.bp
+index 049b5251e..bfec2c743 100644
+--- a/llvm/soong/Android.bp
++++ b/llvm/soong/Android.bp
+@@ -4,6 +4,7 @@ bootstrap_go_package {
+     deps: [
+         "blueprint",
+         "blueprint-pathtools",
++        "blueprint-proptools",
+         "soong",
+         "soong-android",
+         "soong-cc",
+diff --git a/llvm/soong/min_tblgen.go b/llvm/soong/min_tblgen.go
+index 5faa592b9..fd1bc66f3 100644
+--- a/llvm/soong/min_tblgen.go
++++ b/llvm/soong/min_tblgen.go
+@@ -73,7 +73,7 @@ func (t *min_tblgen) GenerateAndroidBuildActions(ctx android.ModuleContext) {
+ 		out := android.PathForModuleGen(ctx, o)
+ 		generator := min_tblgen_outToGenerator(ctx, o)
+ 
+-		ctx.ModuleBuild(min_tblgen_pctx, android.ModuleBuildParams{
++		ctx.Build(min_tblgen_pctx, android.BuildParams{
+ 			Rule:   min_tblgenRule22,
+ 			Input:  in,
+ 			Output: out,
+diff --git a/llvm/soong/tblgen.go b/llvm/soong/tblgen.go
+index c432a5e52..c822edc3f 100644
+--- a/llvm/soong/tblgen.go
++++ b/llvm/soong/tblgen.go
+@@ -73,7 +73,7 @@ func (t *tblgen) GenerateAndroidBuildActions(ctx android.ModuleContext) {
+ 		out := android.PathForModuleGen(ctx, o)
+ 		generator := outToGenerator(ctx, o)
+ 
+-		ctx.ModuleBuild(pctx, android.ModuleBuildParams{
++		ctx.Build(pctx, android.BuildParams{
+ 			Rule:   tblgenRule22,
+ 			Input:  in,
+ 			Output: out,
+-- 
+2.55.0
+

@@ -17,7 +17,7 @@
 top_dir=`pwd`
 LOCALDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 loc_man="${top_dir}/.repo/local_manifests"
-manifests_url="https://raw.githubusercontent.com/waydroid/android_vendor_waydroid/lineage-20/manifest_scripts/manifests"
+manifests_url="https://raw.githubusercontent.com/WayDroid-ATV/android_vendor_waydroid/lineage-23.2/manifest_scripts/manifests"
 manifests_path="${LOCALDIR}/manifests"
 
 #setup colors
@@ -45,14 +45,14 @@ if [ ! -d "${top_dir}/.repo" ]; then
     exit
 fi
 
-if [ ! -f build/make/core/version_defaults.mk ]; then
+if [ ! -f build/make/core/version_util.mk ]; then
     echo -e ${reset}""${reset}
     echo -e ${ltred}"ERROR: Missing build/make. Please run `repo sync build/make` first."${reset}
     echo -e ${reset}""${reset}
     exit
 fi
 
-sdkv=$(cat build/make/core/version_defaults.mk | grep "PLATFORM_SDK_VERSION :=" | grep -o "[[:digit:]]\+")
+sdkv="${WAYDROID_PATCH_SDK:-36}"
 manifests_url="${manifests_url}-${sdkv}"
 manifests_path="${manifests_path}-${sdkv}"
 

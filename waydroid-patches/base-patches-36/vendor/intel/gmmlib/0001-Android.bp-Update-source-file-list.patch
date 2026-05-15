@@ -1,0 +1,25 @@
+From a8dd1fde1087dc3b77f80c503aaad47908905cd1 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Tue, 17 Mar 2026 18:36:58 +0000
+Subject: [PATCH 1/2] Android.bp: Update source file list
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ Android.bp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Android.bp b/Android.bp
+index c557b22..b177feb 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -43,6 +43,7 @@ cc_library_shared {
+         "Source/GmmLib/CachePolicy/GmmGen8CachePolicy.cpp",
+         "Source/GmmLib/CachePolicy/GmmGen9CachePolicy.cpp",
+         "Source/GmmLib/CachePolicy/GmmXe2_LPGCachePolicy.cpp",
++        "Source/GmmLib/CachePolicy/GmmXe3P_XPCCachePolicy.cpp",
+         "Source/GmmLib/CachePolicy/GmmXe_LPGCachePolicy.cpp",
+         "Source/GmmLib/GlobalInfo/GmmClientContext.cpp",
+         "Source/GmmLib/GlobalInfo/GmmInfo.cpp",
+-- 
+2.55.0
+

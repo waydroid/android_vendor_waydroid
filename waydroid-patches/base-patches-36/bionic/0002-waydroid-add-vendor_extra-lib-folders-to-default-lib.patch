@@ -1,0 +1,52 @@
+From df3b1ebeb88400f702e96abff0d5b518f22c9fc8 Mon Sep 17 00:00:00 2001
+From: Asriel Dreemurr <asriel.danctnix@gmail.com>
+Date: Mon, 22 Mar 2021 10:13:32 +0700
+Subject: [PATCH 2/6] (waydroid) add /vendor_extra lib folders to default
+ library path
+
+This can be used to mount actual device's vendor on Halium devices.
+
+Change-Id: I107e86d55c006ba7ec1f4dd1a5941d8ae52053b8
+---
+ linker/linker.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/linker/linker.cpp b/linker/linker.cpp
+index 29e67ce..9268498 100644
+--- a/linker/linker.cpp
++++ b/linker/linker.cpp
+@@ -106,6 +106,7 @@ static const char* const kLdGeneratedConfigFilePath = "/linkerconfig/ld.config.t
+ static const char* const kSystemLibDir        = "/system/lib64";
+ static const char* const kOdmLibDir           = "/odm/lib64";
+ static const char* const kVendorLibDir        = "/vendor/lib64";
++static const char* const kVendorExtraLibDir   = "/vendor_extra/lib64";
+ static const char* const kAsanSystemLibDir    = "/data/asan/system/lib64";
+ static const char* const kAsanOdmLibDir       = "/data/asan/odm/lib64";
+ static const char* const kAsanVendorLibDir    = "/data/asan/vendor/lib64";
+@@ -113,6 +114,7 @@ static const char* const kAsanVendorLibDir    = "/data/asan/vendor/lib64";
+ static const char* const kSystemLibDir        = "/system/lib";
+ static const char* const kOdmLibDir           = "/odm/lib";
+ static const char* const kVendorLibDir        = "/vendor/lib";
++static const char* const kVendorExtraLibDir   = "/vendor_extra/lib";
+ static const char* const kAsanSystemLibDir    = "/data/asan/system/lib";
+ static const char* const kAsanOdmLibDir       = "/data/asan/odm/lib";
+ static const char* const kAsanVendorLibDir    = "/data/asan/vendor/lib";
+@@ -123,6 +125,7 @@ static const char* const kAsanLibDirPrefix = "/data/asan";
+ static const char* const kDefaultLdPaths[] = {
+   kSystemLibDir,
+   kOdmLibDir,
++  kVendorExtraLibDir,
+   kVendorLibDir,
+   nullptr
+ };
+@@ -133,6 +136,7 @@ static const char* const kAsanDefaultLdPaths[] = {
+   kAsanOdmLibDir,
+   kOdmLibDir,
+   kAsanVendorLibDir,
++  kVendorExtraLibDir,
+   kVendorLibDir,
+   nullptr
+ };
+-- 
+2.55.0
+
