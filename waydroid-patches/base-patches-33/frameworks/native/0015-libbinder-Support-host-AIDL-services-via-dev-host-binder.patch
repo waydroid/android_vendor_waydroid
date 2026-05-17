@@ -1,0 +1,1036 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 16 May 2026 19:27:46 +0300
+Subject: [PATCH] libbinder: Support host AIDL services via /dev/host_binder
+
+Port of hwbinder dual-driver support to AIDL. Adds /dev/host_binder
+alongside /dev/binder for routing selected AIDL service calls to the
+Halium host's servicemanager. Controlled by /system/etc/hostaidls.conf.
+
+Co-Authored-By: Steffen Deusch <steffen@deusch.me>
+Change-Id: I8bb1f1f79f11ffd990afbd8a74b01af6ace19f89
+---
+ libs/binder/Binder.cpp                      |   7 ++
+ libs/binder/BpBinder.cpp                    |  45 +++++---
+ libs/binder/IInterface.cpp                  |  12 +++
+ libs/binder/IPCThreadState.cpp              |  62 ++++++++---
+ libs/binder/IServiceManager.cpp             | 106 ++++++++++++++++++
+ libs/binder/Parcel.cpp                      |  30 ++++--
+ libs/binder/ProcessState.cpp                | 113 ++++++++++++++------
+ libs/binder/include/binder/BpBinder.h       |  11 ++
+ libs/binder/include/binder/IBinder.h        |   4 +
+ libs/binder/include/binder/IInterface.h     |   4 +
+ libs/binder/include/binder/IPCThreadState.h |   9 +-
+ libs/binder/include/binder/Parcel.h         |   9 ++
+ libs/binder/include/binder/ProcessState.h   |  12 ++-
+ 13 files changed, 355 insertions(+), 69 deletions(-)
+
+diff --git a/libs/binder/Binder.cpp b/libs/binder/Binder.cpp
+index 39befbe..f591926 100644
+--- a/libs/binder/Binder.cpp
++++ b/libs/binder/Binder.cpp
+@@ -85,6 +85,13 @@ BpBinder* IBinder::remoteBinder()
+     return nullptr;
+ }
+ 
++bool IBinder::isHostBinder() const
++{
++    BpBinder* proxy = const_cast<IBinder*>(this)->remoteBinder();
++    if (proxy == nullptr) return false;
++    return proxy->isHostBinder();
++}
++
+ bool IBinder::checkSubclass(const void* /*subclassID*/) const
+ {
+     return false;
+diff --git a/libs/binder/BpBinder.cpp b/libs/binder/BpBinder.cpp
+index 921e57c..19267b0 100644
+--- a/libs/binder/BpBinder.cpp
++++ b/libs/binder/BpBinder.cpp
+@@ -20,6 +20,7 @@
+ #include <binder/BpBinder.h>
+ 
+ #include <binder/IPCThreadState.h>
++#include <binder/ProcessState.h>
+ #include <binder/IResultReceiver.h>
+ #include <binder/RpcSession.h>
+ #include <binder/Stability.h>
+@@ -115,9 +116,13 @@ void BpBinder::ObjectManager::kill()
+ // ---------------------------------------------------------------------------
+ 
+ sp<BpBinder> BpBinder::create(int32_t handle) {
++    return create(handle, false);
++}
++
++sp<BpBinder> BpBinder::create(int32_t handle, bool isHost) {
+     int32_t trackedUid = -1;
+     if (sCountByUidEnabled) {
+-        trackedUid = IPCThreadState::self()->getCallingUid();
++        trackedUid = IPCThreadState::self(isHost)->getCallingUid();
+         AutoMutex _l(sTrackingLock);
+         uint32_t trackedValue = sTrackingMap[trackedUid];
+         if (CC_UNLIKELY(trackedValue & LIMIT_REACHED_MASK)) {
+@@ -152,7 +157,7 @@ sp<BpBinder> BpBinder::create(int32_t handle) {
+         }
+         sTrackingMap[trackedUid]++;
+     }
+-    return sp<BpBinder>::make(BinderHandle{handle}, trackedUid);
++    return sp<BpBinder>::make(BinderHandle{handle, isHost}, trackedUid);
+ }
+ 
+ sp<BpBinder> BpBinder::create(const sp<RpcSession>& session, uint64_t address) {
+@@ -181,7 +186,7 @@ BpBinder::BpBinder(BinderHandle&& handle, int32_t trackedUid) : BpBinder(Handle(
+ 
+     ALOGV("Creating BpBinder %p handle %d\n", this, this->binderHandle());
+ 
+-    IPCThreadState::self()->incWeakHandle(this->binderHandle(), this);
++    IPCThreadState::self(isHostBinderHandle())->incWeakHandle(this->binderHandle(), this);
+ }
+ 
+ BpBinder::BpBinder(RpcHandle&& handle) : BpBinder(Handle(handle)) {
+@@ -212,6 +217,15 @@ std::optional<int32_t> BpBinder::getDebugBinderHandle() const {
+     }
+ }
+ 
++bool BpBinder::isHostBinderHandle() const {
++    if (!std::holds_alternative<BinderHandle>(mHandle)) return false;
++    return std::get<BinderHandle>(mHandle).isHost;
++}
++
++bool BpBinder::isHostBinder() const {
++    return isHostBinderHandle();
++}
++
+ bool BpBinder::isDescriptorCached() const {
+     Mutex::Autolock _l(mLock);
+     return mDescriptorCache.size() ? true : false;
+@@ -303,7 +317,13 @@ status_t BpBinder::transact(
+             status = rpcSession()->transact(sp<IBinder>::fromExisting(this), code, data, reply,
+                                             flags);
+         } else {
+-            status = IPCThreadState::self()->transact(binderHandle(), code, data, reply, flags);
++            // Waydroid dual-driver
++            data.SetIsHost(isHostBinderHandle());
++            status = IPCThreadState::self(isHostBinderHandle())
++                             ->transact(binderHandle(), code, data, reply, flags);
++            if (reply != nullptr) {
++                reply->SetIsHost(isHostBinderHandle());
++            }
+         }
+         if (data.dataSize() > LOG_TRANSACTIONS_OVER_SIZE) {
+             Mutex::Autolock _l(mLock);
+@@ -347,7 +367,7 @@ status_t BpBinder::linkToDeath(
+                 }
+                 ALOGV("Requesting death notification: %p handle %d\n", this, binderHandle());
+                 getWeakRefs()->incWeak(this);
+-                IPCThreadState* self = IPCThreadState::self();
++                IPCThreadState* self = IPCThreadState::self(isHostBinderHandle());
+                 self->requestDeathNotification(binderHandle(), this);
+                 self->flushCommands();
+             }
+@@ -384,7 +404,7 @@ status_t BpBinder::unlinkToDeath(
+             mObituaries->removeAt(i);
+             if (mObituaries->size() == 0) {
+                 ALOGV("Clearing death notification: %p handle %d\n", this, binderHandle());
+-                IPCThreadState* self = IPCThreadState::self();
++                IPCThreadState* self = IPCThreadState::self(isHostBinderHandle());
+                 self->clearDeathNotification(binderHandle(), this);
+                 self->flushCommands();
+                 delete mObituaries;
+@@ -411,7 +431,7 @@ void BpBinder::sendObituary()
+     Vector<Obituary>* obits = mObituaries;
+     if(obits != nullptr) {
+         ALOGV("Clearing sent death notification: %p handle %d\n", this, binderHandle());
+-        IPCThreadState* self = IPCThreadState::self();
++        IPCThreadState* self = IPCThreadState::self(isHostBinderHandle());
+         self->clearDeathNotification(binderHandle(), this);
+         self->flushCommands();
+         mObituaries = nullptr;
+@@ -475,7 +495,7 @@ BpBinder::~BpBinder()
+ 
+     if (CC_UNLIKELY(isRpcBinder())) return;
+ 
+-    IPCThreadState* ipc = IPCThreadState::self();
++    IPCThreadState* ipc = IPCThreadState::self(isHostBinderHandle());
+ 
+     if (mTrackedUid >= 0) {
+         AutoMutex _l(sTrackingLock);
+@@ -500,7 +520,8 @@ BpBinder::~BpBinder()
+     }
+ 
+     if (ipc) {
+-        ipc->expungeHandle(binderHandle(), this);
++        sp<ProcessState> proc = ProcessState::selfOrNull(isHostBinderHandle());
++        if (proc) proc->expungeHandle(binderHandle(), this);
+         ipc->decWeakHandle(binderHandle());
+     }
+ }
+@@ -509,7 +530,7 @@ void BpBinder::onFirstRef()
+ {
+     ALOGV("onFirstRef BpBinder %p handle %d\n", this, binderHandle());
+     if (CC_UNLIKELY(isRpcBinder())) return;
+-    IPCThreadState* ipc = IPCThreadState::self();
++    IPCThreadState* ipc = IPCThreadState::self(isHostBinderHandle());
+     if (ipc) ipc->incStrongHandle(binderHandle(), this);
+ }
+ 
+@@ -523,7 +544,7 @@ void BpBinder::onLastStrongRef(const void* /*id*/)
+     IF_ALOGV() {
+         printRefs();
+     }
+-    IPCThreadState* ipc = IPCThreadState::self();
++    IPCThreadState* ipc = IPCThreadState::self(isHostBinderHandle());
+     if (ipc) ipc->decStrongHandle(binderHandle());
+ 
+     mLock.lock();
+@@ -553,7 +574,7 @@ bool BpBinder::onIncStrongAttempted(uint32_t /*flags*/, const void* /*id*/)
+     if (CC_UNLIKELY(isRpcBinder())) return false;
+ 
+     ALOGV("onIncStrongAttempted BpBinder %p handle %d\n", this, binderHandle());
+-    IPCThreadState* ipc = IPCThreadState::self();
++    IPCThreadState* ipc = IPCThreadState::self(isHostBinderHandle());
+     return ipc ? ipc->attemptIncStrongHandle(binderHandle()) == NO_ERROR : false;
+ }
+ 
+diff --git a/libs/binder/IInterface.cpp b/libs/binder/IInterface.cpp
+index 2780bd4..8e34cc6 100644
+--- a/libs/binder/IInterface.cpp
++++ b/libs/binder/IInterface.cpp
+@@ -16,6 +16,7 @@
+ 
+ #define LOG_TAG "IInterface"
+ #include <utils/Log.h>
++#include <binder/BpBinder.h>
+ #include <binder/IInterface.h>
+ 
+ namespace android {
+@@ -43,6 +44,17 @@ sp<IBinder> IInterface::asBinder(const sp<IInterface>& iface)
+     return sp<IBinder>::fromExisting(iface->onAsBinder());
+ }
+ 
++// static
++bool IInterface::isHostBinder(const IInterface* iface)
++{
++    if (iface == nullptr) return false;
++    IBinder* binder = const_cast<IInterface*>(iface)->onAsBinder();
++    if (binder == nullptr) return false;
++    BpBinder* proxy = binder->remoteBinder();
++    if (proxy == nullptr) return false;
++    return proxy->isHostBinder();
++}
++
+ 
+ // ---------------------------------------------------------------------------
+ 
+diff --git a/libs/binder/IPCThreadState.cpp b/libs/binder/IPCThreadState.cpp
+index 9def17d..f9d4ab9 100644
+--- a/libs/binder/IPCThreadState.cpp
++++ b/libs/binder/IPCThreadState.cpp
+@@ -285,32 +285,43 @@ static pthread_key_t gTLS = 0;
+ static std::atomic<bool> gShutdown = false;
+ static std::atomic<bool> gDisableBackgroundScheduling = false;
+ 
++// Waydroid dual-driver: parallel host-side TLS slot.
++static std::atomic<bool> gHostHaveTLS(false);
++static pthread_key_t gHostTLS = 0;
++
+ IPCThreadState* IPCThreadState::self()
+ {
+-    if (gHaveTLS.load(std::memory_order_acquire)) {
++    return self(false);
++}
++
++IPCThreadState* IPCThreadState::self(bool isHost)
++{
++    std::atomic<bool>& haveTLS = isHost ? gHostHaveTLS : gHaveTLS;
++    pthread_key_t& tlsKey = isHost ? gHostTLS : gTLS;
++
++    if (haveTLS.load(std::memory_order_acquire)) {
+ restart:
+-        const pthread_key_t k = gTLS;
++        const pthread_key_t k = tlsKey;
+         IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
+         if (st) return st;
+-        return new IPCThreadState;
++        return new IPCThreadState(isHost);
+     }
+ 
+-    // Racey, heuristic test for simultaneous shutdown.
+     if (gShutdown.load(std::memory_order_relaxed)) {
+         ALOGW("Calling IPCThreadState::self() during shutdown is dangerous, expect a crash.\n");
+         return nullptr;
+     }
+ 
+     pthread_mutex_lock(&gTLSMutex);
+-    if (!gHaveTLS.load(std::memory_order_relaxed)) {
+-        int key_create_value = pthread_key_create(&gTLS, threadDestructor);
++    if (!haveTLS.load(std::memory_order_relaxed)) {
++        int key_create_value = pthread_key_create(&tlsKey, threadDestructor);
+         if (key_create_value != 0) {
+             pthread_mutex_unlock(&gTLSMutex);
+             ALOGW("IPCThreadState::self() unable to create TLS key, expect a crash: %s\n",
+                     strerror(key_create_value));
+             return nullptr;
+         }
+-        gHaveTLS.store(true, std::memory_order_release);
++        haveTLS.store(true, std::memory_order_release);
+     }
+     pthread_mutex_unlock(&gTLSMutex);
+     goto restart;
+@@ -318,8 +329,15 @@ restart:
+ 
+ IPCThreadState* IPCThreadState::selfOrNull()
+ {
+-    if (gHaveTLS.load(std::memory_order_acquire)) {
+-        const pthread_key_t k = gTLS;
++    return selfOrNull(false);
++}
++
++IPCThreadState* IPCThreadState::selfOrNull(bool isHost)
++{
++    std::atomic<bool>& haveTLS = isHost ? gHostHaveTLS : gHaveTLS;
++    pthread_key_t& tlsKey = isHost ? gHostTLS : gTLS;
++    if (haveTLS.load(std::memory_order_acquire)) {
++        const pthread_key_t k = tlsKey;
+         IPCThreadState* st = (IPCThreadState*)pthread_getspecific(k);
+         return st;
+     }
+@@ -853,6 +871,14 @@ void IPCThreadState::expungeHandle(int32_t handle, IBinder* binder)
+     self()->mProcess->expungeHandle(handle, binder); // NOLINT
+ }
+ 
++void IPCThreadState::expungeHandle(int32_t handle, IBinder* binder, bool isHost)
++{
++#if LOG_REFCOUNTS
++    ALOGV("IPCThreadState::expungeHandle(%ld, isHost=%d)\n", handle, isHost);
++#endif
++    self(isHost)->mProcess->expungeHandle(handle, binder); // NOLINT
++}
++
+ status_t IPCThreadState::requestDeathNotification(int32_t handle, BpBinder* proxy)
+ {
+     mOut.writeInt32(BC_REQUEST_DEATH_NOTIFICATION);
+@@ -869,8 +895,8 @@ status_t IPCThreadState::clearDeathNotification(int32_t handle, BpBinder* proxy)
+     return NO_ERROR;
+ }
+ 
+-IPCThreadState::IPCThreadState()
+-      : mProcess(ProcessState::self()),
++IPCThreadState::IPCThreadState(bool isHost)
++      : mProcess(ProcessState::self(isHost)),
+         mServingStackPointer(nullptr),
+         mServingStackPointerGuard(nullptr),
+         mWorkSource(kUnsetWorkSource),
+@@ -879,8 +905,9 @@ IPCThreadState::IPCThreadState()
+         mIsFlushing(false),
+         mStrictModePolicy(0),
+         mLastTransactionBinderFlags(0),
+-        mCallRestriction(mProcess->mCallRestriction) {
+-    pthread_setspecific(gTLS, this);
++        mCallRestriction(mProcess ? mProcess->mCallRestriction : CallRestriction::NONE),
++        mIsHost(isHost) {
++    pthread_setspecific(mIsHost ? gHostTLS : gTLS, this);
+     clearCaller();
+     mIn.setDataCapacity(256);
+     mOut.setDataCapacity(256);
+@@ -1449,17 +1476,20 @@ status_t IPCThreadState::freeze(pid_t pid, bool enable, uint32_t timeout_ms) {
+     return ret;
+ }
+ 
+-void IPCThreadState::freeBuffer(Parcel* /*parcel*/, const uint8_t* data,
++void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
+                                 size_t /*dataSize*/,
+                                 const binder_size_t* /*objects*/,
+                                 size_t /*objectsSize*/)
+ {
+-    //ALOGI("Freeing parcel %p", &parcel);
+     IF_LOG_COMMANDS() {
+         alog << "Writing BC_FREE_BUFFER for " << data << endl;
+     }
+     ALOG_ASSERT(data != NULL, "Called with NULL data");
+-    IPCThreadState* state = self();
++    // Waydroid dual-driver: determine host vs container routing.
++    // When parcel is non-null, use its mIsHost flag directly.
++    // When null (error/discard path), check if current thread has a host TLS slot.
++    bool isHost = parcel ? parcel->mIsHost : (selfOrNull(true) != nullptr);
++    IPCThreadState* state = self(isHost);
+     state->mOut.writeInt32(BC_FREE_BUFFER);
+     state->mOut.writePointer((uintptr_t)data);
+     state->flushIfNeeded();
+diff --git a/libs/binder/IServiceManager.cpp b/libs/binder/IServiceManager.cpp
+index fd2d868..e0aeb08 100644
+--- a/libs/binder/IServiceManager.cpp
++++ b/libs/binder/IServiceManager.cpp
+@@ -20,11 +20,16 @@
+ 
+ #include <inttypes.h>
+ #include <unistd.h>
++#include <fstream>
++#include <mutex>
++#include <string>
++#include <unordered_set>
+ 
+ #include <android/os/BnServiceCallback.h>
+ #include <android/os/IServiceManager.h>
+ #include <binder/IPCThreadState.h>
+ #include <binder/Parcel.h>
++#include <binder/ProcessState.h>
+ #include <utils/Log.h>
+ #include <utils/String8.h>
+ #include <utils/SystemClock.h>
+@@ -48,6 +53,83 @@ using AidlRegistrationCallback = IServiceManager::LocalRegistrationCallback;
+ using AidlServiceManager = android::os::IServiceManager;
+ using android::binder::Status;
+ 
++// Waydroid dual-driver: whitelist of AIDL service names to route to the host
++// binder servicemanager. Loaded lazily from /system/etc/hostaidls.conf.
++namespace {
++[[clang::no_destroy]] static std::once_flag gHostAidlsOnce;
++[[clang::no_destroy]] static std::unordered_set<std::string> gHostAidls;
++
++static void loadHostAidlsLocked() {
++    std::ifstream f("/system/etc/hostaidls.conf");
++    if (!f.good()) {
++        ALOGI("Waydroid: /system/etc/hostaidls.conf not found; "
++              "host-AIDL passthrough disabled");
++        return;
++    }
++    std::string line;
++    while (std::getline(f, line)) {
++        size_t hash = line.find('#');
++        if (hash != std::string::npos) line.erase(hash);
++        size_t start = line.find_first_not_of(" \t\r\n");
++        if (start == std::string::npos) continue;
++        size_t end = line.find_last_not_of(" \t\r\n");
++        std::string name = line.substr(start, end - start + 1);
++        if (name.empty()) continue;
++        gHostAidls.insert(name);
++        ALOGI("Waydroid: host-AIDL whitelisted: %s", name.c_str());
++    }
++}
++} // anonymous namespace
++
++static bool isHostAidlService(const std::string& name) {
++    std::call_once(gHostAidlsOnce, loadHostAidlsLocked);
++    if (gHostAidls.count(name) > 0) return true;
++    // Also match if any whitelisted entry is a prefix of the service name
++    // ending with /
++    for (const auto& entry : gHostAidls) {
++        if (name.size() > entry.size() && name[entry.size()] == '/' &&
++            name.compare(0, entry.size(), entry) == 0) {
++            return true;
++        }
++    }
++    return false;
++}
++
++// Query the host binder servicemanager for a service. Returns nullptr if
++// the host driver is unavailable or the service isn't found there.
++static sp<IBinder> queryHostService(const std::string& name) {
++    sp<ProcessState> host = ProcessState::self(/*isHost=*/true);
++    if (host == nullptr) {
++        ALOGW("Waydroid: host ProcessState unavailable for %s", name.c_str());
++        return nullptr;
++    }
++    // Ensure a thread pool exists for /dev/host_binder so async callbacks
++    // can be received. startThreadPool() is a no-op if already started.
++    host->startThreadPool();
++    sp<IBinder> ctx = host->getContextObject(nullptr);
++    if (ctx == nullptr) {
++        ALOGW("Waydroid: no host servicemanager context for %s", name.c_str());
++        return nullptr;
++    }
++    sp<AidlServiceManager> hostSm = interface_cast<AidlServiceManager>(ctx);
++    if (hostSm == nullptr) {
++        ALOGW("Waydroid: host context not an AidlServiceManager for %s", name.c_str());
++        return nullptr;
++    }
++    ALOGV("Waydroid: queryHostService(%s) querying host SM...", name.c_str());
++    sp<IBinder> out;
++    Status status = hostSm->checkService(name, &out);
++    if (!status.isOk()) {
++        ALOGW("Waydroid: host checkService(%s) failed: %s", name.c_str(),
++              status.toString8().c_str());
++        return nullptr;
++    }
++    if (out != nullptr) {
++        ALOGI("Waydroid: queryHostService(%s) found host binder %p", name.c_str(), out.get());
++    }
++    return out;
++}
++
+ // libbinder's IServiceManager.h can't rely on the values generated by AIDL
+ // because many places use its headers via include_dirs (meaning, without
+ // declaring the dependency in the build system). So, for now, we can just check
+@@ -309,6 +391,15 @@ sp<IBinder> ServiceManagerShim::checkService(const String16& name) const
+     if (!mTheRealServiceManager->checkService(String8(name).c_str(), &ret).isOk()) {
+         return nullptr;
+     }
++    // Waydroid dual-driver: if local SM returned null for a whitelisted AIDL name,
++    // retry against the host binder.
++    if (ret == nullptr) {
++        const std::string nameStr = String8(name).c_str();
++        if (isHostAidlService(nameStr)) {
++            ALOGV("Waydroid: checkService(%s) local=null, trying host", nameStr.c_str());
++            ret = queryHostService(nameStr);
++        }
++    }
+     return ret;
+ }
+ 
+@@ -337,6 +428,16 @@ Vector<String16> ServiceManagerShim::listServices(int dumpsysPriority)
+ 
+ sp<IBinder> ServiceManagerShim::waitForService(const String16& name16)
+ {
++    // Waydroid dual-driver: host-AIDL names never register for notifications
++    // against the local servicemanager (which doesn't own them), so
++    // short-circuit to checkService which triggers the host-binder retry path.
++    {
++        const std::string hostName = String8(name16).c_str();
++        if (isHostAidlService(hostName)) {
++            return checkService(name16);
++        }
++    }
++
+     class Waiter : public android::os::BnServiceCallback {
+         Status onRegistration(const std::string& /*name*/,
+                               const sp<IBinder>& binder) override {
+@@ -427,6 +528,11 @@ bool ServiceManagerShim::isDeclared(const String16& name) {
+               status.toString8().c_str());
+         return false;
+     }
++    // Waydroid: host-AIDL services are not in the container VINTF manifest
++    // but are reachable via the dual-driver binder bridge.
++    if (!declared && isHostAidlService(String8(name).c_str())) {
++        declared = true;
++    }
+     return declared;
+ }
+ 
+diff --git a/libs/binder/Parcel.cpp b/libs/binder/Parcel.cpp
+index 70cee88..ed679c6 100644
+--- a/libs/binder/Parcel.cpp
++++ b/libs/binder/Parcel.cpp
+@@ -108,6 +108,7 @@ static void acquire_object(const sp<ProcessState>& proc, const flat_binder_objec
+             }
+             return;
+         case BINDER_TYPE_HANDLE: {
++            if (proc == nullptr) return;
+             const sp<IBinder> b = proc->getStrongProxyForHandle(obj.handle);
+             if (b != nullptr) {
+                 LOG_REFS("Parcel %p acquiring reference on remote %p", who, b.get());
+@@ -133,6 +134,7 @@ static void release_object(const sp<ProcessState>& proc, const flat_binder_objec
+             }
+             return;
+         case BINDER_TYPE_HANDLE: {
++            if (proc == nullptr) return;
+             const sp<IBinder> b = proc->getStrongProxyForHandle(obj.handle);
+             if (b != nullptr) {
+                 LOG_REFS("Parcel %p releasing reference on remote %p", who, b.get());
+@@ -293,8 +295,9 @@ status_t Parcel::unflattenBinder(sp<IBinder>* out) const
+                 return finishUnflattenBinder(binder, out);
+             }
+             case BINDER_TYPE_HANDLE: {
+-                sp<IBinder> binder =
+-                    ProcessState::self()->getStrongProxyForHandle(flat->handle);
++                sp<ProcessState> proc = ProcessState::self(mIsHost);
++                if (proc == nullptr) return BAD_TYPE;
++                sp<IBinder> binder = proc->getStrongProxyForHandle(flat->handle);
+                 return finishUnflattenBinder(binder, out);
+             }
+         }
+@@ -310,6 +313,18 @@ Parcel::Parcel()
+     initState();
+ }
+ 
++Parcel::Parcel(bool useHost)
++{
++    LOG_ALLOC("Parcel %p: constructing (useHost=%d)", this, useHost);
++    initState();
++    mIsHost = useHost;
++}
++
++void Parcel::SetIsHost(bool isHost) const
++{
++    mIsHost = isHost;
++}
++
+ Parcel::~Parcel()
+ {
+     freeDataNoInit();
+@@ -473,7 +488,7 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
+     err = NO_ERROR;
+ 
+     if (numObjects > 0) {
+-        const sp<ProcessState> proc(ProcessState::self());
++        const sp<ProcessState> proc(ProcessState::self(mIsHost));
+         // grow objects
+         if (mObjectsCapacity < mObjectsSize + numObjects) {
+             if ((size_t) numObjects > SIZE_MAX - mObjectsSize) return NO_MEMORY; // overflow
+@@ -1436,7 +1451,7 @@ restart_write:
+         // Need to write meta-data?
+         if (nullMetaData || val.binder != 0) {
+             mObjects[mObjectsSize] = mDataPos;
+-            acquire_object(ProcessState::self(), val, this);
++            acquire_object(ProcessState::self(mIsHost), val, this);
+             mObjectsSize++;
+             // Clear sorted flag if we aren't appending to the end.
+             mObjectsSorted &= mDataPos == mDataSize;
+@@ -2333,7 +2348,7 @@ void Parcel::releaseObjects()
+     if (i == 0) {
+         return;
+     }
+-    sp<ProcessState> proc(ProcessState::self());
++    sp<ProcessState> proc(ProcessState::self(mIsHost));
+     uint8_t* const data = mData;
+     binder_size_t* const objects = mObjects;
+     while (i > 0) {
+@@ -2350,7 +2365,7 @@ void Parcel::acquireObjects()
+     if (i == 0) {
+         return;
+     }
+-    const sp<ProcessState> proc(ProcessState::self());
++    const sp<ProcessState> proc(ProcessState::self(mIsHost));
+     uint8_t* const data = mData;
+     binder_size_t* const objects = mObjects;
+     while (i > 0) {
+@@ -2574,7 +2589,7 @@ status_t Parcel::continueWrite(size_t desired)
+     } else if (mData) {
+         if (objectsSize < mObjectsSize) {
+             // Need to release refs on any objects we are dropping.
+-            const sp<ProcessState> proc(ProcessState::self());
++            const sp<ProcessState> proc(ProcessState::self(mIsHost));
+             for (size_t i=objectsSize; i<mObjectsSize; i++) {
+                 const flat_binder_object* flat
+                     = reinterpret_cast<flat_binder_object*>(mData+mObjects[i]);
+@@ -2674,6 +2689,7 @@ void Parcel::initState()
+     mFdsKnown = true;
+     mAllowFds = true;
+     mDeallocZero = false;
++    mIsHost = false;
+     mOwner = nullptr;
+     mWorkSourceRequestHeaderPosition = 0;
+     mRequestHeaderPresent = false;
+diff --git a/libs/binder/ProcessState.cpp b/libs/binder/ProcessState.cpp
+index 933967f..4ccc73f 100644
+--- a/libs/binder/ProcessState.cpp
++++ b/libs/binder/ProcessState.cpp
+@@ -54,6 +54,9 @@ const char* kDefaultDriver = "/dev/vndbinder";
+ const char* kDefaultDriver = "/dev/binder";
+ #endif
+ 
++// Waydroid dual-driver: host-side binder device (bind-mounted from Halium host).
++const char* kHostDriver = "/dev/host_binder";
++
+ // -------------------------------------------------------------------------
+ 
+ namespace android {
+@@ -61,84 +64,124 @@ namespace android {
+ class PoolThread : public Thread
+ {
+ public:
+-    explicit PoolThread(bool isMain)
+-        : mIsMain(isMain)
++    explicit PoolThread(bool isMain, bool isHost)
++        : mIsMain(isMain), mIsHost(isHost)
+     {
+     }
+ 
+ protected:
+     virtual bool threadLoop()
+     {
+-        IPCThreadState::self()->joinThreadPool(mIsMain);
++        IPCThreadState::self(mIsHost)->joinThreadPool(mIsMain);
+         return false;
+     }
+ 
+     const bool mIsMain;
++    const bool mIsHost;
+ };
+ 
+ sp<ProcessState> ProcessState::self()
+ {
+-    return init(kDefaultDriver, false /*requireDefault*/);
++    return init(kDefaultDriver, false /*requireDefault*/, false /*isHost*/);
++}
++
++sp<ProcessState> ProcessState::self(bool isHost)
++{
++    if (isHost) {
++        return init(kHostDriver, false /*requireDefault*/, true /*isHost*/);
++    }
++    return init(kDefaultDriver, false /*requireDefault*/, false /*isHost*/);
+ }
+ 
+ sp<ProcessState> ProcessState::initWithDriver(const char* driver)
+ {
+-    return init(driver, true /*requireDefault*/);
++    return init(driver, true /*requireDefault*/, false /*isHost*/);
+ }
+ 
+ sp<ProcessState> ProcessState::selfOrNull()
+ {
+-    return init(nullptr, false /*requireDefault*/);
++    return init(nullptr, false /*requireDefault*/, false /*isHost*/);
++}
++
++sp<ProcessState> ProcessState::selfOrNull(bool isHost)
++{
++    return init(nullptr, false /*requireDefault*/, isHost);
+ }
+ 
+ [[clang::no_destroy]] static sp<ProcessState> gProcess;
++[[clang::no_destroy]] static sp<ProcessState> gHostProcess;
+ [[clang::no_destroy]] static std::mutex gProcessMutex;
+ 
+ static void verifyNotForked(bool forked) {
+     LOG_ALWAYS_FATAL_IF(forked, "libbinder ProcessState can not be used after fork");
+ }
+ 
+-sp<ProcessState> ProcessState::init(const char *driver, bool requireDefault)
++sp<ProcessState> ProcessState::init(const char *driver, bool requireDefault, bool isHost)
+ {
+-
+     if (driver == nullptr) {
+         std::lock_guard<std::mutex> l(gProcessMutex);
++        if (isHost) {
++            if (gHostProcess) {
++                verifyNotForked(gHostProcess->mForked);
++            }
++            return gHostProcess;
++        }
+         if (gProcess) {
+             verifyNotForked(gProcess->mForked);
+         }
+         return gProcess;
+     }
+ 
++    // pthread_atfork must be installed exactly once per-process
++    [[clang::no_destroy]] static std::once_flag gAtforkOnce;
++    std::call_once(gAtforkOnce, []() {
++        int ret = pthread_atfork(ProcessState::onFork, ProcessState::parentPostFork,
++                                 ProcessState::childPostFork);
++        LOG_ALWAYS_FATAL_IF(ret != 0, "pthread_atfork error %s", strerror(ret));
++    });
++
+     [[clang::no_destroy]] static std::once_flag gProcessOnce;
+-    std::call_once(gProcessOnce, [&](){
++    [[clang::no_destroy]] static std::once_flag gHostProcessOnce;
++
++    auto initOnce = [&]() {
+         if (access(driver, R_OK) == -1) {
++            if (isHost) {
++                ALOGW("Waydroid: host binder driver %s unavailable; "
++                      "host-AIDL passthrough disabled", driver);
++                return;
++            }
+             ALOGE("Binder driver %s is unavailable. Using /dev/binder instead.", driver);
+             driver = "/dev/binder";
+         }
+ 
+-        // we must install these before instantiating the gProcess object,
+-        // otherwise this would race with creating it, and there could be the
+-        // possibility of an invalid gProcess object forked by another thread
+-        // before these are installed
+-        int ret = pthread_atfork(ProcessState::onFork, ProcessState::parentPostFork,
+-                                 ProcessState::childPostFork);
+-        LOG_ALWAYS_FATAL_IF(ret != 0, "pthread_atfork error %s", strerror(ret));
+-
+         std::lock_guard<std::mutex> l(gProcessMutex);
+-        gProcess = sp<ProcessState>::make(driver);
+-    });
++        if (isHost) {
++            gHostProcess = sp<ProcessState>::make(driver, true /*isHost*/);
++        } else {
++            gProcess = sp<ProcessState>::make(driver, false /*isHost*/);
++        }
++    };
++
++    if (isHost) {
++        std::call_once(gHostProcessOnce, initOnce);
++    } else {
++        std::call_once(gProcessOnce, initOnce);
++    }
++
++    sp<ProcessState>& selected = isHost ? gHostProcess : gProcess;
++    if (isHost && selected == nullptr) {
++        return nullptr;
++    }
+ 
+     if (requireDefault) {
+-        // Detect if we are trying to initialize with a different driver, and
+-        // consider that an error. ProcessState will only be initialized once above.
+-        LOG_ALWAYS_FATAL_IF(gProcess->getDriverName() != driver,
++        LOG_ALWAYS_FATAL_IF(selected->getDriverName() != driver,
+                             "ProcessState was already initialized with %s,"
+                             " can't initialize with %s.",
+-                            gProcess->getDriverName().c_str(), driver);
++                            selected->getDriverName().c_str(), driver);
+     }
+ 
+-    verifyNotForked(gProcess->mForked);
+-    return gProcess;
++    verifyNotForked(selected->mForked);
++    return selected;
+ }
+ 
+ sp<IBinder> ProcessState::getContextObject(const sp<IBinder>& /*caller*/)
+@@ -170,6 +213,13 @@ void ProcessState::childPostFork() {
+     // the thread handler is installed
+     if (gProcess) {
+         gProcess->mForked = true;
++        close(gProcess->mDriverFD);
++        gProcess->mDriverFD = -1;
++    }
++    if (gHostProcess) {
++        gHostProcess->mForked = true;
++        close(gHostProcess->mDriverFD);
++        gHostProcess->mDriverFD = -1;
+     }
+     gProcessMutex.unlock();
+ }
+@@ -272,7 +322,7 @@ ssize_t ProcessState::getStrongRefCountForNode(const sp<BpBinder>& binder) {
+ }
+ 
+ void ProcessState::setCallRestriction(CallRestriction restriction) {
+-    LOG_ALWAYS_FATAL_IF(IPCThreadState::selfOrNull() != nullptr,
++    LOG_ALWAYS_FATAL_IF(IPCThreadState::selfOrNull(mIsHost) != nullptr,
+         "Call restrictions must be set before the threadpool is started.");
+ 
+     mCallRestriction = restriction;
+@@ -324,7 +374,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
+                 // Note that this is not race-free if the context manager
+                 // dies while this code runs.
+ 
+-                IPCThreadState* ipc = IPCThreadState::self();
++                IPCThreadState* ipc = IPCThreadState::self(mIsHost);
+ 
+                 CallRestriction originalCallRestriction = ipc->getCallRestriction();
+                 ipc->setCallRestriction(CallRestriction::NONE);
+@@ -339,7 +389,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
+                    return nullptr;
+             }
+ 
+-            sp<BpBinder> b = BpBinder::PrivateAccessor::create(handle);
++            sp<BpBinder> b = BpBinder::PrivateAccessor::create(handle, mIsHost);
+             e->binder = b.get();
+             if (b) e->refs = b->getWeakRefs();
+             result = b;
+@@ -385,7 +435,7 @@ void ProcessState::spawnPooledThread(bool isMain)
+     if (mThreadPoolStarted) {
+         String8 name = makeBinderThreadName();
+         ALOGV("Spawning new pooled thread, name=%s\n", name.string());
+-        sp<Thread> t = sp<PoolThread>::make(isMain);
++        sp<Thread> t = sp<PoolThread>::make(isMain, mIsHost);
+         t->run(name.string());
+     }
+ }
+@@ -483,7 +533,7 @@ static base::Result<int> open_driver(const char* driver) {
+     return fd;
+ }
+ 
+-ProcessState::ProcessState(const char* driver)
++ProcessState::ProcessState(const char* driver, bool isHost)
+       : mDriverName(String8(driver)),
+         mDriverFD(-1),
+         mVMStart(MAP_FAILED),
+@@ -496,7 +546,8 @@ ProcessState::ProcessState(const char* driver)
+         mForked(false),
+         mThreadPoolStarted(false),
+         mThreadPoolSeq(1),
+-        mCallRestriction(CallRestriction::NONE) {
++        mCallRestriction(CallRestriction::NONE),
++        mIsHost(isHost) {
+     base::Result<int> opened = open_driver(driver);
+ 
+     if (opened.ok()) {
+diff --git a/libs/binder/include/binder/BpBinder.h b/libs/binder/include/binder/BpBinder.h
+index 19ad5e6..cda44a7 100644
+--- a/libs/binder/include/binder/BpBinder.h
++++ b/libs/binder/include/binder/BpBinder.h
+@@ -87,6 +87,9 @@ public:
+ 
+     std::optional<int32_t> getDebugBinderHandle() const;
+ 
++    // Waydroid dual-driver: true if this proxy was minted from the host ProcessState.
++    bool isHostBinder() const;
++
+     class ObjectManager {
+     public:
+         ObjectManager();
+@@ -122,6 +125,9 @@ public:
+         explicit PrivateAccessor(const BpBinder* binder) : mBinder(binder) {}
+ 
+         static sp<BpBinder> create(int32_t handle) { return BpBinder::create(handle); }
++        static sp<BpBinder> create(int32_t handle, bool isHost) {
++            return BpBinder::create(handle, isHost);
++        }
+         static sp<BpBinder> create(const sp<RpcSession>& session, uint64_t address) {
+             return BpBinder::create(session, address);
+         }
+@@ -142,10 +148,12 @@ private:
+     friend class sp<BpBinder>;
+ 
+     static sp<BpBinder> create(int32_t handle);
++    static sp<BpBinder> create(int32_t handle, bool isHost);
+     static sp<BpBinder> create(const sp<RpcSession>& session, uint64_t address);
+ 
+     struct BinderHandle {
+         int32_t handle;
++        bool isHost = false;
+     };
+     struct RpcHandle {
+         sp<RpcSession> session;
+@@ -157,6 +165,9 @@ private:
+     uint64_t rpcAddress() const;
+     const sp<RpcSession>& rpcSession() const;
+ 
++    // Waydroid dual-driver: true when BinderHandle.isHost is set.
++    bool isHostBinderHandle() const;
++
+     explicit BpBinder(Handle&& handle);
+     BpBinder(BinderHandle&& handle, int32_t trackedUid);
+     explicit BpBinder(RpcHandle&& handle);
+diff --git a/libs/binder/include/binder/IBinder.h b/libs/binder/include/binder/IBinder.h
+index 43fc5ff..ea464c6 100644
+--- a/libs/binder/include/binder/IBinder.h
++++ b/libs/binder/include/binder/IBinder.h
+@@ -285,6 +285,10 @@ public:
+     virtual BBinder*        localBinder();
+     virtual BpBinder*       remoteBinder();
+ 
++    // Waydroid dual-driver: true when this IBinder is a proxy minted from
++    // the host ProcessState. Non-virtual: delegates to remoteBinder()->isHostBinder().
++    bool                    isHostBinder() const;
++
+ protected:
+     virtual          ~IBinder();
+ 
+diff --git a/libs/binder/include/binder/IInterface.h b/libs/binder/include/binder/IInterface.h
+index 7067830..c80a425 100644
+--- a/libs/binder/include/binder/IInterface.h
++++ b/libs/binder/include/binder/IInterface.h
+@@ -31,6 +31,10 @@ public:
+             static sp<IBinder>  asBinder(const IInterface*);
+             static sp<IBinder>  asBinder(const sp<IInterface>&);
+ 
++            // Waydroid dual-driver: true if the interface's underlying binder
++            // proxy refers to the host-binder driver.
++            static bool         isHostBinder(const IInterface* iface);
++
+ protected:
+     virtual                     ~IInterface();
+     virtual IBinder*            onAsBinder() = 0;
+diff --git a/libs/binder/include/binder/IPCThreadState.h b/libs/binder/include/binder/IPCThreadState.h
+index bf02099..62e4705 100644
+--- a/libs/binder/include/binder/IPCThreadState.h
++++ b/libs/binder/include/binder/IPCThreadState.h
+@@ -36,6 +36,10 @@ public:
+     static  IPCThreadState*     self();
+     static  IPCThreadState*     selfOrNull();  // self(), but won't instantiate
+ 
++    // Waydroid dual-driver: access host or container thread state.
++    static  IPCThreadState*     self(bool isHost);
++    static  IPCThreadState*     selfOrNull(bool isHost);
++
+     // Freeze or unfreeze the binder interface to a specific process. When freezing, this method
+     // will block up to timeout_ms to process pending transactions directed to pid. Unfreeze
+     // is immediate. Transactions to processes frozen via this method won't be delivered and the
+@@ -156,6 +160,7 @@ public:
+             void                decWeakHandle(int32_t handle);
+             status_t            attemptIncStrongHandle(int32_t handle);
+     static  void                expungeHandle(int32_t handle, IBinder* binder);
++    static  void                expungeHandle(int32_t handle, IBinder* binder, bool isHost);
+             status_t            requestDeathNotification(   int32_t handle,
+                                                             BpBinder* proxy); 
+             status_t            clearDeathNotification( int32_t handle,
+@@ -192,7 +197,7 @@ public:
+             // side.
+             static const int32_t kUnsetWorkSource = -1;
+ private:
+-                                IPCThreadState();
++    explicit                    IPCThreadState(bool isHost = false);
+                                 ~IPCThreadState();
+ 
+             status_t            sendReply(const Parcel& reply, uint32_t flags);
+@@ -240,6 +245,8 @@ private:
+             int32_t             mStrictModePolicy;
+             int32_t             mLastTransactionBinderFlags;
+             CallRestriction     mCallRestriction;
++            // Waydroid dual-driver: true when this thread serves the host binder.
++            bool                mIsHost;
+ };
+ 
+ } // namespace android
+diff --git a/libs/binder/include/binder/Parcel.h b/libs/binder/include/binder/Parcel.h
+index 1b3b6f7..5e223f8 100644
+--- a/libs/binder/include/binder/Parcel.h
++++ b/libs/binder/include/binder/Parcel.h
+@@ -67,7 +67,12 @@ public:
+     class WritableBlob;
+ 
+                         Parcel();
++    explicit            Parcel(bool useHost);
+                         ~Parcel();
++
++    // Waydroid dual-driver: stamp the parcel so its binders flatten/unflatten
++    // through the host ProcessState.
++    void SetIsHost(bool isHost) const;
+     
+     const uint8_t*      data() const;
+     size_t              dataSize() const;
+@@ -1259,6 +1264,10 @@ private:
+ 
+     mutable bool        mRequestHeaderPresent;
+ 
++    // Waydroid dual-driver: route binder references through host ProcessState.
++    // Fits in struct padding before mWorkSourceRequestHeaderPosition.
++    mutable bool        mIsHost;
++
+     mutable size_t      mWorkSourceRequestHeaderPosition;
+ 
+     mutable bool        mFdsKnown;
+diff --git a/libs/binder/include/binder/ProcessState.h b/libs/binder/include/binder/ProcessState.h
+index 675585e..6fc8345 100644
+--- a/libs/binder/include/binder/ProcessState.h
++++ b/libs/binder/include/binder/ProcessState.h
+@@ -34,6 +34,11 @@ public:
+     static sp<ProcessState> self();
+     static sp<ProcessState> selfOrNull();
+ 
++    // Waydroid dual-driver: access the host binder ProcessState.
++    static sp<ProcessState> self(bool isHost);
++    static sp<ProcessState> selfOrNull(bool isHost);
++    bool isHostBinder() const { return mIsHost; }
++
+     /* initWithDriver() can be used to configure libbinder to use
+      * a different binder driver dev node. It must be called *before*
+      * any call to ProcessState::self(). The default is /dev/vndbinder
+@@ -97,7 +102,7 @@ public:
+     static bool isDriverFeatureEnabled(const DriverFeature feature);
+ 
+ private:
+-    static sp<ProcessState> init(const char* defaultDriver, bool requireDefault);
++    static sp<ProcessState> init(const char* defaultDriver, bool requireDefault, bool isHost = false);
+ 
+     static void onFork();
+     static void parentPostFork();
+@@ -106,7 +111,7 @@ private:
+     friend class IPCThreadState;
+     friend class sp<ProcessState>;
+ 
+-    explicit ProcessState(const char* driver);
++    explicit ProcessState(const char* driver, bool isHost = false);
+     ~ProcessState();
+ 
+     ProcessState(const ProcessState& o);
+@@ -146,6 +151,9 @@ private:
+     volatile int32_t mThreadPoolSeq;
+ 
+     CallRestriction mCallRestriction;
++
++    // Waydroid dual-driver: marks this ProcessState as the host-binder singleton.
++    bool mIsHost;
+ };
+ 
+ } // namespace android
