@@ -40,8 +40,8 @@
   <project path="vendor/google/proprietary/ndk_translation-prebuilt" name="WayDroid-ATV/vendor_google_proprietary_ndk_translation-prebuilt" clone-depth="1" remote="ghub" revision="refs/heads/16arm64_qpr2" />
 
   <!-- GApps -->
-  <project path="vendor/gapps" name="WayDroid-ATV/vendor_gapps" clone-depth="1" remote="gitlab" revision="refs/heads/baklava" />
-  <project path="vendor/gapps_tv" name="WayDroid-ATV/vendor_gapps_tv" clone-depth="1" remote="gitlab" revision="refs/heads/baklava" />
+  <project path="vendor/gapps" name="WayDroid-ATV/android_vendor_gapps" clone-depth="1" remote="ghub" revision="refs/heads/baklava" />
+  <project path="vendor/gapps_tv" name="WayDroid-ATV/android_vendor_gapps_tv" clone-depth="1" remote="ghub" revision="refs/heads/baklava" />
 
   <!-- Build -->
   <project path="external/rust/ninja-to-soong" name="WayDroid-ATV/android_external_rust_ninja-to-soong" clone-depth="1" remote="ghub" revision="refs/heads/main" />
