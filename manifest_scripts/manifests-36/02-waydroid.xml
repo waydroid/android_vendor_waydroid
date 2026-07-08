@@ -3,10 +3,11 @@
 
   <!-- WayDroid -->
   <project path="device/waydroid/waydroid" name="WayDroid-ATV/android_device_waydroid_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-23.2" />
+  <project path="frameworks/waydroid" name="WayDroid-ATV/android_frameworks_waydroid" clone-depth="1" remote="ghub" revision="refs/heads/lineage-20" />
   <project path="hardware/waydroid" name="WayDroid-ATV/android_hardware_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-21" />
   <project path="vendor/extra" name="WayDroid-ATV/android_vendor_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-23.2" />
   <project path="vendor/waydroid/init" name="WayDroid-ATV/android_vendor_waydroid_init" remote="ghub" clone-depth="1" revision="refs/heads/main" />
-  <project path="packages/apps/WaydroidUpdater" name="WayDroid/android_packages_apps_WaydroidUpdater" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
+  <project path="packages/apps/WaydroidUpdater" name="WayDroid-ATV/android_packages_apps_WaydroidUpdater" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
 
   <!-- Audio -->
   <project path="external/alsa-lib" name="WayDroid-ATV/android_external_alsa-lib" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
@@ -48,7 +49,6 @@
   <project path="prebuilts/mesa-tools" name="WayDroid/android_prebuilts_mesa-tools" groups="pdk" clone-depth="1" remote="ghub" revision="refs/heads/main" />
 
   <!-- Others -->
-  <project path="lineage-sdk" name="WayDroid-ATV/android_lineage-sdk" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
   <project path="frameworks/av" name="WayDroid-ATV/android_frameworks_av" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
   <project path="frameworks/base" name="WayDroid-ATV/android_frameworks_base" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
   <project path="frameworks/native" name="WayDroid-ATV/android_frameworks_native" clone-depth="1" remote="ghub" revision="refs/heads/lineage-23.2" />
