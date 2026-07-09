@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <nekit1000@gmail.com>
+Date: Fri, 18 Jul 2025 15:21:27 +0000
+Subject: [PATCH] (halium) do not attempt to mount partitions with metadata
+ encryption
+
+Change-Id: I77b72f49301879e960d7a8992c2736ccd5cc7096
+---
+ MetadataCrypt.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/MetadataCrypt.cpp b/MetadataCrypt.cpp
+index b7b8e3a..a6b2ae1 100644
+--- a/MetadataCrypt.cpp
++++ b/MetadataCrypt.cpp
+@@ -293,6 +293,10 @@ bool fscrypt_mount_metadata_encrypted(const std::string& blk_device, const std::
+                                       const std::string& fs_type, bool is_zoned,
+                                       const std::vector<std::string>& user_devices,
+                                       const std::vector<bool>& device_aliased, int64_t length) {
++
++    // Disabled for Halium
++    return false;
++
+     LOG(DEBUG) << "fscrypt_mount_metadata_encrypted: " << mount_point
+                << " encrypt: " << needs_encrypt << " format: " << should_format << " with "
+                << fs_type << " block device: " << blk_device << " with zoned " << is_zoned

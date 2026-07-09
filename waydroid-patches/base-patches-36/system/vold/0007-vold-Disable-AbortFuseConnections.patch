@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 18 Jul 2025 15:23:29 +0000
+Subject: [PATCH] vold: Disable AbortFuseConnections
+
+This is unsafe to run in a container, because it affects FUSE mounts outside
+of the container since fusect has no container namespace isolation.
+
+I'm not yet sure if this has relevant consequences, but the downsides outweigh
+any possible issue this introduces in Android.
+
+Change-Id: Ie0acab421b02070e9179b35f2e1aed8c8f51ca3a
+---
+ Utils.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/Utils.cpp b/Utils.cpp
+index 0afae8b..94bff7f 100644
+--- a/Utils.cpp
++++ b/Utils.cpp
+@@ -1497,6 +1497,10 @@ bool writeStringToFile(const std::string& payload, const std::string& filename)
+ }
+ 
+ status_t AbortFuseConnections() {
++    // Waydroid: this is not safe because fusectl has no container isolation
++    // so we would be aborting host FUSE connections.
++    return OK;
++
+     namespace fs = std::filesystem;
+ 
+     static constexpr const char* kFuseConnections = "/sys/fs/fuse/connections";
