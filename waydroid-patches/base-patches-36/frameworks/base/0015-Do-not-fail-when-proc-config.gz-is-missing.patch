@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Thu, 22 Jan 2026 15:09:21 +0800
+Subject: [PATCH] Do not fail when /proc/config.gz is missing
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ core/jni/android_os_Debug.cpp | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/core/jni/android_os_Debug.cpp b/core/jni/android_os_Debug.cpp
+index 8cf9c6af2653..1ead95c626e1 100644
+--- a/core/jni/android_os_Debug.cpp
++++ b/core/jni/android_os_Debug.cpp
+@@ -796,7 +796,12 @@ static jboolean android_os_Debug_isVmapStack(JNIEnv *env, jobject clazz)
+     if (cfg_state == CONFIG_UNKNOWN) {
+         std::map<std::string, std::string> configs;
+         const status_t result = android::kernelconfigs::LoadKernelConfigs(&configs);
+-        CHECK(result == OK) << "Kernel configs could not be fetched. b/151092221";
++
++        if (result != OK) {
++            LOG(ERROR) << "Kernel configs could not be fetched. b/151092221";
++            return true;
++        }
++
+         std::map<std::string, std::string>::const_iterator it = configs.find("CONFIG_VMAP_STACK");
+         cfg_state = (it != configs.end() && it->second == "y") ? CONFIG_SET : CONFIG_UNSET;
+     }

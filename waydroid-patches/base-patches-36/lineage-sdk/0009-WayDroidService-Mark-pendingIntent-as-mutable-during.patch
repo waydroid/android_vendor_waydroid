@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Tue, 28 Apr 2026 16:45:24 +0800
+Subject: [PATCH] WayDroidService: Mark pendingIntent as mutable during
+ installApp
+
+This fixes `waydroid app install` on A16
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ .../java/org/lineageos/platform/internal/WayDroidService.java  | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 5d9a7ec4..d07812f2 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -586,11 +586,12 @@ public class WayDroidService extends LineageSystemService {
+                 }
+                 // Create a PendingIntent and use it to generate the IntentSender
+                 Intent broadcastIntent = new Intent(BROADCAST_ACTION_INSTALL);
++                broadcastIntent.setPackage(mContext.getPackageName());
+                 PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                         mContext,
+                         sessionId,
+                         broadcastIntent,
+-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
++                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+                 session.commit(pendingIntent.getIntentSender());
+             } catch (Exception e) {
+                 Log.e(TAG, "Failure", e);

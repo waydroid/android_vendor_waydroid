@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 28 Feb 2026 15:18:05 +0800
+Subject: [PATCH] Fix building on A16
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ media/libstagefright/Android.bp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/media/libstagefright/Android.bp b/media/libstagefright/Android.bp
+index fac22da438..7ae2e36b3e 100644
+--- a/media/libstagefright/Android.bp
++++ b/media/libstagefright/Android.bp
+@@ -378,6 +378,7 @@ cc_library {
+         "-Werror",
+         "-Wno-error=deprecated-declarations",
+         "-Wno-multichar",
++        "-Wno-unused-but-set-variable",
+     ] + select(soong_config_variable("stagefright", "target_disable_thumbnail_block_model"), {
+         true: ["-DDISABLE_BLOCK_MODEL"],
+         default: [],

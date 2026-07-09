@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sun, 26 Apr 2026 19:45:24 +0800
+Subject: [PATCH] init: Run waydroid-preinit first before doing anything
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ init/first_stage_init.cpp | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/init/first_stage_init.cpp b/init/first_stage_init.cpp
+index 3fb2c5586..3d954ac8d 100644
+--- a/init/first_stage_init.cpp
++++ b/init/first_stage_init.cpp
+@@ -25,6 +25,8 @@
+ #include <sys/sysmacros.h>
+ #include <sys/types.h>
+ #include <sys/utsname.h>
++#include <sys/wait.h>
++#include <spawn.h>
+ #include <unistd.h>
+ 
+ #include <chrono>
+@@ -333,6 +335,15 @@ static std::unique_ptr<FirstStageMount> CreateFirstStageMount(const std::string&
+ }
+ 
+ int FirstStageMain(int argc, char** argv) {
++    // Run waydroid-preinit first before doing anything
++    if (getpid() == 1) {
++        pid_t preinit_pid;
++
++        if (posix_spawn(&preinit_pid, "/system/bin/waydroid-preinit", NULL, NULL, argv, (char *[]){ nullptr }) == 0) {
++            waitpid(preinit_pid, NULL, 0);
++        }
++    }
++
+     if (REBOOT_BOOTLOADER_ON_PANIC) {
+         InstallRebootSignalHandlers();
+     }

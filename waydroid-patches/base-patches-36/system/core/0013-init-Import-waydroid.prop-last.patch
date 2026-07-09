@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 18 Jul 2025 15:00:35 +0000
+Subject: [PATCH] init: Import waydroid.prop last
+
+We want to make sure that waydroid.prop is parsed last, so that it can override
+any system properties.
+That can only be done reliably by patching system/core/init
+
+Change-Id: I04813cab789701db9e0afdee30d82ed11eab0d9b
+---
+ init/property_service.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/init/property_service.cpp b/init/property_service.cpp
+index f99c6d92a..35cc8fba3 100644
+--- a/init/property_service.cpp
++++ b/init/property_service.cpp
+@@ -1206,6 +1206,7 @@ void PropertyLoadBootDefaults() {
+     load_properties_from_file("/odm_dlkm/etc/build.prop", nullptr, &properties);
+     load_properties_from_partition("odm", /* support_legacy_path_until */ 28);
+     load_properties_from_partition("product", /* support_legacy_path_until */ 30);
++    load_properties_from_file("/vendor/waydroid.prop", nullptr, &properties);
+  
+     if (int vendor; ParseInt(properties["ro.vendor.build.version.sdk"], &vendor) &&
+         vendor >= 33) {

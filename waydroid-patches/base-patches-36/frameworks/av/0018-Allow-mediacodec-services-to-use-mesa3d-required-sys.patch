@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Michael Goffioul <michael.goffioul@gmail.com>
+Date: Thu, 17 Feb 2022 11:37:19 +0100
+Subject: [PATCH] Allow mediacodec services to use mesa3d-required syscalls
+
+- kcmp
+- sched_getaffinity
+---
+ services/mediacodec/seccomp_policy/mediacodec-x86.policy      | 4 ++++
+ services/mediacodec/seccomp_policy/mediacodec-x86_64.policy   | 4 ++++
+ services/mediacodec/seccomp_policy/mediaswcodec-x86.policy    | 4 ++++
+ services/mediacodec/seccomp_policy/mediaswcodec-x86_64.policy | 4 ++++
+ 4 files changed, 16 insertions(+)
+
+diff --git a/services/mediacodec/seccomp_policy/mediacodec-x86.policy b/services/mediacodec/seccomp_policy/mediacodec-x86.policy
+index 403df7a48e..f5cabe5012 100644
+--- a/services/mediacodec/seccomp_policy/mediacodec-x86.policy
++++ b/services/mediacodec/seccomp_policy/mediacodec-x86.policy
+@@ -70,5 +70,9 @@ sched_yield: 1
+ getpid: 1
+ gettid: 1
+ 
++# Required by mesa3d
++kcmp: 1
++sched_getaffinity: 1
++
+ @include /system/etc/seccomp_policy/crash_dump.x86.policy
+ @include /system/etc/seccomp_policy/code_coverage.x86.policy
+diff --git a/services/mediacodec/seccomp_policy/mediacodec-x86_64.policy b/services/mediacodec/seccomp_policy/mediacodec-x86_64.policy
+index 403df7a48e..f5cabe5012 100644
+--- a/services/mediacodec/seccomp_policy/mediacodec-x86_64.policy
++++ b/services/mediacodec/seccomp_policy/mediacodec-x86_64.policy
+@@ -70,5 +70,9 @@ sched_yield: 1
+ getpid: 1
+ gettid: 1
+ 
++# Required by mesa3d
++kcmp: 1
++sched_getaffinity: 1
++
+ @include /system/etc/seccomp_policy/crash_dump.x86.policy
+ @include /system/etc/seccomp_policy/code_coverage.x86.policy
+diff --git a/services/mediacodec/seccomp_policy/mediaswcodec-x86.policy b/services/mediacodec/seccomp_policy/mediaswcodec-x86.policy
+index 1c651a1af1..a355712574 100644
+--- a/services/mediacodec/seccomp_policy/mediaswcodec-x86.policy
++++ b/services/mediacodec/seccomp_policy/mediaswcodec-x86.policy
+@@ -68,6 +68,10 @@ getpid: 1
+ gettid: 1
+ sched_yield: 1
+ 
++# Required by mesa3d
++kcmp: 1
++sched_getaffinity: 1
++
+ # The mmap2/mprotect/prctl rules in this file are less restrictive than the rules
+ # in the crash_dump policy file. Therefore, include a version of the crash_dump
+ # policy that does not include any mmap2/mprotect/prctl rules.
+diff --git a/services/mediacodec/seccomp_policy/mediaswcodec-x86_64.policy b/services/mediacodec/seccomp_policy/mediaswcodec-x86_64.policy
+index cfaed29d04..19675a6af4 100644
+--- a/services/mediacodec/seccomp_policy/mediaswcodec-x86_64.policy
++++ b/services/mediacodec/seccomp_policy/mediaswcodec-x86_64.policy
+@@ -68,6 +68,10 @@ getpid: 1
+ gettid: 1
+ sched_yield: 1
+ 
++# Required by mesa3d
++kcmp: 1
++sched_getaffinity: 1
++
+ # The mmap/mprotect/prctl rules in this file are less restrictive than the rules
+ # in the crash_dump policy file. Therefore, include a version of the crash_dump
+ # policy that does not include any mmap/mprotect/prctl rules.

@@ -1,0 +1,122 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Wed, 8 Jul 2026 17:31:45 +0800
+Subject: [PATCH] base: Switch to waydroid framework
+
+Co-authored-by: SupeChicken666 <me@supechicken666.dev>
+---
+ core/res/Android.bp                                         | 1 +
+ packages/SystemUI/Android.bp                                | 1 +
+ services/Android.bp                                         | 2 ++
+ services/core/Android.bp                                    | 1 +
+ .../java/com/android/server/clipboard/ClipboardService.java | 2 +-
+ .../java/com/android/server/power/PowerManagerService.java  | 2 +-
+ services/java/com/android/server/SystemServer.java          | 6 ++++++
+ 7 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/core/res/Android.bp b/core/res/Android.bp
+index 46cae5d2b0ea..77e6ccacaade 100644
+--- a/core/res/Android.bp
++++ b/core/res/Android.bp
+@@ -141,6 +141,7 @@ android_app {
+ 
+     resource_zips: [
+         ":remote-color-resources-arsc-zip",
++        ":framework-waydroid-res",
+     ],
+ 
+     // Create package-export.apk, which other packages can use to get
+diff --git a/packages/SystemUI/Android.bp b/packages/SystemUI/Android.bp
+index b41566be77c7..f721a8f66b44 100644
+--- a/packages/SystemUI/Android.bp
++++ b/packages/SystemUI/Android.bp
+@@ -592,6 +592,7 @@ android_library {
+         "displaylib",
+         "aconfig_settings_flags_lib",
+         "vendor.lineage.powershare-V1-java",
++        "framework-waydroid.static",
+     ],
+     javacflags: [
+         "-Aroom.schemaLocation=frameworks/base/packages/SystemUI/schemas",
+diff --git a/services/Android.bp b/services/Android.bp
+index 7d3d37ca56b3..34a4eec40d69 100644
+--- a/services/Android.bp
++++ b/services/Android.bp
+@@ -155,6 +155,7 @@ filegroup {
+         ":services.voiceinteraction-sources",
+         ":services.wallpapereffectsgeneration-sources",
+         ":services.wifi-sources",
++        ":services.waydroid-sources",
+         ":framework-pm-common-shared-srcs",
+         ":framework-minus-apex-aconfig-srcjars",
+     ],
+@@ -361,6 +362,7 @@ java_library {
+         "services.usb",
+         "services.voiceinteraction",
+         "services.wallpapereffectsgeneration",
++        "services.waydroid",
+         "services.wifi",
+         "service-blobstore",
+         "service-jobscheduler",
+diff --git a/services/core/Android.bp b/services/core/Android.bp
+index 201473ef4f1b..ca0ca90bd657 100644
+--- a/services/core/Android.bp
++++ b/services/core/Android.bp
+@@ -253,6 +253,7 @@ java_library_static {
+         "aconfig_adbdauth_flags_java_lib",
+         "AvfBuildFlags",
+         "vendor.waydroid.window-V1.2-java",
++        "framework-waydroid.static",
+     ],
+     javac_shard_size: 50,
+     javacflags: [
+diff --git a/services/core/java/com/android/server/clipboard/ClipboardService.java b/services/core/java/com/android/server/clipboard/ClipboardService.java
+index 4350d21d9eab..5fa7311abb1b 100644
+--- a/services/core/java/com/android/server/clipboard/ClipboardService.java
++++ b/services/core/java/com/android/server/clipboard/ClipboardService.java
+@@ -123,7 +123,7 @@ import java.util.List;
+ import java.util.concurrent.TimeUnit;
+ import java.util.function.Consumer;
+ 
+-import lineageos.waydroid.WaydroidClipboard;
++import id.waydro.waydroid.WaydroidClipboard;
+ 
+ /**
+  * Implementation of the clipboard for copy and paste.
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index c0e323e25a36..cfe540727a51 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -160,7 +160,7 @@ import com.android.server.wm.WindowManagerInternal;
+ import dalvik.annotation.optimization.NeverCompile;
+ 
+ import lineageos.providers.LineageSettings;
+-import lineageos.waydroid.Hardware;
++import id.waydro.waydroid.Hardware;
+ 
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+diff --git a/services/java/com/android/server/SystemServer.java b/services/java/com/android/server/SystemServer.java
+index a184d6a7efe8..8297f19aa073 100644
+--- a/services/java/com/android/server/SystemServer.java
++++ b/services/java/com/android/server/SystemServer.java
+@@ -339,6 +339,8 @@ import java.util.TreeSet;
+ import java.util.concurrent.CountDownLatch;
+ import java.util.concurrent.Future;
+ 
++import id.waydro.server.WaySystemServer;
++
+ /**
+  * Entry point to {@code system_server}.
+  */
+@@ -3125,6 +3127,10 @@ public final class SystemServer implements Dumpable {
+             reportWtf("Making " + externalServer + " ready", e);
+         }
+ 
++        t.traceBegin("startWaydroidServices");
++        WaySystemServer.startServices(context, mSystemServiceManager);
++        t.traceEnd();
++
+         // It is now time to start up the app processes...
+ 
+         t.traceBegin("MakeLockSettingsServiceReady");

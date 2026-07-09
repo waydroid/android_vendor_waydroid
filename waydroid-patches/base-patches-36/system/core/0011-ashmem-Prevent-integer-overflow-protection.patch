@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 31 Mar 2023 00:08:44 +0200
+Subject: [PATCH] ashmem: Prevent integer overflow protection
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This gets triggered by Dolphin Emu when using memfd.
+Works fine with just ignoring ¯\_(ツ)_/¯
+
+Change-Id: I8082037ae7cfce2e94917ce1786137f0f6e6cf13
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ libcutils/ashmem-dev.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libcutils/ashmem-dev.cpp b/libcutils/ashmem-dev.cpp
+index 11aedb103..901327363 100644
+--- a/libcutils/ashmem-dev.cpp
++++ b/libcutils/ashmem-dev.cpp
+@@ -325,6 +325,7 @@ int ashmem_unpin_region(int fd, size_t offset, size_t length) {
+     return do_pin(ASHMEM_UNPIN, fd, offset, length);
+ }
+ 
++__attribute__((no_sanitize("integer")))
+ int ashmem_get_size_region(int fd) {
+     if (is_memfd_fd(fd)) {
+         struct stat sb;

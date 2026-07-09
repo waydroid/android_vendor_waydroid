@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 27 Apr 2025 14:04:57 +0200
+Subject: [PATCH] libgui: Extend metadata to parent surface
+
+I'm not sure how this is supposed to work, but since sprites became managed by
+BLASTBufferQueue we lost important metadata such as METADATA_MOUSE_CURSOR on
+the surface that actually gets presented to HWC.
+
+Change-Id: I3aa832a3d4ac30aa09a3ecbb48c494f1f480c3aa
+---
+ libs/gui/SurfaceComposerClient.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libs/gui/SurfaceComposerClient.cpp b/libs/gui/SurfaceComposerClient.cpp
+index 8546b0c361..c22e9f0d7b 100644
+--- a/libs/gui/SurfaceComposerClient.cpp
++++ b/libs/gui/SurfaceComposerClient.cpp
+@@ -1468,6 +1468,10 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMetad
+     s->metadata.mMap[key] = {p.data(), p.data() + p.dataSize()};
+ 
+     registerSurfaceControlForCallback(sc);
++
++    if (sc->getParentingLayer() != sc)
++        setMetadata(sc->getParentingLayer(), key, p);
++
+     return *this;
+ }
+ 

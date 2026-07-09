@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Mon, 19 Jan 2026 00:51:11 +0800
+Subject: [PATCH] processgroup: Do not fail on cgroup creation
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ libprocessgroup/processgroup.cpp | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/libprocessgroup/processgroup.cpp b/libprocessgroup/processgroup.cpp
+index cea22b7a6..e7cc1cb7e 100644
+--- a/libprocessgroup/processgroup.cpp
++++ b/libprocessgroup/processgroup.cpp
+@@ -702,12 +702,12 @@ static int createProcessGroupInternal(uid_t uid, pid_t initialPid, std::string c
+ 
+     if (!MkdirAndChown(uid_path, cgroup_mode, cgroup_uid, cgroup_gid)) {
+         PLOG(ERROR) << "Failed to make and chown " << uid_path;
+-        return -errno;
++        return 0;
+     }
+     if (activate_controllers) {
+         if (!CgroupMap::GetInstance().ActivateControllers(uid_path)) {
+             PLOG(ERROR) << "Failed to activate controllers in " << uid_path;
+-            return -errno;
++            return 0;
+         }
+     }
+ 
+@@ -715,13 +715,13 @@ static int createProcessGroupInternal(uid_t uid, pid_t initialPid, std::string c
+ 
+     if (!MkdirAndChown(uid_pid_path, cgroup_mode, cgroup_uid, cgroup_gid)) {
+         PLOG(ERROR) << "Failed to make and chown " << uid_pid_path;
+-        return -errno;
++        return 0;
+     }
+ 
+     auto uid_pid_procs_file = uid_pid_path + '/' + PROCESSGROUP_CGROUP_PROCS_FILE;
+ 
+     if (!WriteStringToFile(std::to_string(initialPid), uid_pid_procs_file)) {
+-        ret = -errno;
++        ret = 0;
+         PLOG(ERROR) << "Failed to write '" << initialPid << "' to " << uid_pid_procs_file;
+     }
+ 

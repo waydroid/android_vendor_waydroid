@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sun, 6 Nov 2022 12:47:52 +0100
+Subject: [PATCH] Fake touch inputs for select apps
+
+Based on "Core: Add force mouse click as touch toggle"
+
+Co-authored-by: Umang96 <umangleekha3@gmail.com>
+Change-Id: Ibe26a1cdc41744ad201427093ec384b9a5a0e4b2
+---
+ core/java/android/view/ViewRootImpl.java | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/core/java/android/view/ViewRootImpl.java b/core/java/android/view/ViewRootImpl.java
+index fa1c190eb4e2..973b71c09be8 100644
+--- a/core/java/android/view/ViewRootImpl.java
++++ b/core/java/android/view/ViewRootImpl.java
+@@ -210,6 +210,7 @@ import android.os.Looper;
+ import android.os.Message;
+ import android.os.MessageQueue;
+ import android.os.ParcelFileDescriptor;
++import android.os.PatternMatcher;
+ import android.os.Process;
+ import android.os.RemoteException;
+ import android.os.ServiceManager;
+@@ -313,6 +314,7 @@ import java.io.StringWriter;
+ import java.lang.ref.WeakReference;
+ import java.util.ArrayDeque;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.HashSet;
+ import java.util.List;
+ import java.util.Objects;
+@@ -658,6 +660,7 @@ public final class ViewRootImpl implements ViewParent,
+     final Choreographer mChoreographer;
+     protected final ViewFrameInfo mViewFrameInfo = new ViewFrameInfo();
+     private final InputEventAssigner mInputEventAssigner = new InputEventAssigner();
++    final boolean mFakeClickAsTouch;
+ 
+     // Whether to draw this surface as DISPLAY_DECORATION.
+     boolean mDisplayDecorationCached = false;
+@@ -1369,7 +1372,17 @@ public final class ViewRootImpl implements ViewParent,
+             preInitBufferAllocator();
+             sPreInitializedBufferAllocator = true;
+         }
+-    }
++
++        String packageName = context.getPackageName();
++        mFakeClickAsTouch = Arrays.stream(SystemProperties.get("persist.waydroid.fake_touch").split(","))
++            .map(x -> x.replace(".", "\\."))
++            .map(x -> x.replace("*", ".*"))
++            .map(x -> new PatternMatcher(x, PatternMatcher.PATTERN_SIMPLE_GLOB))
++            .anyMatch(p -> p.match(packageName));
++
++        if (mFakeClickAsTouch)
++            Log.d(TAG, "Faking touch inputs for " + packageName);
++}
+ 
+     public static void addFirstDrawHandler(Runnable callback) {
+         synchronized (sFirstDrawHandlers) {
+@@ -10660,6 +10673,14 @@ public final class ViewRootImpl implements ViewParent,
+         Trace.asyncTraceBegin(Trace.TRACE_TAG_VIEW, "deliverInputEvent",
+                 q.mEvent.getId());
+ 
++        if (mFakeClickAsTouch && q.mEvent instanceof MotionEvent) {
++            MotionEvent ev = (MotionEvent) q.mEvent;
++            int action = ev.getAction();
++            if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP) {
++                ev.setSource(4098);
++            }
++        }
++
+         if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
+             Trace.traceBegin(Trace.TRACE_TAG_VIEW, "deliverInputEvent src=0x"
+                     + Integer.toHexString(q.mEvent.getSource()) + " eventTimeNano="

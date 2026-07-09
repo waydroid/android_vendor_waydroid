@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 18 Jul 2025 14:57:27 +0000
+Subject: [PATCH] Revert "init: Treat failure to create a process group as
+ fatal"
+
+This reverts commit 1bd17464473a2ea7dd1e1c5abef50fa3f30a56b5.
+
+Change-Id: Ia7cb72bea08343f5a9b5e1afb42c44f0d91e1427
+---
+ init/service.cpp | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/init/service.cpp b/init/service.cpp
+index b4b8a97a5..1fd8c5a1e 100644
+--- a/init/service.cpp
++++ b/init/service.cpp
+@@ -560,10 +560,10 @@ void Service::RunService(const std::vector<Descriptor>& descriptors,
+         LOG(ERROR) << name_ << ": failed to read from notification channel: " << byte.error();
+     }
+     cgroups_activated.Close();
+-    if (*byte != kCgroupsActivated) {
++    /*if (*byte != kCgroupsActivated) {
+         LOG(FATAL) << "Service '" << name_  << "' failed to start due to a fatal error";
+         _exit(EXIT_FAILURE);
+-    }
++    }*/
+ 
+     if (task_profiles_.size() > 0) {
+         bool succeeded = SelinuxGetVendorAndroidVersion() < __ANDROID_API_U__
+@@ -744,14 +744,14 @@ Result<void> Service::Start() {
+         bool use_memcg = swappiness_ != -1 || soft_limit_in_bytes_ != -1 || limit_in_bytes_ != -1 ||
+                          limit_percent_ != -1 || !limit_property_.empty();
+         errno = -createProcessGroup(uid(), pid_, use_memcg);
+-        if (errno != 0) {
++        /*if (errno != 0) {
+             Result<void> result = cgroups_activated.Write(kActivatingCgroupsFailed);
+             if (!result.ok()) {
+                 return Error() << "Sending notification failed: " << result.error();
+             }
+             return Error() << "createProcessGroup(" << uid() << ", " << pid_ << ", " << use_memcg
+                            << ") failed for service '" << name_ << "': " << strerror(errno);
+-        }
++        }*/
+ 
+         // When the blkio controller is mounted in the v1 hierarchy, NormalIoPriority is
+         // the default (/dev/blkio). When the blkio controller is mounted in the v2 hierarchy, the

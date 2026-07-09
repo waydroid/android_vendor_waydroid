@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Thu, 5 Mar 2026 11:42:20 +0800
+Subject: [PATCH] trust: Suppress SELinux warning
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ .../platform/internal/TrustInterfaceService.java          | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java b/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
+index 97d684ac..9b8c41d2 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
+@@ -195,10 +195,10 @@ public class TrustInterfaceService extends LineageSystemService {
+     }
+ 
+     private void runTestInternal() {
+-        int selinuxStatus = getSELinuxStatus();
+-        if (selinuxStatus != TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {
+-            postNotificationForFeatureInternal(TrustInterface.TRUST_WARN_SELINUX);
+-        }
++        // int selinuxStatus = getSELinuxStatus();
++        // if (selinuxStatus != TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {
++        //     postNotificationForFeatureInternal(TrustInterface.TRUST_WARN_SELINUX);
++        // }
+ 
+         int keysStatus = getKeysStatus();
+         if (keysStatus != TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {

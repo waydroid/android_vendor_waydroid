@@ -1,7 +1,7 @@
-From 708233530dfe8422241415f620ac5cf29a85cf70 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Asriel Dreemurr <asriel.danctnix@gmail.com>
 Date: Fri, 27 Feb 2026 08:00:35 +0000
-Subject: [PATCH 1/3] (waydroid) add /vendor_extra path as a clone of /vendor
+Subject: [PATCH] (waydroid) add /vendor_extra path as a clone of /vendor
  entries
 
 Change-Id: Idbc768b7a2877f0cc82ae99d3802d3a1bbf45b7b
@@ -119,6 +119,3 @@ index d821eb7..492db7c 100644
      ns.AddPermittedPath("/system/vendor/${LIB}/hw");
      ns.AddPermittedPath("/system/vendor/${LIB}/egl");
  
--- 
-2.55.0
-

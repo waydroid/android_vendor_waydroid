@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sun, 1 Mar 2026 03:12:04 +0800
+Subject: [PATCH] ashmem: Do not check for ashmem-memfd kernel support
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ libcutils/ashmem-dev.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/libcutils/ashmem-dev.cpp b/libcutils/ashmem-dev.cpp
+index 901327363..554cc7415 100644
+--- a/libcutils/ashmem-dev.cpp
++++ b/libcutils/ashmem-dev.cpp
+@@ -93,6 +93,7 @@ static bool __has_memfd_support() {
+         return false;
+     }
+ 
++#if 0
+     // Check that the kernel supports the ashmem ioctls on a memfd.
+     int ashmem_size = TEMP_FAILURE_RETRY(ioctl(fd, ASHMEM_GET_SIZE, 0));
+     if (ashmem_size != static_cast<int>(buf_size)) {
+@@ -100,6 +101,7 @@ static bool __has_memfd_support() {
+               ashmem_size, buf_size);
+         return false;
+     }
++#endif
+ 
+     if (debug_log) {
+         ALOGD("memfd: device has memfd support, using it");

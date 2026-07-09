@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Thu, 1 Jun 2017 12:00:10 +0800
+Subject: [PATCH] media: enable dithering for RGB565 conversion
+
+This seems to improve video playback quality.
+
+Inspired by a patch from WuZhen.
+
+Change-Id: I82aa566af0f5c9eccfa0dfc16914b037b1b24c58
+---
+ .../colorconversion/ColorConverter.cpp            | 15 +++------------
+ 1 file changed, 3 insertions(+), 12 deletions(-)
+
+diff --git a/media/libstagefright/colorconversion/ColorConverter.cpp b/media/libstagefright/colorconversion/ColorConverter.cpp
+index e079765d6d..605115f908 100644
+--- a/media/libstagefright/colorconversion/ColorConverter.cpp
++++ b/media/libstagefright/colorconversion/ColorConverter.cpp
+@@ -891,19 +891,10 @@ status_t ColorConverter::convertYUV420PlanarUseLibYUV(
+     switch (mDstFormat) {
+     case OMX_COLOR_Format16bitRGB565:
+     {
+-        libyuv::I420ToRGB565Matrix(src_y,
+-                src_stride_y,
+-                src_u,
+-                src_stride_u,
+-                src_v,
+-                src_stride_v,
+-                dst_ptr,
+-                dst.mStride,
+-                yuvConstants.yuv,
+-                src.cropWidth(),
+-                src.cropHeight());
++        libyuv::I420ToRGB565Dither(src_y, src.mStride, src_u, src.mStride / 2, src_v, src.mStride / 2,
++                (uint8_t *)dst_ptr, dst.mStride, NULL, src.cropWidth(), src.cropHeight());
+ 
+-        break;
++    break;
+     }
+ 
+     case OMX_COLOR_Format32bitBGRA8888:

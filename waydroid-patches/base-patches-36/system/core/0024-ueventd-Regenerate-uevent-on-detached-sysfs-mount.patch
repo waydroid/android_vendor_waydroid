@@ -1,0 +1,66 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 23 May 2026 05:29:24 +0800
+Subject: [PATCH] ueventd: Regenerate uevent on detached sysfs mount
+
+This allow us to regenerate uevent with read-only /sys mount
+
+Requires kernel 5.2+ to work
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ init/uevent_listener.cpp | 30 ++++++++++++++++++++++++++++--
+ 1 file changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/init/uevent_listener.cpp b/init/uevent_listener.cpp
+index a7ecd4337..7bccd2550 100644
+--- a/init/uevent_listener.cpp
++++ b/init/uevent_listener.cpp
+@@ -19,6 +19,8 @@
+ #include <fcntl.h>
+ #include <poll.h>
+ #include <string.h>
++#include <sys/mount.h>
++#include <sys/syscall.h>
+ #include <unistd.h>
+ 
+ #include <memory>
+@@ -182,12 +184,36 @@ ListenerAction UeventListener::RegenerateUeventsForPath(const std::string& path,
+     return RegenerateUeventsForDir(d.get(), callback);
+ }
+ 
+-static const char* kRegenerationPaths[] = {"/sys/devices"};
++static const char* kRegenerationPaths[] = {"devices"};
+ 
+ void UeventListener::RegenerateUevents(const ListenerCallback& callback) const {
++    int fsfd, mntfd;
++
++    if ((fsfd = syscall(__NR_fsopen, "sysfs", FSOPEN_CLOEXEC)) == -1) {
++        PLOG(FATAL) << "Failed to create sysfs mount context";
++    }
++
++    syscall(__NR_fsconfig, fsfd, FSCONFIG_CMD_CREATE, NULL, NULL, 0);
++
++    if ((mntfd = syscall(__NR_fsmount, fsfd, FSMOUNT_CLOEXEC, 0)) == -1) {
++        PLOG(FATAL) << "Failed to initialize sysfs mount";
++    }
++
++    // Remount sysfs in read-write mode
++    if (close(fsfd), (fsfd = syscall(__NR_fspick, mntfd, "", FSPICK_EMPTY_PATH)) == -1) {
++        PLOG(FATAL) << "Failed to reconfigure sysfs mount";
++    }
++
++    syscall(__NR_fsconfig, fsfd, FSCONFIG_SET_FLAG, "rw", NULL, 0);
++    syscall(__NR_fsconfig, fsfd, FSCONFIG_CMD_RECONFIGURE, NULL, NULL, 0);
++    close(fsfd);
++
+     for (const auto path : kRegenerationPaths) {
+-        if (RegenerateUeventsForPath(path, callback) == ListenerAction::kStop) return;
++        std::unique_ptr<DIR, decltype(&closedir)> d(fdopendir(openat(mntfd, path, O_DIRECTORY | O_CLOEXEC)), closedir);
++        if (RegenerateUeventsForDir(d.get(), callback) == ListenerAction::kStop) break;
+     }
++
++    close(mntfd);
+ }
+ 
+ void UeventListener::Poll(const ListenerCallback& callback,

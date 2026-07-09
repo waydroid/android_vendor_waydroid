@@ -1,0 +1,160 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Simon Fels <morphis@gravedo.de>
+Date: Fri, 18 Jul 2025 13:21:05 +0000
+Subject: [PATCH] inputflinger: add absolute event support for cursor
+
+Co-authored-by: SupeChicken666 <me@supechicken666.dev>
+Change-Id: I0e1ff6b3dd2daf4d194420113b6ac68cf9a1d1a7
+---
+ .../reader/mapper/CursorInputMapper.cpp       | 51 +++++++++++++++++--
+ .../reader/mapper/CursorInputMapper.h         | 22 ++++++++
+ 2 files changed, 70 insertions(+), 3 deletions(-)
+
+diff --git a/services/inputflinger/reader/mapper/CursorInputMapper.cpp b/services/inputflinger/reader/mapper/CursorInputMapper.cpp
+index ec52d1076a..0057873be0 100644
+--- a/services/inputflinger/reader/mapper/CursorInputMapper.cpp
++++ b/services/inputflinger/reader/mapper/CursorInputMapper.cpp
+@@ -95,6 +95,39 @@ void CursorMotionAccumulator::finishSync() {
+     clearRelativeAxes();
+ }
+ 
++// --- CursorPositionAccumulator ---
++
++CursorPositionAccumulator::CursorPositionAccumulator() {
++    clearPosition();
++}
++
++void CursorPositionAccumulator::reset(InputDeviceContext& deviceContext) {
++    clearPosition();
++}
++
++void CursorPositionAccumulator::clearPosition() {
++    mX = 0;
++    mY = 0;
++}
++
++void CursorPositionAccumulator::process(const RawEvent& rawEvent) {
++    if (rawEvent.type == EV_ABS) {
++        switch (rawEvent.code) {
++        case ABS_X:
++            mX = rawEvent.value;
++            break;
++        case ABS_Y:
++            mY = rawEvent.value;
++            break;
++        }
++    }
++}
++
++void CursorPositionAccumulator::finishSync() {
++    clearPosition();
++}
++
++
+ // --- CursorInputMapper ---
+ 
+ CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
+@@ -216,6 +249,8 @@ CursorInputMapper::Parameters CursorInputMapper::computeParameters(
+     if (parameters.mode == Parameters::Mode::POINTER || parameters.orientationAware) {
+         parameters.hasAssociatedDisplay = true;
+     }
++
++    parameters.isWayland = (deviceContext.getDeviceIdentifier().location == "wayland");
+     return parameters;
+ }
+ 
+@@ -238,6 +273,7 @@ std::list<NotifyArgs> CursorInputMapper::reset(nsecs_t when) {
+ 
+     mCursorButtonAccumulator.reset(getDeviceContext());
+     mCursorMotionAccumulator.reset(getDeviceContext());
++    mCursorPositionAccumulator.reset(getDeviceContext());
+     mCursorScrollAccumulator.reset(getDeviceContext());
+ 
+     return InputMapper::reset(when);
+@@ -247,6 +283,7 @@ std::list<NotifyArgs> CursorInputMapper::process(const RawEvent& rawEvent) {
+     std::list<NotifyArgs> out;
+     mCursorButtonAccumulator.process(rawEvent);
+     mCursorMotionAccumulator.process(rawEvent);
++    mCursorPositionAccumulator.process(rawEvent);
+     mCursorScrollAccumulator.process(rawEvent);
+ 
+     if (rawEvent.type == EV_SYN && rawEvent.code == SYN_REPORT) {
+@@ -314,8 +351,8 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+ 
+     mPointerVelocityControl.move(when, &deltaX, &deltaY);
+ 
+-    float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
+-    float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
++    float xCursorPosition = mParameters.isWayland ? mCursorPositionAccumulator.getX() : AMOTION_EVENT_INVALID_CURSOR_POSITION;
++    float yCursorPosition = mParameters.isWayland ? mCursorPositionAccumulator.getY() : AMOTION_EVENT_INVALID_CURSOR_POSITION;
+ 
+     // Moving an external trackball or mouse should wake the device.
+     // We don't do this for internal cursor devices to prevent them from waking up
+@@ -340,7 +377,10 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+         moveCoords.clear();
+         moveCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
+         moveCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
+-        if (mSource != AINPUT_SOURCE_MOUSE) {
++        if (mParameters.isWayland) {
++            moveCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
++            moveCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
++        } else if (mSource != AINPUT_SOURCE_MOUSE) {
+             // Pointer capture and navigation modes
+             moveCoords.setAxisValue(AMOTION_EVENT_AXIS_X, deltaX);
+             moveCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, deltaY);
+@@ -369,6 +409,11 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+         pointerCoords.clear();
+         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, down ? 1.0f : 0.0f);
+ 
++        if (mParameters.isWayland) {
++            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
++            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
++        }
++
+         if (buttonsReleased) {
+             BitSet32 released(buttonsReleased);
+             while (!released.isEmpty()) {
+diff --git a/services/inputflinger/reader/mapper/CursorInputMapper.h b/services/inputflinger/reader/mapper/CursorInputMapper.h
+index 7215403de2..6d5be2fb12 100644
+--- a/services/inputflinger/reader/mapper/CursorInputMapper.h
++++ b/services/inputflinger/reader/mapper/CursorInputMapper.h
+@@ -45,6 +45,26 @@ private:
+     void clearRelativeAxes();
+ };
+ 
++/* Keeps track of cursor position. */
++
++class CursorPositionAccumulator {
++public:
++    CursorPositionAccumulator();
++    void reset(InputDeviceContext& deviceContext);
++
++    void process(const RawEvent& rawEvent);
++    void finishSync();
++
++    inline int32_t getX() const { return mX; }
++    inline int32_t getY() const { return mY; }
++
++private:
++    int32_t mX;
++    int32_t mY;
++
++    void clearPosition();
++};
++
+ class CursorInputMapper : public InputMapper {
+ public:
+     template <class T, class... Args>
+@@ -88,10 +108,12 @@ private:
+         Mode mode;
+         bool hasAssociatedDisplay;
+         bool orientationAware;
++        bool isWayland;
+     } mParameters;
+ 
+     CursorButtonAccumulator mCursorButtonAccumulator;
+     CursorMotionAccumulator mCursorMotionAccumulator;
++    CursorPositionAccumulator mCursorPositionAccumulator;
+     CursorScrollAccumulator mCursorScrollAccumulator;
+ 
+     int32_t mSource;
