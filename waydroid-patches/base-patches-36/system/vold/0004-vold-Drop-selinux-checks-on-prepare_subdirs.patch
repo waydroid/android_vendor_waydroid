@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 18 Jul 2025 15:22:47 +0000
+Subject: [PATCH] vold: Drop selinux checks on prepare_subdirs
+
+Change-Id: I60936b9972e7dd9906e9bfd935af6dbc63aa0493
+---
+ vold_prepare_subdirs.cpp | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/vold_prepare_subdirs.cpp b/vold_prepare_subdirs.cpp
+index ca8e3f6..3a1240c 100644
+--- a/vold_prepare_subdirs.cpp
++++ b/vold_prepare_subdirs.cpp
+@@ -57,7 +57,7 @@ static bool valid_uuid(const std::string& s) {
+ static bool prepare_dir_for_user(struct selabel_handle* sehandle, mode_t mode, uid_t uid, gid_t gid,
+                                  const std::string& path, uid_t user_id) {
+     auto clearfscreatecon = android::base::make_scope_guard([] { setfscreatecon(nullptr); });
+-    auto secontext = std::unique_ptr<char, void (*)(char*)>(nullptr, freecon);
++    /*auto secontext = std::unique_ptr<char, void (*)(char*)>(nullptr, freecon);
+     char* tmp_secontext;
+ 
+     if (selabel_lookup(sehandle, &tmp_secontext, path.c_str(), S_IFDIR) == 0) {
+@@ -83,11 +83,11 @@ static bool prepare_dir_for_user(struct selabel_handle* sehandle, mode_t mode, u
+ 
+     LOG(DEBUG) << "Setting up mode " << std::oct << mode << std::dec << " uid " << uid << " gid "
+                << gid << " context " << (secontext ? secontext.get() : "null")
+-               << " on path: " << path;
++               << " on path: " << path;*/
+     if (fs_prepare_dir(path.c_str(), mode, uid, gid) != 0) {
+         return false;
+     }
+-    if (secontext) {
++    /*if (secontext) {
+         char* tmp_oldsecontext = nullptr;
+         if (lgetfilecon(path.c_str(), &tmp_oldsecontext) < 0) {
+             PLOG(ERROR) << "Unable to read secontext for: " << path;
+@@ -102,7 +102,7 @@ static bool prepare_dir_for_user(struct selabel_handle* sehandle, mode_t mode, u
+                 return false;
+             }
+         }
+-    }
++    }*/
+     return true;
+ }
+ 
