@@ -1,0 +1,115 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Thu, 9 Jul 2026 00:13:11 +0300
+Subject: [PATCH] libbinder: pre-A16 host servicemanager compatibility bridge
+
+A16 inserted getService2/checkService2 into IServiceManager, shifting
+checkService from transaction code 2 (A14/A15) to code 3 (A16). Waydroid's
+A16 AIDL Bp therefore sends code 3, which a pre-A16 Halium host decodes as
+addService and rejects.
+
+Probe the host servicemanager version once (a code-3 checkService that
+fails on a pre-A16 host) and, when the host predates A16, resolve services
+with a raw legacy checkService (code 2) whose request/reply envelope stays
+wire-compatible with the old servicemanager. A16+ hosts keep the direct
+AIDL path.
+---
+ libs/binder/BackendUnifiedServiceManager.cpp | 78 ++++++++++++++++++--
+ 1 file changed, 72 insertions(+), 6 deletions(-)
+
+diff --git a/libs/binder/BackendUnifiedServiceManager.cpp b/libs/binder/BackendUnifiedServiceManager.cpp
+index 701f98c52c..65b95cc225 100644
+--- a/libs/binder/BackendUnifiedServiceManager.cpp
++++ b/libs/binder/BackendUnifiedServiceManager.cpp
+@@ -115,6 +115,76 @@ bool isHostAidlService(const std::string& name) {
+     return false;
+ }
+ 
++// Waydroid dual-driver: host servicemanager cross-version bridge. A16 inserted
++// getService2/checkService2 into IServiceManager, shifting checkService from
++// code 2 (A14/A15) to code 3 (A16) and every later code by two. So our A16 AIDL
++// Bp talks code 3, which a pre-A16 host decodes as addService.
++
++// checkService transaction code on a pre-A16 (A14/A15) servicemanager.
++static constexpr uint32_t kLegacyCheckServiceCode = ::android::IBinder::FIRST_CALL_TRANSACTION + 1;
++
++// Whether the host servicemanager predates A16 (cached). The AIDL probe sends
++// code 3: on A16 it resolves to checkService (ok); on a pre-A16 host it hits
++// addService with a truncated parcel and fails, so a failed probe means pre-A16.
++static bool hostServicemanagerIsPreA16() {
++    static std::once_flag once;
++    static bool preA16 = true; // safe default: the host we bridge to is A14
++    std::call_once(once, [] {
++        sp<ProcessState> host = ProcessState::self(/*isHost=*/true);
++        if (host == nullptr) return;
++        sp<IBinder> ctx = host->getContextObject(nullptr);
++        if (ctx == nullptr) return;
++        sp<AidlServiceManager> hostSm = interface_cast<AidlServiceManager>(ctx);
++        if (hostSm == nullptr) return;
++
++        sp<IBinder> dummy;
++        Status s = hostSm->checkService("__waydroid_version_probe__", &dummy);
++        preA16 = !s.isOk();
++        ALOGI("Waydroid: host servicemanager is %s (probe: %s)", preA16 ? "pre-A16" : "A16+",
++              s.toString8().c_str());
++    });
++    return preA16;
++}
++
++// Pre-A16 host: raw legacy checkService (code 2). Request/reply envelope is
++// wire-compatible with the old servicemanager; the reply binder is resolved
++// against the host ProcessState via BpBinder::transact's SetIsHost() stamp.
++static Status hostCheckServiceLegacy(const sp<IBinder>& ctx, const std::string& name,
++                                     sp<IBinder>* out) {
++    Parcel data;
++    data.writeInterfaceToken(String16("android.os.IServiceManager"));
++    data.writeUtf8AsUtf16(name);
++
++    Parcel reply;
++    if (status_t err = ctx->transact(kLegacyCheckServiceCode, data, &reply, 0); err != NO_ERROR) {
++        ALOGW("Waydroid: host legacy checkService(%s) transact failed: %s (%d)", name.c_str(),
++              strerror(-err), err);
++        return Status::fromStatusT(err);
++    }
++
++    Status status;
++    if (status_t ret = status.readFromParcel(reply); ret != OK) {
++        return Status::fromStatusT(ret);
++    }
++    if (!status.isOk()) return status;
++
++    if (status_t ret = reply.readNullableStrongBinder(out); ret != OK) {
++        return Status::fromStatusT(ret);
++    }
++    return Status::ok();
++}
++
++// A16+ host: the native checkService (code 3) matches our AIDL Bp directly.
++static Status hostCheckServiceAidl(const sp<IBinder>& ctx, const std::string& name,
++                                   sp<IBinder>* out) {
++    sp<AidlServiceManager> hostSm = interface_cast<AidlServiceManager>(ctx);
++    if (hostSm == nullptr) {
++        ALOGW("Waydroid: host context is not an AidlServiceManager");
++        return Status::ok();
++    }
++    return hostSm->checkService(name, out);
++}
++
+ static const char* kUnsupportedOpNoServiceManager =
+         "Unsupported operation without a kernel binder servicemanager process";
+ 
+@@ -304,12 +374,8 @@ Status BackendUnifiedServiceManager::queryHostService(const std::string& name,
+     // BpBinders and that path asserts local-only (BBinder) and would FATAL.
+ 
+     sp<IBinder> out;
+-    sp<AidlServiceManager> hostSm = interface_cast<AidlServiceManager>(ctx);
+-    if (hostSm == nullptr) {
+-        ALOGW("Waydroid: host context is not an AidlServiceManager");
+-        return Status::ok();
+-    }
+-    Status status = hostSm->checkService(name, &out);
++    Status status = hostServicemanagerIsPreA16() ? hostCheckServiceLegacy(ctx, name, &out)
++                                                 : hostCheckServiceAidl(ctx, name, &out);
+     if (!status.isOk()) {
+         ALOGW("Waydroid: host checkService(%s) failed: %s", name.c_str(),
+               status.toString8().c_str());
