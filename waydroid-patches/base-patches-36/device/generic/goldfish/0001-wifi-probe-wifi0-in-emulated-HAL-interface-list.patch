@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Wed, 8 Jul 2026 23:23:05 +0300
+Subject: [PATCH] wifi: probe wifi0 in emulated HAL interface list
+
+Waydroid's emulated wlan netdev is named "wifi0" rather than "wlan0": the
+host kernel's vendor wifi driver (e.g. MTK gen4m) matches interfaces by the
+"wlan"/"p2p" name prefixes in its namespace-global netdev/inetaddr notifiers
+and dereferences the container veth's netdev_priv() as its own struct,
+panicking the host on the first RTM_NEWADDR.
+
+Add "wifi0" to the names the emulator wifi HAL probes under /sys/class/net,
+alongside the existing wlan0/wlan1, so it discovers the interface.
+
+Change-Id: I9e48540bd58b5a570047f019a5be653ee33e6f1b
+---
+ wifi/wifi_hal/info.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/wifi/wifi_hal/info.cpp b/wifi/wifi_hal/info.cpp
+index 8869c65..fb89be0 100644
+--- a/wifi/wifi_hal/info.cpp
++++ b/wifi/wifi_hal/info.cpp
+@@ -20,7 +20,10 @@
+ 
+ #include <string>
+ 
+-static const char* const kInterfaceNames[] = {"wlan0", "wlan1"};
++// "wifi0" can be used to avoid the wlan"/"p2p" prefixes
++// that host-kernel vendor wifi drivers match in their namespace-global
++// netdev notifiers (which panics on the container's veth).
++static const char* const kInterfaceNames[] = {"wlan0", "wlan1", "wifi0"};
+ 
+ Info::Info() {
+     mInterfaces.reserve(sizeof(kInterfaceNames) / sizeof(kInterfaceNames[0]));

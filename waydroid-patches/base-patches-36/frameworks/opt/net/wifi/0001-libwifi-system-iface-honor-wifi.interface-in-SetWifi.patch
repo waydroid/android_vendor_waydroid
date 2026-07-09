@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Wed, 8 Jul 2026 23:23:14 +0300
+Subject: [PATCH] libwifi-system-iface: honor wifi.interface in SetWifiUpState
+
+SetWifiUpState() hardcoded "wlan0", but the wifi AIDL HAL already names its
+STA interface from the wifi.interface system property (getWlanIfaceName in
+wifi_chip.cpp). On a device whose interface is not wlan0, the legacy HAL's
+start() brings the interface up via SetWifiUpState() before wifi_initialize,
+so the SIOCGIFFLAGS on the missing wlan0 fails and the whole HAL start
+fails with "Failed to set WiFi interface up".
+
+Read wifi.interface (defaulting to wlan0) so this path matches the name the
+rest of the stack uses.
+
+Change-Id: I9601a3b85eae5354997ffa1870bc22d28b72dd8a
+---
+ libwifi_system_iface/interface_tool.cpp | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/libwifi_system_iface/interface_tool.cpp b/libwifi_system_iface/interface_tool.cpp
+index 2dc23a3..19b1666 100644
+--- a/libwifi_system_iface/interface_tool.cpp
++++ b/libwifi_system_iface/interface_tool.cpp
+@@ -30,6 +30,7 @@
+ #include <linux/if.h>
+ 
+ #include <android-base/logging.h>
++#include <android-base/properties.h>
+ #include <android-base/unique_fd.h>
+ 
+ #define IFNAMSIZ    16
+@@ -109,7 +110,11 @@ bool InterfaceTool::SetUpState(const char* if_name, bool request_up) {
+ }
+ 
+ bool InterfaceTool::SetWifiUpState(bool request_up) {
+-  return SetUpState(kWlan0InterfaceName, request_up);
++  // Honor the same property the wifi AIDL HAL uses to name its STA iface
++  // (see getWlanIfaceName in wifi_chip.cpp) instead of assuming wlan0.
++  std::string ifname =
++      base::GetProperty("wifi.interface", kWlan0InterfaceName);
++  return SetUpState(ifname.c_str(), request_up);
+ }
+ 
+ bool InterfaceTool::SetMacAddress(const char* if_name,
