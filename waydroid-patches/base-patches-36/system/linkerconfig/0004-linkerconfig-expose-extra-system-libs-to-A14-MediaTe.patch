@@ -1,0 +1,51 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Thu, 9 Jul 2026 00:08:19 +0300
+Subject: [PATCH] linkerconfig: expose extra /system libs to A14 MediaTek
+ SP-HALs
+
+The A14 MediaTek SP-HALs and vendor blobs (e.g. mapper.mediatek.so) need
+android.hardware.graphics.common-V4-ndk.so, libutilscallstack.so and
+libunwindstack.so from /system, which the A16 sphal/vendor namespaces do
+not whitelist by default.
+
+Change-Id: I16cef1e9ffc4919790636ee090d4ad2351ef7ce9
+---
+ contents/namespace/sphal.cc         | 6 ++++++
+ contents/namespace/vendordefault.cc | 6 ++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/contents/namespace/sphal.cc b/contents/namespace/sphal.cc
+index 61f6dd5..15dce0c 100644
+--- a/contents/namespace/sphal.cc
++++ b/contents/namespace/sphal.cc
+@@ -71,6 +71,12 @@ Namespace BuildSphalNamespace([[maybe_unused]] const Context& ctx) {
+ 
+   AddLlndkLibraries(ctx, &ns, VndkUserPartition::Vendor);
+ 
++  // Waydroid: expose extra /system libs the A14 MediaTek SP-HALs (e.g.
++  // mapper.mediatek.so) need but that A16 sphal doesn't whitelist by default.
++  ns.GetLink(ctx.GetSystemNamespaceName())
++      .AddSharedLib("android.hardware.graphics.common-V4-ndk.so",
++                    "libutilscallstack.so", "libunwindstack.so");
++
+   if (ctx.IsApexBinaryConfig()) {
+     if (android::linkerconfig::modules::IsVendorVndkVersionDefined()) {
+       ns.AddRequires(std::vector{":vndksp"});
+diff --git a/contents/namespace/vendordefault.cc b/contents/namespace/vendordefault.cc
+index ae1891b..6ff568b 100644
+--- a/contents/namespace/vendordefault.cc
++++ b/contents/namespace/vendordefault.cc
+@@ -58,6 +58,12 @@ Namespace BuildVendorNamespace([[maybe_unused]] const Context& ctx,
+   ns.GetLink("rs").AddSharedLib("libRS_internal.so");
+   ns.AddRequires(base::Split(Var("LLNDK_LIBRARIES_VENDOR", ""), ":"));
+ 
++  // Waydroid: expose extra /system libs the A14 MediaTek vendor blobs (e.g.
++  // mapper.mediatek.so) need but that A16 doesn't whitelist by default.
++  ns.GetLink(ctx.GetSystemNamespaceName())
++      .AddSharedLib("android.hardware.graphics.common-V4-ndk.so",
++                    "libutilscallstack.so", "libunwindstack.so");
++
+   if (android::linkerconfig::modules::IsVendorVndkVersionDefined()) {
+     ns.GetLink(ctx.GetSystemNamespaceName())
+         .AddSharedLib(Var("SANITIZER_DEFAULT_VENDOR"));
