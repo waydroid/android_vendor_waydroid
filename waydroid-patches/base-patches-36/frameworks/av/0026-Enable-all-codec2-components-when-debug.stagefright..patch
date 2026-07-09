@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Wed, 16 Jul 2025 14:46:06 +0000
+Subject: [PATCH] Enable all codec2 components when debug.stagefright.ccodec=0
+
+Waydroid sets debug.stagefright.ccodec to 0 by default
+
+Change-Id: If722001d129ab7c58d3a5be737ffd61a3eb26005
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ media/codec2/sfplugin/Codec2InfoBuilder.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/media/codec2/sfplugin/Codec2InfoBuilder.cpp b/media/codec2/sfplugin/Codec2InfoBuilder.cpp
+index 394b1f9141..51ed4a545c 100644
+--- a/media/codec2/sfplugin/Codec2InfoBuilder.cpp
++++ b/media/codec2/sfplugin/Codec2InfoBuilder.cpp
+@@ -566,7 +566,7 @@ status_t Codec2InfoBuilder::buildMediaCodecList(MediaCodecListWriter* writer) {
+             // TODO: Remove this block once all codecs are enabled by default.
+             switch (option) {
+             case 0:
+-                continue;
++                break;
+             case 1:
+                 if (hasPrefix(canonName, "c2.vda.")) {
+                     break;

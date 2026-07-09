@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Thu, 21 May 2026 20:33:56 +0800
+Subject: [PATCH] init: Drop harmful capabilities
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ init/first_stage_init.cpp | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/init/first_stage_init.cpp b/init/first_stage_init.cpp
+index 3d954ac8d..e1a9970c6 100644
+--- a/init/first_stage_init.cpp
++++ b/init/first_stage_init.cpp
+@@ -18,9 +18,11 @@
+ 
+ #include <dirent.h>
+ #include <fcntl.h>
++#include <linux/capability.h>
+ #include <paths.h>
+ #include <stdlib.h>
+ #include <sys/mount.h>
++#include <sys/prctl.h>
+ #include <sys/stat.h>
+ #include <sys/sysmacros.h>
+ #include <sys/types.h>
+@@ -357,6 +359,17 @@ int FirstStageMain(int argc, char** argv) {
+ #define MKDIR_IF_NOT_EXIST(dir, mode) \
+     access(dir, F_OK) == 0 ? 0 : mkdir(dir, mode)
+ 
++    // Drop harmful capabilities
++    prctl(PR_CAPBSET_DROP, CAP_MAC_ADMIN, 0, 0, 0);
++    prctl(PR_CAPBSET_DROP, CAP_MAC_OVERRIDE, 0, 0, 0);
++    prctl(PR_CAPBSET_DROP, CAP_SYS_TIME, 0, 0, 0);
++    prctl(PR_CAPBSET_DROP, CAP_SYS_MODULE, 0, 0, 0);
++    prctl(PR_CAPBSET_DROP, CAP_SYS_RAWIO, 0, 0, 0);
++    prctl(PR_CAPBSET_DROP, CAP_SYS_BOOT, 0, 0, 0);
++
++    // Enable no new privileges flag
++    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
++
+     // Clear the umask.
+     umask(0);
+ 

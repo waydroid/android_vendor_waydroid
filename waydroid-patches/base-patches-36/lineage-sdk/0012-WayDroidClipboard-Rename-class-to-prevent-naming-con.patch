@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Mon, 11 May 2026 22:25:24 +0800
+Subject: [PATCH] WayDroidClipboard: Rename class to prevent naming conflict
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ .../{Clipboard.java => WaydroidClipboard.java}     | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+ rename sdk/src/java/lineageos/waydroid/{Clipboard.java => WaydroidClipboard.java} (89%)
+
+diff --git a/sdk/src/java/lineageos/waydroid/Clipboard.java b/sdk/src/java/lineageos/waydroid/WaydroidClipboard.java
+similarity index 89%
+rename from sdk/src/java/lineageos/waydroid/Clipboard.java
+rename to sdk/src/java/lineageos/waydroid/WaydroidClipboard.java
+index d08590c7..e5f96b45 100644
+--- a/sdk/src/java/lineageos/waydroid/Clipboard.java
++++ b/sdk/src/java/lineageos/waydroid/WaydroidClipboard.java
+@@ -27,29 +27,29 @@ import java.util.NoSuchElementException;
+ import lineageos.app.LineageContextConstants;
+ import vendor.waydroid.clipboard.V1_0.IWaydroidClipboard;
+ 
+-public class Clipboard {
++public class WaydroidClipboard {
+     private static final String TAG = "WayDroidClipboard";
+ 
+     private static IWaydroidClipboard sService;
+-    private static Clipboard sInstance;
++    private static WaydroidClipboard sInstance;
+ 
+     private Context mContext;
+ 
+-    private Clipboard(Context context) {
++    private WaydroidClipboard(Context context) {
+         Context appContext = context.getApplicationContext();
+         mContext = appContext == null ? context : appContext;
+         sService = getService();
+     }
+ 
+     /**
+-     * Get or create an instance of the {@link lineageos.waydroid.Clipboard}
++     * Get or create an instance of the {@link lineageos.waydroid.WaydroidClipboard}
+      *
+      * @param context Used to get the service
+-     * @return {@link Clipboard}
++     * @return {@link WaydroidClipboard}
+      */
+-    public static Clipboard getInstance(Context context) {
++    public static WaydroidClipboard getInstance(Context context) {
+         if (sInstance == null) {
+-            sInstance = new Clipboard(context);
++            sInstance = new WaydroidClipboard(context);
+         }
+         return sInstance;
+     }

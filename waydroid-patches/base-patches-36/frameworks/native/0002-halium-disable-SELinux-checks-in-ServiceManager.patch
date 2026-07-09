@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <nekit1000@gmail.com>
+Date: Fri, 18 Jul 2025 12:44:08 +0000
+Subject: [PATCH] (halium) disable SELinux checks in ServiceManager
+
+Change-Id: Ida8e91453db58b1123468931c94d4a40d273b0b3
+---
+ cmds/servicemanager/Access.cpp | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/cmds/servicemanager/Access.cpp b/cmds/servicemanager/Access.cpp
+index 6e2abf65e2..7370f3b0d4 100644
+--- a/cmds/servicemanager/Access.cpp
++++ b/cmds/servicemanager/Access.cpp
+@@ -34,6 +34,9 @@ constexpr bool kIsVendor = false;
+ 
+ #ifdef __ANDROID__
+ static std::string getPidcon(pid_t pid) {
++    // Disabled for Halium
++    return "";
++
+     CHECK_EQ(nullptr, IPCThreadState::self()->getServingStackPointer())
+             << "Did not get context from PID " << pid
+             << ". We should always get contexts from other processes.";
+@@ -100,9 +103,10 @@ Access::Access() {
+     cb.func_log = kIsVendor ? selinux_vendor_log_callback : selinux_log_callback;
+     selinux_set_callback(SELINUX_CB_LOG, cb);
+ 
+-    CHECK(selinux_status_open(true /*fallback*/) >= 0);
++    // Disabled for Halium
++    /*CHECK(selinux_status_open(true) >= 0);
+ 
+-    CHECK(getcon(&mThisProcessContext) == 0);
++    CHECK(getcon(&mThisProcessContext) == 0);*/
+ #endif
+ }
+ 
+@@ -141,6 +145,9 @@ bool Access::canList(const CallingContext& ctx) {
+ 
+ bool Access::actionAllowed(const CallingContext& sctx, const char* tctx, const char* perm,
+         const std::string& tname) {
++    // Disabled for Halium
++    return true;
++
+ #ifdef __ANDROID__
+     const char* tclass = "service_manager";
+ 

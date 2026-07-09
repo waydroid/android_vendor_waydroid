@@ -1,4 +1,4 @@
-From 0433cca2a5257b54d19be550a93763c24d10d8c1 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: SupeChicken666 <me@supechicken666.dev>
 Date: Thu, 5 Mar 2026 11:42:20 +0800
 Subject: [PATCH] trust: Suppress SELinux warning
@@ -9,7 +9,7 @@ Signed-off-by: SupeChicken666 <me@supechicken666.dev>
  1 file changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java b/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
-index 97d684a..9b8c41d 100644
+index 97d684ac..9b8c41d2 100644
 --- a/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
 +++ b/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
 @@ -195,10 +195,10 @@ public class TrustInterfaceService extends LineageSystemService {
@@ -27,6 +27,3 @@ index 97d684a..9b8c41d 100644
  
          int keysStatus = getKeysStatus();
          if (keysStatus != TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {
--- 
-2.55.0
-

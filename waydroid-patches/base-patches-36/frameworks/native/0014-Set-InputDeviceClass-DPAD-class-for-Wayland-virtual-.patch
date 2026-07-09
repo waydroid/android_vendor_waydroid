@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Thu, 24 Jul 2025 04:19:38 +0000
+Subject: [PATCH] Set InputDeviceClass::DPAD class for Wayland virtual input
+ device
+
+Change-Id: Ib8d53e580a14f3ee60bd3832308edd64c3f01163
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ services/inputflinger/reader/EventHub.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/services/inputflinger/reader/EventHub.cpp b/services/inputflinger/reader/EventHub.cpp
+index fd5a803f74..1148186f42 100644
+--- a/services/inputflinger/reader/EventHub.cpp
++++ b/services/inputflinger/reader/EventHub.cpp
+@@ -2759,6 +2759,7 @@ if (!isWayland) {
+     } else if (inputType == WL_INPUT_KEYBOARD) {
+         device->classes |= InputDeviceClass::KEYBOARD;
+         device->classes |= InputDeviceClass::ALPHAKEY;
++        device->classes |= InputDeviceClass::DPAD;
+ 
+         device->keyBitmask.set(BTN_MISC);
+         device->keyBitmask.set(KEY_OK);

@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Tue, 10 Feb 2026 22:15:55 +0800
+Subject: [PATCH] Only enable c2.android video decoders when using minigbm and
+ force_hwaccel is not set
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ media/codec2/sfplugin/Codec2InfoBuilder.cpp | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/media/codec2/sfplugin/Codec2InfoBuilder.cpp b/media/codec2/sfplugin/Codec2InfoBuilder.cpp
+index 51ed4a545c..d234ad274a 100644
+--- a/media/codec2/sfplugin/Codec2InfoBuilder.cpp
++++ b/media/codec2/sfplugin/Codec2InfoBuilder.cpp
+@@ -431,6 +431,9 @@ status_t Codec2InfoBuilder::buildMediaCodecList(MediaCodecListWriter* writer) {
+     // Codec2.0 software components have default rank 0x200.
+     int option = ::android::base::GetIntProperty("debug.stagefright.ccodec", 4);
+ 
++    const bool force_hwaccel = ::android::base::GetBoolProperty("debug.ffmpeg-codec2.hwaccel.force", false);
++    const std::string gralloc_in_use = ::android::base::GetProperty("ro.hardware.gralloc", "default");
++
+     // Obtain Codec2Client
+     std::vector<Traits> traits = Codec2Client::ListComponents();
+ 
+@@ -563,6 +566,15 @@ status_t Codec2InfoBuilder::buildMediaCodecList(MediaCodecListWriter* writer) {
+             }
+             std::string canonName = trait.name;
+ 
++            // Waydroid: Only enable c2.android video decoders when using minigbm and force_hwaccel is not set
++            if (hasPrefix(canonName, "c2.android.") &&
++                trait.domain == C2Component::DOMAIN_VIDEO &&
++                trait.kind == C2Component::KIND_DECODER &&
++                (force_hwaccel || gralloc_in_use != "minigbm")
++            ) {
++                continue;
++            }
++
+             // TODO: Remove this block once all codecs are enabled by default.
+             switch (option) {
+             case 0:

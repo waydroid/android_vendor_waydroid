@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <supechicken666@gmail.com>
+Date: Sun, 4 Jan 2026 09:33:47 +0000
+Subject: [PATCH] WayDroidService: Add a prop to enable notification relay
+
+Set `persist.waydroid.forward_notifications=true` to enable it
+
+Change-Id: If1d85fa983a82b6e3e8993489e29f454ab0d88f5
+Signed-off-by: SupeChicken666 <supechicken666@gmail.com>
+---
+ .../lineageos/platform/internal/WayDroidService.java   | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 9cf6dd3c..fb4c7aea 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -110,10 +110,12 @@ public class WayDroidService extends LineageSystemService {
+         publishBinderService(LineageContextConstants.WAYDROID_PLATFORM_SERVICE, mPlatformService);
+         if (mContext != null) {
+             mUM = UserMonitor.getInstance(mContext);
+-            try {
+-                mWaydroidNotifications = Notifications.getInstance(mContext);
+-            } catch (Exception e) {
+-                Log.w(TAG, e.getMessage());
++            if (SystemProperties.getBoolean("persist.waydroid.forward_notifications", false)) {
++                try {
++                    mWaydroidNotifications = Notifications.getInstance(mContext);
++                } catch (Exception e) {
++                    Log.w(TAG, e.getMessage());
++                }
+             }
+         } else {
+             Log.w(TAG, "No context available");

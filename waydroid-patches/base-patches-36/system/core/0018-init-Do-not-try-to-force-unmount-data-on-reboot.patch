@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 28 Feb 2026 17:35:34 +0800
+Subject: [PATCH] init: Do not try to force unmount /data on reboot
+
+Otherwise, the host's rootfs will also be unmounted
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ init/reboot.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/init/reboot.cpp b/init/reboot.cpp
+index 559282e5e..15a84d53a 100644
+--- a/init/reboot.cpp
++++ b/init/reboot.cpp
+@@ -998,6 +998,7 @@ static void DoReboot(unsigned int cmd, const std::string& reason,
+     if (!is_thermal_shutdown) std::this_thread::sleep_for(100ms);
+ 
+     // Reboot regardless of umount status. If umount fails, fsck after reboot will fix it.
++#if 0
+     std::string data_fs_type = GetDataFsType();
+     if (!data_fs_type.empty()) {
+         // Do not delete: Critical log for reboot_fs_integrity_test.
+@@ -1026,6 +1027,7 @@ static void DoReboot(unsigned int cmd, const std::string& reason,
+             LOG(ERROR) << "Unknown /data fs type: " << data_fs_type;
+         }
+     }
++#endif
+ 
+     LogShutdownTime(stat, t);
+     RebootSystem(cmd, reboot_target, reason);

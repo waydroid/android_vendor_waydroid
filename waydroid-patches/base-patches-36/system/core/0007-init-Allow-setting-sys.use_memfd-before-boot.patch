@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 18 Jul 2025 14:52:48 +0000
+Subject: [PATCH] init: Allow setting sys.use_memfd before boot
+
+Change-Id: I24ef1f5cbeb320fcd7bd5ea162562640eda7f95e
+---
+ rootdir/init.rc | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 3001b4b07..e9ba843d7 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -1125,6 +1125,12 @@ on post-fs-data
+     # Update dm-verity state and set partition.*.verified properties.
+     verity_update_state
+ 
++# sys.memfd_use set to false by default, which keeps it disabled
++# until it is confirmed that apps and vendor processes don't make
++# IOCTLs on ashmem fds any more.
++on post-fs-data && property:sys.use_memfd=""
++    setprop sys.use_memfd false
++
+ on property:vold.checkpoint_committed=1
+     trigger post-fs-data-checkpointed
+ 

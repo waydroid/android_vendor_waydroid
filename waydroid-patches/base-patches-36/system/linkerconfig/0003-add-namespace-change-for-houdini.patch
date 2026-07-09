@@ -1,7 +1,7 @@
-From 4156b386a1cedf1cee9002e32a9887f22cd70265 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Tanuj Tekriwal <tanuj.tekriwal@intel.com>
 Date: Fri, 27 Feb 2026 08:36:22 +0000
-Subject: [PATCH 3/3] add namespace change for houdini
+Subject: [PATCH] add namespace change for houdini
 
 Change-Id: I59b9af80d76dcbdc6d7216e7706755a13cd53464
 Signed-off-by: kexx <xiaox.ke@intel.com>
@@ -43,6 +43,3 @@ index 2ae0ad6..41dea8f 100644
    };
  
    for (const std::string& path : permitted_paths) {
--- 
-2.55.0
-

@@ -1,0 +1,158 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Fri, 6 Feb 2026 14:45:44 +0800
+Subject: [PATCH] WayDroidService: Show warning when DMA-BUF heap is missing
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ .../platform/internal/WayDroidService.java    | 58 ++++++++++++++++++-
+ lineage/res/res/values-zh-rCN/strings.xml     |  2 +
+ lineage/res/res/values-zh-rTW/strings.xml     |  2 +
+ lineage/res/res/values/strings.xml            |  3 +
+ lineage/res/res/values/symbols.xml            |  4 ++
+ 5 files changed, 68 insertions(+), 1 deletion(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index fb4c7aea..5d9a7ec4 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -17,6 +17,8 @@
+ package org.lineageos.platform.internal;
+ 
+ import android.app.Notification;
++import android.app.NotificationChannel;
++import android.app.NotificationManager;
+ import android.app.PendingIntent;
+ import android.annotation.NonNull;
+ import android.content.ActivityNotFoundException;
+@@ -78,10 +80,15 @@ public class WayDroidService extends LineageSystemService {
+             "org.lineageos.platform.waydroid.ACTION_UNINSTALL_COMMIT";
+     private static final String ICONS_DIR = "/data/icons";
+ 
++    private static final String WAYDROID_CHANNEL_ID = "WaydroidService";
++    private static final String WAYDROID_CHANNEL_ID_TV = "WaydroidService.tv";
++    private static final int WAYDROID_NOTIFICATION_ID = 90;
++
+     private Context mContext;
+     private PackageManager mPm = null;
+     private UserMonitor mUM = null;
+     private Notifications mWaydroidNotifications = null;
++    private NotificationManager mNotificationManager = null;
+     private NotificationListenerService mSystemNotificationListener = null;
+ 
+     // Map android notification id -> host notification id
+@@ -128,6 +135,22 @@ public class WayDroidService extends LineageSystemService {
+         }
+     }
+ 
++    @Override
++    public void onBootPhase(int phase) {
++        if (phase == PHASE_BOOT_COMPLETED) {
++            mNotificationManager = mContext.getSystemService(NotificationManager.class);
++
++            if (!new File("/dev/dma_heap/system").exists()) {
++                Log.w(TAG, "DMA-BUF system heap is missing");
++                showNotification(
++                    WAYDROID_NOTIFICATION_ID,
++                    mContext.getString(R.string.waydroid_dmabuf_missing_title),
++                    mContext.getString(R.string.waydroid_dmabuf_missing_msg)
++                );
++            }
++        }
++    }
++
+     @Override
+     public void onUserUnlocked(@NonNull TargetUser user) {
+         List<ApplicationInfo> apps = mPm.getInstalledApplications(0);
+@@ -152,10 +175,43 @@ public class WayDroidService extends LineageSystemService {
+         }
+     }
+ 
++    private boolean isTv() {
++        return mPm.hasSystemFeature(PackageManager.FEATURE_LEANBACK);
++    }
++
++    private void createNotificationChannelIfNeeded() {
++        String id = !isTv() ? WAYDROID_CHANNEL_ID : WAYDROID_CHANNEL_ID_TV;
++
++        if (mNotificationManager.getNotificationChannel(id) != null) {
++            return;
++        }
++
++        String name = mContext.getString(R.string.trust_notification_channel);
++        int importance = NotificationManager.IMPORTANCE_HIGH;
++        NotificationChannel channel = new NotificationChannel(id, name, importance);
++        channel.setBlockable(true);
++        mNotificationManager.createNotificationChannel(channel);
++    }
++
++    private void showNotification(int notificationId, String title, String message) {
++        createNotificationChannelIfNeeded();
++
++        Notification.Builder notification = new Notification.Builder(mContext, WAYDROID_CHANNEL_ID)
++                .setContentTitle(title)
++                .setContentText(message)
++                .setStyle(new Notification.BigTextStyle().bigText(message))
++                .setAutoCancel(true)
++                .setColor(mContext.getColor(R.color.color_error))
++                .setSmallIcon(R.drawable.ic_warning)
++                .extend(new Notification.TvExtender().setChannelId(WAYDROID_CHANNEL_ID_TV));
++
++        mNotificationManager.notify(notificationId, notification.build());
++    }
++
+     private Intent getAppLaunchIntent(String packageName) {
+         Intent launchIntent = null;
+ 
+-        if (mPm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
++        if (isTv()) {
+             launchIntent = mPm.getLeanbackLaunchIntentForPackage(packageName);
+         }
+ 
+diff --git a/lineage/res/res/values-zh-rCN/strings.xml b/lineage/res/res/values-zh-rCN/strings.xml
+index d8be106f..d9998c9e 100644
+--- a/lineage/res/res/values-zh-rCN/strings.xml
++++ b/lineage/res/res/values-zh-rCN/strings.xml
+@@ -85,4 +85,6 @@
+     <string name="charging_control_notification_content_limit_reached">电池已充电 %1$d%%</string>
+     <string name="charging_control_notification_content_target">电池将在 %1$s 完全充满</string>
+     <string name="charging_control_notification_content_target_reached">电池已充满</string>
++    <string name="waydroid_dmabuf_missing_title">系统缺少 DMA-BUF 支持</string>
++    <string name="waydroid_dmabuf_missing_msg">DMA-BUF 系统堆不存在（可能在内核中被禁用？），视频可能无法正常播放</string>
+ </resources>
+diff --git a/lineage/res/res/values-zh-rTW/strings.xml b/lineage/res/res/values-zh-rTW/strings.xml
+index b1334d7d..e1187bfb 100644
+--- a/lineage/res/res/values-zh-rTW/strings.xml
++++ b/lineage/res/res/values-zh-rTW/strings.xml
+@@ -81,4 +81,6 @@
+     <string name="charging_control_notification_content_limit_reached">電池已充電至 %1$d%%</string>
+     <string name="charging_control_notification_content_target">電池已在 %1$s 完全充飽</string>
+     <string name="charging_control_notification_content_target_reached">電池已完成充電</string>
++    <string name="waydroid_dmabuf_missing_title">系統不支援 DMA-BUF</string>
++    <string name="waydroid_dmabuf_missing_msg">DMA-BUF 系統堆疊不存在（可能在核心中被停用？），影片可能無法正常播放</string>
+ </resources>
+diff --git a/lineage/res/res/values/strings.xml b/lineage/res/res/values/strings.xml
+index 5db677d5..eb1edf5e 100644
+--- a/lineage/res/res/values/strings.xml
++++ b/lineage/res/res/values/strings.xml
+@@ -130,4 +130,7 @@
+     <string name="charging_control_notification_content_limit_reached">Battery is charged to %1$d%%</string>
+     <string name="charging_control_notification_content_target">Battery will be fully charged at %1$s</string>
+     <string name="charging_control_notification_content_target_reached">Battery is charged</string>
++
++    <string name="waydroid_dmabuf_missing_title">Missing DMA-BUF support</string>
++    <string name="waydroid_dmabuf_missing_msg">DMA-BUF system heap does not exist (disabled in kernel?), video playback might not work properly</string>
+ </resources>
+diff --git a/lineage/res/res/values/symbols.xml b/lineage/res/res/values/symbols.xml
+index 289d9b61..51e377e1 100644
+--- a/lineage/res/res/values/symbols.xml
++++ b/lineage/res/res/values/symbols.xml
+@@ -206,4 +206,8 @@
+ 
+     <!-- Advanced rotation settings -->
+     <java-symbol type="bool" name="config_enableAdvancedRotationSettings" />
++
++    <!-- Waydroid -->
++    <java-symbol type="string" name="waydroid_dmabuf_missing_title" />
++    <java-symbol type="string" name="waydroid_dmabuf_missing_msg" />
+ </resources>

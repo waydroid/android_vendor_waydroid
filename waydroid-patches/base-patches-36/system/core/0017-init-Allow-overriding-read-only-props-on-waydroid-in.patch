@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Wed, 11 Feb 2026 22:32:27 +0800
+Subject: [PATCH] init: Allow overriding read-only props on waydroid-init
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ init/property_service.cpp | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/init/property_service.cpp b/init/property_service.cpp
+index 35cc8fba3..597a9a9d9 100644
+--- a/init/property_service.cpp
++++ b/init/property_service.cpp
+@@ -386,6 +386,8 @@ class PersistWriteThread {
+ 
+ static std::optional<uint32_t> PropertySet(const std::string& name, const std::string& value,
+                                            SocketConnection* socket, std::string* error) {
++    static bool waydroid_init_done = false;
++    static pid_t waydroid_init_pid = -1;
+     size_t valuelen = value.size();
+ 
+     if (!IsLegalPropertyName(name)) {
+@@ -406,12 +408,18 @@ static std::optional<uint32_t> PropertySet(const std::string& name, const std::s
+         prop_info* pi = (prop_info*)__system_property_find(name.c_str());
+         if (pi != nullptr) {
+             // ro.* properties are actually "write-once".
+-            if (StartsWith(name, "ro.")) {
++            if (StartsWith(name, "ro.") && (waydroid_init_done || socket ? socket->cred().pid != waydroid_init_pid : true)) {
+                 *error = "Read-only property was already set";
+                 return {PROP_ERROR_READ_ONLY_PROPERTY};
+             }
+ 
+             __system_property_update(pi, value.c_str(), valuelen);
++        } else if (!waydroid_init_done && socket && name == "waydroid.init.start") {
++            waydroid_init_pid = socket->cred().pid;
++            return {PROP_SUCCESS};
++        } else if (!waydroid_init_done && socket && name == "waydroid.init.done") {
++            waydroid_init_done = true;
++            return {PROP_SUCCESS};
+         } else {
+             int rc = __system_property_add(name.c_str(), name.size(), value.c_str(), valuelen);
+             if (rc < 0) {
+@@ -1207,7 +1215,7 @@ void PropertyLoadBootDefaults() {
+     load_properties_from_partition("odm", /* support_legacy_path_until */ 28);
+     load_properties_from_partition("product", /* support_legacy_path_until */ 30);
+     load_properties_from_file("/vendor/waydroid.prop", nullptr, &properties);
+- 
++
+     if (int vendor; ParseInt(properties["ro.vendor.build.version.sdk"], &vendor) &&
+         vendor >= 33) {
+         if (properties["ro.hardware.egl"] == "swiftshader") {

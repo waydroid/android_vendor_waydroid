@@ -1,0 +1,68 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: hmtheboy154 <buingoc67@gmail.com>
+Date: Mon, 30 Jun 2025 06:35:49 +0000
+Subject: [PATCH] codec2: Make RGBA/RGBX 8888 into usable formats
+
+Plane layout code is already in C2AllocatorGralloc so we can just
+use that. What we do now is to map these format to COLOR_FormatRGBAFlexible
+to make it work.
+
+Signed-off-by: hmtheboy154 <buingoc67@gmail.com>
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ media/codec2/sfplugin/CCodec.cpp             | 6 ++++++
+ media/codec2/sfplugin/Codec2InfoBuilder.cpp  | 3 +++
+ media/codec2/sfplugin/utils/Codec2Mapper.cpp | 2 ++
+ 3 files changed, 11 insertions(+)
+
+diff --git a/media/codec2/sfplugin/CCodec.cpp b/media/codec2/sfplugin/CCodec.cpp
+index ea44e121d4..1e35514fa3 100644
+--- a/media/codec2/sfplugin/CCodec.cpp
++++ b/media/codec2/sfplugin/CCodec.cpp
+@@ -1674,6 +1674,12 @@ void CCodec::configure(const sp<AMessage> &msg) {
+                                 format = flexPixelFormat[10];
+                             }
+                             break;
++                        case COLOR_FormatRGBAFlexible:
++                            format = COLOR_FormatRGBAFlexible;
++                            if (flexPixelFormat.count(8) != 0) {
++                                format = flexPixelFormat[8];
++                            }
++                            break;
+                         default:
+                             // No-op
+                             break;
+diff --git a/media/codec2/sfplugin/Codec2InfoBuilder.cpp b/media/codec2/sfplugin/Codec2InfoBuilder.cpp
+index 25c2f6ffac..4fc20c8ed2 100644
+--- a/media/codec2/sfplugin/Codec2InfoBuilder.cpp
++++ b/media/codec2/sfplugin/Codec2InfoBuilder.cpp
+@@ -311,6 +311,7 @@ void addSupportedColorFormats(
+         addDefaultColorFormat(COLOR_FormatYUV420SemiPlanar);
+         addDefaultColorFormat(COLOR_FormatYUV420PackedPlanar);
+         addDefaultColorFormat(COLOR_FormatYUV420PackedSemiPlanar);
++        addDefaultColorFormat(COLOR_FormatRGBAFlexible);
+         // Android video codecs prefer CPU-readable formats
+         if (trait.name.find("android") != std::string::npos) {
+             addDefaultColorFormat(COLOR_FormatSurface);
+@@ -746,6 +747,8 @@ status_t Codec2InfoBuilder::buildMediaCodecList(MediaCodecListWriter* writer) {
+                     pixelFormatMap[HAL_PIXEL_FORMAT_YCBCR_P010]    = COLOR_FormatYUVP010;
+                     pixelFormatMap[HAL_PIXEL_FORMAT_RGBA_1010102]  = COLOR_Format32bitABGR2101010;
+                     pixelFormatMap[HAL_PIXEL_FORMAT_RGBA_FP16]     = COLOR_Format64bitABGRFloat;
++                    pixelFormatMap[HAL_PIXEL_FORMAT_RGBA_8888]     = COLOR_FormatRGBAFlexible;
++                    pixelFormatMap[HAL_PIXEL_FORMAT_RGBX_8888]     = COLOR_FormatRGBAFlexible;
+                     pixelFormatMap[AHARDWAREBUFFER_FORMAT_YCbCr_P210]    = COLOR_FormatYUVP210;
+ 
+                     std::shared_ptr<C2StoreFlexiblePixelFormatDescriptorsInfo> pixelFormatInfo;
+diff --git a/media/codec2/sfplugin/utils/Codec2Mapper.cpp b/media/codec2/sfplugin/utils/Codec2Mapper.cpp
+index d712477d9e..cdfd913350 100644
+--- a/media/codec2/sfplugin/utils/Codec2Mapper.cpp
++++ b/media/codec2/sfplugin/utils/Codec2Mapper.cpp
+@@ -554,6 +554,8 @@ ALookup<uint32_t, int32_t> sPixelFormats = {
+     { HAL_PIXEL_FORMAT_YCBCR_P010,             COLOR_FormatYUVP010 },
+     { HAL_PIXEL_FORMAT_RGBA_1010102,           COLOR_Format32bitABGR2101010 },
+     { HAL_PIXEL_FORMAT_RGBA_FP16,              COLOR_Format64bitABGRFloat },
++    { HAL_PIXEL_FORMAT_RGBA_8888,              COLOR_FormatRGBAFlexible },
++    { HAL_PIXEL_FORMAT_RGBX_8888,              COLOR_FormatRGBAFlexible },
+ };
+ 
+ ALookup<C2Config::picture_type_t, int32_t> sPictureType = {

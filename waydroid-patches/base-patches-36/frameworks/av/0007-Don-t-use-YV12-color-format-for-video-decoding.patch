@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Mon, 23 Nov 2015 00:46:22 +0800
+Subject: [PATCH] Don't use YV12 color format for video decoding
+
+YV12 is not supported by Mesa yet. This has to be reverted
+when we can enable h/w decoder.
+---
+ .../colorconversion/SoftwareRenderer.cpp          | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/media/libstagefright/colorconversion/SoftwareRenderer.cpp b/media/libstagefright/colorconversion/SoftwareRenderer.cpp
+index 240931591d..c5924fcfdf 100644
+--- a/media/libstagefright/colorconversion/SoftwareRenderer.cpp
++++ b/media/libstagefright/colorconversion/SoftwareRenderer.cpp
+@@ -134,9 +134,18 @@ void SoftwareRenderer::resetFormatIfChanged(
+             case OMX_COLOR_FormatYUV420SemiPlanar:
+             case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+             {
+-                halFormat = HAL_PIXEL_FORMAT_YV12;
+-                bufWidth = (mCropWidth + 1) & ~1;
+-                bufHeight = (mCropHeight + 1) & ~1;
++                char property[PROPERTY_VALUE_MAX];
++                bool hasYUV = true;
++                if (property_get("ro.hardware.gralloc", property, "default") > 0)
++                    if (strcmp(property, "gbm") == 0 ||
++                        strcmp(property, "minigbm_gbm_mesa") == 0 ||
++                        strcmp(property, "default") == 0)
++                        hasYUV = false;
++                if (hasYUV) {
++                    halFormat = HAL_PIXEL_FORMAT_YV12;
++                    bufWidth = (mCropWidth + 1) & ~1;
++                    bufHeight = (mCropHeight + 1) & ~1;
++                }
+                 break;
+             }
+             case OMX_COLOR_Format24bitRGB888:

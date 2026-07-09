@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sun, 1 Mar 2026 17:05:13 +0800
+Subject: [PATCH] ashmem: Fallback to old method for checking memfd when EPERM
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ libcutils/ashmem-dev.cpp | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/libcutils/ashmem-dev.cpp b/libcutils/ashmem-dev.cpp
+index 554cc7415..0e90c21ab 100644
+--- a/libcutils/ashmem-dev.cpp
++++ b/libcutils/ashmem-dev.cpp
+@@ -202,8 +202,12 @@ static bool is_memfd_fd(int fd) {
+     std::string fd_path = android::base::StringPrintf("/proc/self/fd/%d", fd);
+     std::string result;
+     if (!android::base::Readlink(fd_path, &result)) {
+-        ALOGE("readlink(%s) failed: %m", fd_path.c_str());
+-        return false;
++        if (errno == EPERM) {
++            return has_memfd_support();
++        } else {
++            ALOGE("readlink(%s) failed: %m", fd_path.c_str());
++            return false;
++        }
+     }
+     return result.starts_with("/memfd:");
+ }

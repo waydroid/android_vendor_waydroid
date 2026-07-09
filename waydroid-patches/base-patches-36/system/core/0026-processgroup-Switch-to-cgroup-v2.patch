@@ -1,0 +1,736 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 23 May 2026 20:47:04 +0800
+Subject: [PATCH] processgroup: Switch to cgroup v2
+
+This allow processgroup to work on recent Linux distros
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ libprocessgroup/profiles/cgroups.json       |  41 ++-
+ libprocessgroup/profiles/task_profiles.json | 260 ++++++++------------
+ libprocessgroup/task_profiles.cpp           |  62 ++++-
+ libprocessgroup/util/util.cpp               |   2 +
+ 4 files changed, 170 insertions(+), 195 deletions(-)
+
+diff --git a/libprocessgroup/profiles/cgroups.json b/libprocessgroup/profiles/cgroups.json
+index e9345a531..058bf7fef 100644
+--- a/libprocessgroup/profiles/cgroups.json
++++ b/libprocessgroup/profiles/cgroups.json
+@@ -1,27 +1,4 @@
+ {
+-  "Cgroups": [
+-    {
+-      "Controller": "blkio",
+-      "Path": "/dev/blkio",
+-      "Mode": "0775",
+-      "UID": "system",
+-      "GID": "system"
+-    },
+-    {
+-      "Controller": "cpu",
+-      "Path": "/dev/cpuctl",
+-      "Mode": "0755",
+-      "UID": "system",
+-      "GID": "system"
+-    },
+-    {
+-      "Controller": "cpuset",
+-      "Path": "/dev/cpuset",
+-      "Mode": "0755",
+-      "UID": "system",
+-      "GID": "system"
+-    }
+-  ],
+   "Cgroups2": {
+     "Path": "/sys/fs/cgroup",
+     "Mode": "0775",
+@@ -32,6 +9,24 @@
+         "Controller": "freezer",
+         "Path": "."
+       },
++      {
++        "Controller": "cpu",
++        "Path": ".",
++        "NeedsActivation": true,
++        "Optional": true
++      },
++      {
++        "Controller": "cpuset",
++        "Path": ".",
++        "NeedsActivation": true,
++        "Optional": true
++      },
++      {
++        "Controller": "io",
++        "Path": ".",
++        "NeedsActivation": true,
++        "Optional": true
++      },
+       {
+         "Controller": "memory",
+         "Path": ".",
+diff --git a/libprocessgroup/profiles/task_profiles.json b/libprocessgroup/profiles/task_profiles.json
+index 1d23d9cc4..738902c72 100644
+--- a/libprocessgroup/profiles/task_profiles.json
++++ b/libprocessgroup/profiles/task_profiles.json
+@@ -92,16 +92,7 @@
+   "Profiles": [
+     {
+       "Name": "HighEnergySaving",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "background"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "Frozen",
+@@ -131,81 +122,27 @@
+     },
+     {
+       "Name": "NormalPerformance",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "system"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "ServicePerformance",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "system-background"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "HighPerformance",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "foreground"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "HighPerformanceWI",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "foreground_window"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "MaxPerformance",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "top-app"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "RealtimePerformance",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "rt"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "RealTimeInputScheduling",
+@@ -222,42 +159,15 @@
+     },
+     {
+       "Name": "CameraServicePerformance",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "camera-daemon"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "NNApiHALPerformance",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "nnapi-hal"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "Dex2oatPerformance",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "cpu",
+-            "Path": "dex2oat"
+-          }
+-        }
+-      ]
++      "Actions": []
+     },
+     {
+       "Name": "CpuPolicySpread",
+@@ -290,11 +200,13 @@
+       "Name": "VrKernelCapacity",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": ""
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -303,11 +215,13 @@
+       "Name": "VrServiceCapacityLow",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "system/background"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.efficient",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -316,11 +230,13 @@
+       "Name": "VrServiceCapacityNormal",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "system"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -329,11 +245,13 @@
+       "Name": "VrServiceCapacityHigh",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "system/performance"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -342,11 +260,13 @@
+       "Name": "VrProcessCapacityLow",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "application/background"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.efficient",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -355,11 +275,13 @@
+       "Name": "VrProcessCapacityNormal",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "application"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -368,25 +290,28 @@
+       "Name": "VrProcessCapacityHigh",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "application/performance"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+     },
+-
+     {
+       "Name": "ProcessCapacityLow",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "background"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.efficient",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -395,11 +320,13 @@
+       "Name": "ProcessCapacityNormal",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": ""
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -408,11 +335,13 @@
+       "Name": "ProcessCapacityHigh",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "foreground"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -421,11 +350,13 @@
+       "Name": "ProcessCapacityHighWI",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "foreground_window"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -434,25 +365,28 @@
+       "Name": "ProcessCapacityMax",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "top-app"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.default",
++            "DefaultValue": ""
+           }
+         }
+       ]
+     },
+-
+     {
+       "Name": "ServiceCapacityLow",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "system-background"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.efficient",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -461,25 +395,28 @@
+       "Name": "ServiceCapacityRestricted",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "restricted"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.efficient",
++            "DefaultValue": ""
+           }
+         }
+       ]
+     },
+-
+     {
+       "Name": "CameraServiceCapacity",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "camera-daemon"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.efficient",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -488,11 +425,13 @@
+       "Name": "LowIoPriority",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+-            "Controller": "blkio",
+-            "Path": "background"
++            "Controller": "io",
++            "Interface": "weight",
++            "PropertyName": "ro.cgroup2.io.weight.low",
++            "DefaultValue": "100"
+           }
+         }
+       ]
+@@ -501,11 +440,13 @@
+       "Name": "NormalIoPriority",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+-            "Controller": "blkio",
+-            "Path": ""
++            "Controller": "io",
++            "Interface": "weight",
++            "PropertyName": "ro.cgroup2.io.weight.default",
++            "DefaultValue": "1000"
+           }
+         }
+       ]
+@@ -514,11 +455,13 @@
+       "Name": "HighIoPriority",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+-            "Controller": "blkio",
+-            "Path": ""
++            "Controller": "io",
++            "Interface": "weight",
++            "PropertyName": "ro.cgroup2.io.weight.default",
++            "DefaultValue": "1000"
+           }
+         }
+       ]
+@@ -527,11 +470,13 @@
+       "Name": "MaxIoPriority",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+-            "Controller": "blkio",
+-            "Path": ""
++            "Controller": "io",
++            "Interface": "weight",
++            "PropertyName": "ro.cgroup2.io.weight.default",
++            "DefaultValue": "1000"
+           }
+         }
+       ]
+@@ -566,11 +511,13 @@
+       "Name": "SFMainPolicy",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "system-background"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.efficient",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -579,11 +526,13 @@
+       "Name": "SFRenderEnginePolicy",
+       "Actions": [
+         {
+-          "Name": "JoinCgroup",
++          "Name": "SetCgroupV2Attribute",
+           "Params":
+           {
+             "Controller": "cpuset",
+-            "Path": "system-background"
++            "Interface": "cpus",
++            "PropertyName": "ro.cgroup2.cpuset.efficient",
++            "DefaultValue": ""
+           }
+         }
+       ]
+@@ -632,19 +581,6 @@
+         }
+       ]
+     },
+-    {
+-      "Name": "SystemMemoryProcess",
+-      "Actions": [
+-        {
+-          "Name": "JoinCgroup",
+-          "Params":
+-          {
+-            "Controller": "memory",
+-            "Path": "system"
+-          }
+-        }
+-      ]
+-    },
+     {
+       "Name": "CompactFull",
+       "Actions": [
+diff --git a/libprocessgroup/task_profiles.cpp b/libprocessgroup/task_profiles.cpp
+index 273074363..5cf1cdcad 100644
+--- a/libprocessgroup/task_profiles.cpp
++++ b/libprocessgroup/task_profiles.cpp
+@@ -19,6 +19,9 @@
+ 
+ #include <task_profiles.h>
+ 
++#include <processgroup/processgroup.h>
++
++#include <filesystem>
+ #include <map>
+ #include <string>
+ 
+@@ -44,6 +47,7 @@
+ #include <json/value.h>
+ 
+ using android::base::GetThreadId;
++using android::base::GetProperty;
+ using android::base::GetUintProperty;
+ using android::base::StringPrintf;
+ using android::base::StringReplace;
+@@ -498,6 +502,20 @@ bool WriteFileAction::WriteValueToFile(const std::string& value_, ResourceCacheT
+         path = proc_path_;
+     }
+ 
++    // Ensure the target cgroup exists for cgroup v2 attribute writes
++    if (createProcessGroup(uid, pid, false) != 0) {
++        LOG(VERBOSE) << "createProcessGroup failed for uid " << uid << " pid " << pid;
++    }
++
++    path = StringReplace(path, "<uid>", std::to_string(uid), true);
++    path = StringReplace(path, "<pid>", std::to_string(pid), true);
++
++    if (std::filesystem::exists(StringReplace(path, "<cgroup_dir>", "apps", true))) {
++        path = StringReplace(path, "<cgroup_dir>", "apps", true);
++    } else {
++        path = StringReplace(path, "<cgroup_dir>", "system", true);
++    }
++
+     // Use WriteStringToFd instead of WriteStringToFile because the latter will open file with
+     // O_TRUNC which causes kernfs_mutex contention
+     unique_fd tmp_fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_WRONLY | O_CLOEXEC)));
+@@ -539,9 +557,8 @@ ProfileAction::CacheUseResult WriteFileAction::UseCachedFd(ResourceCacheType cac
+ 
+     if (cache_type == ResourceCacheType::RCT_TASK &&
+         fd_[cache_type] == FdCacheHelper::FDS_APP_DEPENDENT) {
+-        // application-dependent path can't be used with tid
+-        LOG(ERROR) << Name() << ": application profile can't be applied to a thread";
+-        return ProfileAction::FAIL;
++        // application-dependent path can't be cached for tid; fall back to per-call write
++        return ProfileAction::UNUSED;
+     }
+     return ProfileAction::UNUSED;
+ }
+@@ -897,6 +914,7 @@ TaskProfiles::TaskProfiles() {
+         LOG(ERROR) << "Loading " << TASK_PROFILE_DB_FILE << " for [" << getpid() << "] failed";
+     }
+ 
++#if 0 // Disabled in Waydroid
+     // load API-level specific system task profiles if available
+     unsigned int api_level = GetUintProperty<unsigned int>("ro.product.first_api_level", 0);
+     if (api_level > 0) {
+@@ -908,6 +926,7 @@ TaskProfiles::TaskProfiles() {
+             }
+         }
+     }
++#endif
+ 
+     // load vendor task profiles if the file exists
+     if (!access(TASK_PROFILE_DB_VENDOR_FILE, F_OK) &&
+@@ -1007,12 +1026,35 @@ bool TaskProfiles::Load(const CgroupMap& cg_map, const std::string& file_name) {
+                 } else {
+                     LOG(WARNING) << "SetAttribute: unknown attribute: " << attr_name;
+                 }
+-            } else if (action_name == "WriteFile") {
+-                std::string attr_filepath = params_val["FilePath"].asString();
+-                std::string attr_procfilepath = params_val["ProcFilePath"].asString();
+-                std::string attr_value = params_val["Value"].asString();
+-                // FilePath and Value are mandatory
+-                if (!attr_filepath.empty() && !attr_value.empty()) {
++            } else if (action_name == "WriteFile" || action_name == "SetCgroupV2Attribute") {
++                std::string attr_controller, attr_interface, attr_prop_name, attr_default_value, attr_filepath, attr_procfilepath, attr_value;
++                if (action_name == "SetCgroupV2Attribute") {
++                    attr_controller = params_val["Controller"].asString();
++                    attr_interface = params_val["Interface"].asString();
++                    attr_prop_name = params_val["PropertyName"].asString();
++                    attr_default_value = params_val["DefaultValue"].asString();
++                    attr_filepath = android::base::StringPrintf("/sys/fs/cgroup/<cgroup_dir>/uid_<uid>/pid_<pid>/%s.%s", attr_controller.c_str(), attr_interface.c_str());
++                    attr_procfilepath = attr_filepath;
++                    attr_value = GetProperty(attr_prop_name, params_val["DefaultValue"].asString());
++
++                    std::string controllers;
++                    if (!android::base::ReadFileToString("/sys/fs/cgroup/cgroup.controllers", &controllers)) {
++                        PLOG(WARNING) << "Failed to read available cgroup v2 controller list";
++                        continue;
++                    }
++
++                    if (controllers.find(attr_controller) == std::string::npos) {
++                        LOG(WARNING) << "Controller " << attr_controller << " is not available";
++                        continue;
++                    }
++                } else {
++                    attr_filepath = params_val["FilePath"].asString();
++                    attr_procfilepath = params_val["ProcFilePath"].asString();
++                    attr_value = params_val["Value"].asString();
++                }
++
++                // FilePath is mandatory
++                if (!attr_filepath.empty() /* && !attr_value.empty() */) {
+                     std::string attr_logfailures = params_val["LogFailures"].asString();
+                     bool logfailures = attr_logfailures.empty() || attr_logfailures == "true";
+                     profile->Add(std::make_unique<WriteFileAction>(attr_filepath, attr_procfilepath,
+@@ -1020,7 +1062,7 @@ bool TaskProfiles::Load(const CgroupMap& cg_map, const std::string& file_name) {
+                 } else if (attr_filepath.empty()) {
+                     LOG(WARNING) << "WriteFile: invalid parameter: "
+                                  << "empty filepath";
+-                } else if (attr_value.empty()) {
++                } else if (false /* attr_value.empty() */) {
+                     LOG(WARNING) << "WriteFile: invalid parameter: "
+                                  << "empty value";
+                 }
+diff --git a/libprocessgroup/util/util.cpp b/libprocessgroup/util/util.cpp
+index c772bc5e4..976f72219 100644
+--- a/libprocessgroup/util/util.cpp
++++ b/libprocessgroup/util/util.cpp
+@@ -193,6 +193,7 @@ bool ReadDescriptors(CgroupDescriptorMap* descriptors) {
+         return false;
+     }
+ 
++#if 0 // Disabled in Waydroid
+     // load API-level specific system cgroups descriptors if available
+     unsigned int api_level = GetUintProperty<unsigned int>("ro.product.first_api_level", 0);
+     if (api_level > 0) {
+@@ -204,6 +205,7 @@ bool ReadDescriptors(CgroupDescriptorMap* descriptors) {
+             }
+         }
+     }
++#endif
+ 
+     // load vendor cgroup descriptors if the file exists
+     if (!access(CGROUPS_DESC_VENDOR_FILE, F_OK) &&

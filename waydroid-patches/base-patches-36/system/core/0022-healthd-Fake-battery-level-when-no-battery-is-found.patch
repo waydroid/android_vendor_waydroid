@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sun, 26 Apr 2026 20:55:10 +0800
+Subject: [PATCH] healthd: Fake battery level when no battery is found
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ healthd/BatteryMonitor.cpp    | 2 ++
+ healthd/BatteryMonitor_v1.cpp | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/healthd/BatteryMonitor.cpp b/healthd/BatteryMonitor.cpp
+index 465949e05..abf08a041 100644
+--- a/healthd/BatteryMonitor.cpp
++++ b/healthd/BatteryMonitor.cpp
+@@ -1079,6 +1079,8 @@ void BatteryMonitor::init(struct healthd_config *hc) {
+         KLOG_WARNING(LOG_TAG, "No battery devices found\n");
+         hc->periodic_chores_interval_fast = -1;
+         hc->periodic_chores_interval_slow = -1;
++        mBatteryFixedCapacity = FAKE_BATTERY_CAPACITY;
++        mBatteryFixedTemperature = FAKE_BATTERY_TEMPERATURE;
+     } else {
+         if (mHealthdConfig->batteryStatusPath.empty())
+             KLOG_WARNING(LOG_TAG, "BatteryStatusPath not found\n");
+diff --git a/healthd/BatteryMonitor_v1.cpp b/healthd/BatteryMonitor_v1.cpp
+index 588b08836..069b661d3 100644
+--- a/healthd/BatteryMonitor_v1.cpp
++++ b/healthd/BatteryMonitor_v1.cpp
+@@ -762,6 +762,8 @@ void BatteryMonitor::init(struct healthd_config *hc) {
+         KLOG_WARNING(LOG_TAG, "No battery devices found\n");
+         hc->periodic_chores_interval_fast = -1;
+         hc->periodic_chores_interval_slow = -1;
++        mBatteryFixedCapacity = FAKE_BATTERY_CAPACITY;
++        mBatteryFixedTemperature = FAKE_BATTERY_TEMPERATURE;
+     } else {
+         if (mHealthdConfig->batteryStatusPath.empty())
+             KLOG_WARNING(LOG_TAG, "BatteryStatusPath not found\n");

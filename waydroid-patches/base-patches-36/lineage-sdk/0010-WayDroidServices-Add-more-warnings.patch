@@ -1,0 +1,208 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Wed, 29 Apr 2026 01:39:38 +0800
+Subject: [PATCH] WayDroidServices: Add more warnings
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ .../platform/internal/WayDroidService.java    | 54 +++++++++++++++++--
+ lineage/res/res/values-zh-rCN/strings.xml     | 10 +++-
+ lineage/res/res/values-zh-rTW/strings.xml     | 10 +++-
+ lineage/res/res/values/strings.xml            | 17 +++++-
+ lineage/res/res/values/symbols.xml            | 16 ++++--
+ .../java/lineageos/waydroid/UserMonitor.java  |  2 +-
+ 6 files changed, 94 insertions(+), 15 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index d07812f2..ddf2de2d 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -82,7 +82,10 @@ public class WayDroidService extends LineageSystemService {
+ 
+     private static final String WAYDROID_CHANNEL_ID = "WaydroidService";
+     private static final String WAYDROID_CHANNEL_ID_TV = "WaydroidService.tv";
+-    private static final int WAYDROID_NOTIFICATION_ID = 90;
++
++    private static final int INTEGRATION_WARN_ID = 1;
++    private static final int DMABUF_WARN_ID = 1 << 2;
++    private static final int SW_RENDERING_WARN_ID = 1 << 3;
+ 
+     private Context mContext;
+     private PackageManager mPm = null;
+@@ -140,14 +143,45 @@ public class WayDroidService extends LineageSystemService {
+         if (phase == PHASE_BOOT_COMPLETED) {
+             mNotificationManager = mContext.getSystemService(NotificationManager.class);
+ 
++            if (mUM == null && !SystemProperties.get("waydroid.tools_version").isEmpty()) {
++                Log.w(TAG, "Waydroid integration is not functional");
++                showNotification(
++                    INTEGRATION_WARN_ID,
++                    mContext.getString(R.string.broken_waydroid_integration_title),
++                    mContext.getString(R.string.broken_waydroid_integration_msg),
++                    mContext.getString(R.string.broken_waydroid_integration_url)
++                );
++            }
++
+             if (!new File("/dev/dma_heap/system").exists()) {
+                 Log.w(TAG, "DMA-BUF system heap is missing");
+                 showNotification(
+-                    WAYDROID_NOTIFICATION_ID,
+-                    mContext.getString(R.string.waydroid_dmabuf_missing_title),
+-                    mContext.getString(R.string.waydroid_dmabuf_missing_msg)
++                    DMABUF_WARN_ID,
++                    mContext.getString(R.string.dmabuf_missing_title),
++                    mContext.getString(R.string.dmabuf_missing_msg),
++                    mContext.getString(R.string.dmabuf_missing_url)
+                 );
+             }
++
++            if (SystemProperties.get("ro.hardware.egl").equals("angle") && SystemProperties.get("ro.hardware.vulkan").equals("pastel")) {
++                if (SystemProperties.getBoolean("ro.waydroid.unsupported_nvidia_kmd", false)) {
++                    Log.w(TAG, "Unsupported NVIDIA kernel driver detected");
++                    showNotification(
++                        SW_RENDERING_WARN_ID,
++                        mContext.getString(R.string.unsupported_nvidia_kmd_title),
++                        mContext.getString(R.string.unsupported_nvidia_kmd_msg),
++                        mContext.getString(R.string.unsupported_nvidia_kmd_url)
++                    );
++                } else {
++                    Log.w(TAG, "Waydroid is running without GPU acceleration");
++                    showNotification(
++                        SW_RENDERING_WARN_ID,
++                        mContext.getString(R.string.sw_rendering_title),
++                        mContext.getString(R.string.sw_rendering_msg),
++                        mContext.getString(R.string.sw_rendering_url)
++                    );
++                }
++            }
+         }
+     }
+ 
+@@ -193,7 +227,7 @@ public class WayDroidService extends LineageSystemService {
+         mNotificationManager.createNotificationChannel(channel);
+     }
+ 
+-    private void showNotification(int notificationId, String title, String message) {
++    private void showNotification(int notificationId, String title, String message, String url) {
+         createNotificationChannelIfNeeded();
+ 
+         Notification.Builder notification = new Notification.Builder(mContext, WAYDROID_CHANNEL_ID)
+@@ -205,6 +239,16 @@ public class WayDroidService extends LineageSystemService {
+                 .setSmallIcon(R.drawable.ic_warning)
+                 .extend(new Notification.TvExtender().setChannelId(WAYDROID_CHANNEL_ID_TV));
+ 
++        if (url != null) {
++            PendingIntent pendingIntent = PendingIntent.getActivity(
++                mContext, 0,
++                new Intent(Intent.ACTION_VIEW, Uri.parse(url)),
++                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
++            );
++
++            notification.setContentIntent(pendingIntent);
++        }
++
+         mNotificationManager.notify(notificationId, notification.build());
+     }
+ 
+diff --git a/lineage/res/res/values-zh-rCN/strings.xml b/lineage/res/res/values-zh-rCN/strings.xml
+index d9998c9e..2e6ddda4 100644
+--- a/lineage/res/res/values-zh-rCN/strings.xml
++++ b/lineage/res/res/values-zh-rCN/strings.xml
+@@ -85,6 +85,12 @@
+     <string name="charging_control_notification_content_limit_reached">电池已充电 %1$d%%</string>
+     <string name="charging_control_notification_content_target">电池将在 %1$s 完全充满</string>
+     <string name="charging_control_notification_content_target_reached">电池已充满</string>
+-    <string name="waydroid_dmabuf_missing_title">系统缺少 DMA-BUF 支持</string>
+-    <string name="waydroid_dmabuf_missing_msg">DMA-BUF 系统堆不存在（可能在内核中被禁用？），视频可能无法正常播放</string>
++    <string name="broken_waydroid_integration_title">Waydroid 整合功能失效</string>
++    <string name="broken_waydroid_integration_msg">（点击此通知以了解更多）"waydroid app install" 等功能将无法正常工作</string>
++    <string name="dmabuf_missing_title">缺少 DMA-BUF 支持</string>
++    <string name="dmabuf_missing_msg">DMA-BUF 系统堆不存在（或内核不支持），视频播放可能无法正常工作</string>
++    <string name="unsupported_nvidia_kmd_title">检测到不支持的 NVIDIA 内核驱动</string>
++    <string name="unsupported_nvidia_kmd_msg">目前仅支持 nouveau 内核驱动，请考虑切换至 nouveau 以启用 GPU 硬件加速</string>
++    <string name="sw_rendering_title">Waydroid 正在无 GPU 加速模式下运行</string>
++    <string name="sw_rendering_msg">系统 GPU 不受支持，或已被手动禁用</string>
+ </resources>
+diff --git a/lineage/res/res/values-zh-rTW/strings.xml b/lineage/res/res/values-zh-rTW/strings.xml
+index e1187bfb..0da286b6 100644
+--- a/lineage/res/res/values-zh-rTW/strings.xml
++++ b/lineage/res/res/values-zh-rTW/strings.xml
+@@ -81,6 +81,12 @@
+     <string name="charging_control_notification_content_limit_reached">電池已充電至 %1$d%%</string>
+     <string name="charging_control_notification_content_target">電池已在 %1$s 完全充飽</string>
+     <string name="charging_control_notification_content_target_reached">電池已完成充電</string>
+-    <string name="waydroid_dmabuf_missing_title">系統不支援 DMA-BUF</string>
+-    <string name="waydroid_dmabuf_missing_msg">DMA-BUF 系統堆疊不存在（可能在核心中被停用？），影片可能無法正常播放</string>
++    <string name="broken_waydroid_integration_title">Waydroid 整合功能失效</string>
++    <string name="broken_waydroid_integration_msg">"（點擊此通知以了解更多）"waydroid app install" 等功能將無法正常運作</string>
++    <string name="dmabuf_missing_title">缺少 DMA-BUF 支援</string>
++    <string name="dmabuf_missing_msg">DMA-BUF 系統堆疊不存在（或核心不支援），影片可能無法正常播放</string>
++    <string name="unsupported_nvidia_kmd_title">偵測到不支援的 NVIDIA 核心驅動</string>
++    <string name="unsupported_nvidia_kmd_msg">目前僅支援 nouveau 核心驅動，請考慮切換至 nouveau 以啟用 GPU 硬體加速</string>
++    <string name="sw_rendering_title">Waydroid 目前在沒有 GPU 加速的情況下執行</string>
++    <string name="sw_rendering_msg">系統 GPU 不被支援，或已被手動停用</string>
+ </resources>
+diff --git a/lineage/res/res/values/strings.xml b/lineage/res/res/values/strings.xml
+index eb1edf5e..470895be 100644
+--- a/lineage/res/res/values/strings.xml
++++ b/lineage/res/res/values/strings.xml
+@@ -131,6 +131,19 @@
+     <string name="charging_control_notification_content_target">Battery will be fully charged at %1$s</string>
+     <string name="charging_control_notification_content_target_reached">Battery is charged</string>
+ 
+-    <string name="waydroid_dmabuf_missing_title">Missing DMA-BUF support</string>
+-    <string name="waydroid_dmabuf_missing_msg">DMA-BUF system heap does not exist (disabled in kernel?), video playback might not work properly</string>
++    <string name="broken_waydroid_integration_title">Waydroid integration is not functional</string>
++    <string name="broken_waydroid_integration_msg">(Click this notification for more information) Things like "waydroid app install" will not work</string>
++    <string name="broken_waydroid_integration_url">https://github.com/WayDroid-ATV/docs/wiki/%5BFAQ%5D-Waydroid-integration-support</string>
++
++    <string name="dmabuf_missing_title">Missing DMA-BUF support</string>
++    <string name="dmabuf_missing_msg">DMA-BUF system heap does not exist (or not supported by the kernel), video playback might not work properly</string>
++    <string name="dmabuf_missing_url">https://github.com/WayDroid-ATV/docs/wiki/%5BFAQ%5D-Video-playback#21-dma-buf-heap-support-in-kernel</string>
++
++    <string name="unsupported_nvidia_kmd_title">Unsupported NVIDIA kernel driver detected</string>
++    <string name="unsupported_nvidia_kmd_msg">Only the nouveau kernel driver is supported currently, consider switching to nouveau for proper GPU acceleration support</string>
++    <string name="unsupported_nvidia_kmd_url">https://github.com/WayDroid-ATV/docs/wiki/%5BFAQ%5D-GPU-acceleration</string>
++
++    <string name="sw_rendering_title">Waydroid is running without GPU acceleration</string>
++    <string name="sw_rendering_msg">GPU acceleration support is either missing or explicitly disabled</string>
++    <string name="sw_rendering_url">https://github.com/WayDroid-ATV/docs/wiki/%5BFAQ%5D-GPU-acceleration</string>
+ </resources>
+diff --git a/lineage/res/res/values/symbols.xml b/lineage/res/res/values/symbols.xml
+index 51e377e1..48ab947f 100644
+--- a/lineage/res/res/values/symbols.xml
++++ b/lineage/res/res/values/symbols.xml
+@@ -207,7 +207,17 @@
+     <!-- Advanced rotation settings -->
+     <java-symbol type="bool" name="config_enableAdvancedRotationSettings" />
+ 
+-    <!-- Waydroid -->
+-    <java-symbol type="string" name="waydroid_dmabuf_missing_title" />
+-    <java-symbol type="string" name="waydroid_dmabuf_missing_msg" />
++     <!-- Waydroid -->
++     <java-symbol type="string" name="broken_waydroid_integration_title" />
++     <java-symbol type="string" name="broken_waydroid_integration_msg" />
++     <java-symbol type="string" name="broken_waydroid_integration_url" />
++     <java-symbol type="string" name="dmabuf_missing_title" />
++     <java-symbol type="string" name="dmabuf_missing_msg" />
++     <java-symbol type="string" name="dmabuf_missing_url" />
++     <java-symbol type="string" name="unsupported_nvidia_kmd_title" />
++     <java-symbol type="string" name="unsupported_nvidia_kmd_msg" />
++     <java-symbol type="string" name="unsupported_nvidia_kmd_url" />
++     <java-symbol type="string" name="sw_rendering_title" />
++     <java-symbol type="string" name="sw_rendering_msg" />
++     <java-symbol type="string" name="sw_rendering_url" />
+ </resources>
+diff --git a/sdk/src/java/lineageos/waydroid/UserMonitor.java b/sdk/src/java/lineageos/waydroid/UserMonitor.java
+index e89da404..c31f25b6 100644
+--- a/sdk/src/java/lineageos/waydroid/UserMonitor.java
++++ b/sdk/src/java/lineageos/waydroid/UserMonitor.java
+@@ -52,7 +52,7 @@ public class UserMonitor {
+         if (sInstance == null) {
+             sInstance = new UserMonitor(context);
+         }
+-        return sInstance;
++        return sService != null ? sInstance : null;
+     }
+ 
+     /** @hide **/

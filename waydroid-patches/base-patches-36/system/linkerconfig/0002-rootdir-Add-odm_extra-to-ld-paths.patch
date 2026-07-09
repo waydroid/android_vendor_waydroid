@@ -1,7 +1,7 @@
-From 2bc7fd5215c36dbb5ab4c15389f69001b6cd9091 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Erfan Abdi <erfangplus@gmail.com>
 Date: Fri, 27 Feb 2026 08:04:56 +0000
-Subject: [PATCH 2/3] rootdir: Add odm_extra to ld paths
+Subject: [PATCH] rootdir: Add odm_extra to ld paths
 
 Change-Id: I5bc70bb151250a646fd3c327f40c1788bf130fdb
 ---
@@ -124,6 +124,3 @@ index 492db7c..380cd09 100644
      ns.AddPermittedPath("/vendor/${LIB}/hw");
      ns.AddPermittedPath("/vendor/${LIB}/egl");
      ns.AddPermittedPath("/vendor_extra/${LIB}/hw");
--- 
-2.55.0
-

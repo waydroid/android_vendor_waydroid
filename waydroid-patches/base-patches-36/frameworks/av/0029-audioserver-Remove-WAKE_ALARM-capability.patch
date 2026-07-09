@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sun, 1 Mar 2026 02:31:17 +0800
+Subject: [PATCH] audioserver: Remove WAKE_ALARM capability
+
+As we dropped it in system/core/init/init.cpp
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ media/audioserver/audioserver.rc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/media/audioserver/audioserver.rc b/media/audioserver/audioserver.rc
+index 0a8efbde82..d4680dffba 100644
+--- a/media/audioserver/audioserver.rc
++++ b/media/audioserver/audioserver.rc
+@@ -3,7 +3,7 @@ service audioserver /system/bin/audioserver
+     user audioserver
+     # media gid needed for /dev/fm (radio) and for /data/misc/media (tee)
+     group audio camera drmrpc media mediadrm net_bt net_bt_admin net_bw_acct wakelock
+-    capabilities BLOCK_SUSPEND WAKE_ALARM
++    capabilities BLOCK_SUSPEND
+     # match rtprio cur / max with sensor service as we handle AR/VR HID sensor data.
+     rlimit rtprio 10 10
+     ioprio rt 4

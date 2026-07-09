@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 18 Jul 2025 14:58:27 +0000
+Subject: [PATCH] init: Drop CAP_WAKE_ALARM
+
+Change-Id: Ic036ecef91c9da7db1fffcd6e30fede4286b770b
+---
+ init/init.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/init/init.cpp b/init/init.cpp
+index 7de53f999..744386eb0 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -1063,6 +1063,9 @@ int SecondStageMain(int argc, char** argv) {
+     InitKernelLogging(argv);
+     LOG(INFO) << "init second stage started!";
+ 
++    // Waydroid should not interrupt the host from sleeping
++    cap_drop_bound(CAP_WAKE_ALARM);
++
+     SelinuxSetupKernelLogging();
+ 
+     // Update $PATH in the case the second stage init is newer than first stage init, where it is

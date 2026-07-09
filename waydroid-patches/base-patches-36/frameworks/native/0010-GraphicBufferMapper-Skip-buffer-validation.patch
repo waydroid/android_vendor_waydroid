@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 18 Jul 2025 13:44:18 +0000
+Subject: [PATCH] GraphicBufferMapper: Skip buffer validation
+
+Change-Id: Ia7580cec2e4c89f8de7768361ad9852374991fda
+---
+ libs/ui/GraphicBufferMapper.cpp | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/libs/ui/GraphicBufferMapper.cpp b/libs/ui/GraphicBufferMapper.cpp
+index 7b5a27d9e1..e9567a4ad8 100644
+--- a/libs/ui/GraphicBufferMapper.cpp
++++ b/libs/ui/GraphicBufferMapper.cpp
+@@ -93,9 +93,9 @@ void GraphicBufferMapper::dumpBufferToSystemLog(buffer_handle_t bufferHandle, bo
+     ALOGD("%s", s.c_str());
+ }
+ 
+-status_t GraphicBufferMapper::importBuffer(const native_handle_t* rawHandle, uint32_t width,
+-                                           uint32_t height, uint32_t layerCount, PixelFormat format,
+-                                           uint64_t usage, uint32_t stride,
++status_t GraphicBufferMapper::importBuffer(const native_handle_t* rawHandle, __attribute__ ((unused)) uint32_t width,
++                                           __attribute__ ((unused)) uint32_t height, __attribute__ ((unused)) uint32_t layerCount, __attribute__ ((unused)) PixelFormat format,
++                                           __attribute__ ((unused)) uint64_t usage, __attribute__ ((unused)) uint32_t stride,
+                                            buffer_handle_t* outHandle) {
+     ATRACE_CALL();
+ 
+@@ -106,13 +106,13 @@ status_t GraphicBufferMapper::importBuffer(const native_handle_t* rawHandle, uin
+         return error;
+     }
+ 
+-    error = mMapper->validateBufferSize(bufferHandle, width, height, format, layerCount, usage,
++    /*error = mMapper->validateBufferSize(bufferHandle, width, height, format, layerCount, usage,
+                                         stride);
+     if (error != NO_ERROR) {
+         ALOGE("validateBufferSize(%p) failed: %d", rawHandle, error);
+         freeBuffer(bufferHandle);
+         return static_cast<status_t>(error);
+-    }
++    }*/
+ 
+     *outHandle = bufferHandle;
+ 

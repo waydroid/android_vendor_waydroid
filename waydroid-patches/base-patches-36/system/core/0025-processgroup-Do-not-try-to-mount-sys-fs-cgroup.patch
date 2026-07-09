@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SupeChicken666 <me@supechicken666.dev>
+Date: Sat, 23 May 2026 20:19:37 +0800
+Subject: [PATCH] processgroup: Do not try to mount /sys/fs/cgroup
+
+LXC should already handled it for us
+
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ libprocessgroup/setup/cgroup_map_write.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/libprocessgroup/setup/cgroup_map_write.cpp b/libprocessgroup/setup/cgroup_map_write.cpp
+index 899b4e952..218177f61 100644
+--- a/libprocessgroup/setup/cgroup_map_write.cpp
++++ b/libprocessgroup/setup/cgroup_map_write.cpp
+@@ -145,6 +145,7 @@ static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
+         return false;
+     }
+ 
++#if 0 // Disabled in Waydroid
+     // The memory_recursiveprot mount option has been introduced by kernel commit
+     // 8a931f801340 ("mm: memcontrol: recursive memory.low protection"; v5.7). Try first to
+     // mount with that option enabled. If mounting fails because the kernel is too old,
+@@ -158,6 +159,7 @@ static bool MountV2CgroupController(const CgroupDescriptor& descriptor) {
+             return IsOptionalController(controller);
+         }
+     }
++#endif
+ 
+     // selinux permissions change after mounting, so it's ok to change mode and owner now
+     if (!ChangeDirModeAndOwner(controller->path(), descriptor.mode(), descriptor.uid(),

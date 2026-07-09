@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 18 Jul 2025 13:42:02 +0000
+Subject: [PATCH] native: Address host uid services as system UID
+
+Change-Id: If534b9a36f40f15390f5b5a6ca726ebf267406c1
+Signed-off-by: SupeChicken666 <me@supechicken666.dev>
+---
+ libs/binder/Android.bp         | 1 +
+ libs/binder/IPCThreadState.cpp | 6 ++++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/libs/binder/Android.bp b/libs/binder/Android.bp
+index ab97db7179..c996a56e72 100644
+--- a/libs/binder/Android.bp
++++ b/libs/binder/Android.bp
+@@ -344,6 +344,7 @@ cc_defaults {
+     },
+ 
+     shared_libs: [
++        "libbase",
+         "libcutils",
+         "liblog",
+         "libutils",
+diff --git a/libs/binder/IPCThreadState.cpp b/libs/binder/IPCThreadState.cpp
+index 12c91aeaaf..219722f028 100644
+--- a/libs/binder/IPCThreadState.cpp
++++ b/libs/binder/IPCThreadState.cpp
+@@ -22,6 +22,7 @@
+ #include <binder/BpBinder.h>
+ #include <binder/TextOutput.h>
+ 
++#include <android-base/properties.h>
+ #include <utils/CallStack.h>
+ #include <utils/SystemClock.h>
+ 
+@@ -445,6 +446,11 @@ status_t IPCThreadState::clearLastError()
+ pid_t IPCThreadState::getCallingPid() const
+ {
+     checkContextIsBinderForUse(__func__);
++    if (mCallingUid != 1000) {
++        int hostuid = android::base::GetIntProperty("waydroid.host.uid", 1000);
++        if (mCallingUid == (uid_t)hostuid)
++            return 1000;
++    }
+     return mCallingPid;
+ }
+ 
