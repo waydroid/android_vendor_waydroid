@@ -18,6 +18,10 @@
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/hosthals.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/hosthals.xml
 
+# Host-AIDL passthrough allowlist
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/hostaidls.conf:$(TARGET_COPY_OUT_SYSTEM)/etc/hostaidls.conf
+
 # Init
 PRODUCT_PACKAGES += \
     init.waydroid.rc
