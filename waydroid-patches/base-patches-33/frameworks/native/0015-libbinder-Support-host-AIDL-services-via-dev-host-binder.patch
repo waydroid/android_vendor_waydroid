@@ -11,19 +11,19 @@ Co-Authored-By: Steffen Deusch <steffen@deusch.me>
 Change-Id: I8bb1f1f79f11ffd990afbd8a74b01af6ace19f89
 ---
  libs/binder/Binder.cpp                      |   7 ++
- libs/binder/BpBinder.cpp                    |  45 +++++---
- libs/binder/IInterface.cpp                  |  12 +++
- libs/binder/IPCThreadState.cpp              |  62 ++++++++---
- libs/binder/IServiceManager.cpp             | 106 ++++++++++++++++++
- libs/binder/Parcel.cpp                      |  30 ++++--
- libs/binder/ProcessState.cpp                | 113 ++++++++++++++------
+ libs/binder/BpBinder.cpp                    |  45 +++++--
+ libs/binder/IInterface.cpp                  |  12 ++
+ libs/binder/IPCThreadState.cpp              |  63 +++++++---
+ libs/binder/IServiceManager.cpp             | 106 ++++++++++++++++
+ libs/binder/Parcel.cpp                      |  30 +++--
+ libs/binder/ProcessState.cpp                | 131 +++++++++++++++-----
  libs/binder/include/binder/BpBinder.h       |  11 ++
  libs/binder/include/binder/IBinder.h        |   4 +
  libs/binder/include/binder/IInterface.h     |   4 +
  libs/binder/include/binder/IPCThreadState.h |   9 +-
  libs/binder/include/binder/Parcel.h         |   9 ++
- libs/binder/include/binder/ProcessState.h   |  12 ++-
- 13 files changed, 355 insertions(+), 69 deletions(-)
+ libs/binder/include/binder/ProcessState.h   |  14 ++-
+ 13 files changed, 377 insertions(+), 68 deletions(-)
 
 diff --git a/libs/binder/Binder.cpp b/libs/binder/Binder.cpp
 index 39befbe..f591926 100644
@@ -223,7 +223,7 @@ index 2780bd4..8e34cc6 100644
  // ---------------------------------------------------------------------------
  
 diff --git a/libs/binder/IPCThreadState.cpp b/libs/binder/IPCThreadState.cpp
-index 9def17d..f9d4ab9 100644
+index 9def17d..4eeca74 100644
 --- a/libs/binder/IPCThreadState.cpp
 +++ b/libs/binder/IPCThreadState.cpp
 @@ -285,32 +285,43 @@ static pthread_key_t gTLS = 0;
@@ -333,13 +333,25 @@ index 9def17d..f9d4ab9 100644
      clearCaller();
      mIn.setDataCapacity(256);
      mOut.setDataCapacity(256);
-@@ -1449,17 +1476,20 @@ status_t IPCThreadState::freeze(pid_t pid, bool enable, uint32_t timeout_ms) {
-     return ret;
- }
+@@ -1248,6 +1275,9 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
+             if (result != NO_ERROR) break;
  
--void IPCThreadState::freeBuffer(Parcel* /*parcel*/, const uint8_t* data,
-+void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
-                                 size_t /*dataSize*/,
+             Parcel buffer;
++            // Waydroid dual-driver: objects in this transaction belong to the
++            // device it arrived on.
++            buffer.SetIsHost(mIsHost);
+             buffer.ipcSetDataReference(
+                 reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
+                 tr.data_size,
+@@ -1279,6 +1309,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
+             //    (mCallingSid ? mCallingSid : "<N/A>"), mCallingUid);
+ 
+             Parcel reply;
++            reply.SetIsHost(mIsHost);
+             status_t error;
+             IF_LOG_TRANSACTIONS() {
+                 TextOutput::Bundle _b(alog);
+@@ -1454,12 +1485,14 @@ void IPCThreadState::freeBuffer(Parcel* /*parcel*/, const uint8_t* data,
                                  const binder_size_t* /*objects*/,
                                  size_t /*objectsSize*/)
  {
@@ -349,10 +361,9 @@ index 9def17d..f9d4ab9 100644
      }
      ALOG_ASSERT(data != NULL, "Called with NULL data");
 -    IPCThreadState* state = self();
-+    // Waydroid dual-driver: determine host vs container routing.
-+    // When parcel is non-null, use its mIsHost flag directly.
-+    // When null (error/discard path), check if current thread has a host TLS slot.
-+    bool isHost = parcel ? parcel->mIsHost : (selfOrNull(true) != nullptr);
++    // Waydroid dual-driver: the kernel hands out receive buffers inside the
++    // mmap of the device they arrived on, so route the free by pointer.
++    bool isHost = ProcessState::isHostMappedAddress(data);
 +    IPCThreadState* state = self(isHost);
      state->mOut.writeInt32(BC_FREE_BUFFER);
      state->mOut.writePointer((uintptr_t)data);
@@ -612,10 +623,18 @@ index 70cee88..ed679c6 100644
      mWorkSourceRequestHeaderPosition = 0;
      mRequestHeaderPresent = false;
 diff --git a/libs/binder/ProcessState.cpp b/libs/binder/ProcessState.cpp
-index 933967f..4ccc73f 100644
+index 933967f..b30a1ef 100644
 --- a/libs/binder/ProcessState.cpp
 +++ b/libs/binder/ProcessState.cpp
-@@ -54,6 +54,9 @@ const char* kDefaultDriver = "/dev/vndbinder";
+@@ -33,6 +33,7 @@
+ #include "Static.h"
+ #include "binder_module.h"
+ 
++#include <atomic>
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <mutex>
+@@ -54,6 +55,9 @@ const char* kDefaultDriver = "/dev/vndbinder";
  const char* kDefaultDriver = "/dev/binder";
  #endif
  
@@ -625,7 +644,7 @@ index 933967f..4ccc73f 100644
  // -------------------------------------------------------------------------
  
  namespace android {
-@@ -61,84 +64,124 @@ namespace android {
+@@ -61,84 +65,141 @@ namespace android {
  class PoolThread : public Thread
  {
  public:
@@ -681,6 +700,10 @@ index 933967f..4ccc73f 100644
  
  [[clang::no_destroy]] static sp<ProcessState> gProcess;
 +[[clang::no_destroy]] static sp<ProcessState> gHostProcess;
++// Waydroid dual-driver: start of the host driver's transaction mmap, cached
++// here so the freeBuffer hot path can classify buffers without taking
++// gProcessMutex. Written once when gHostProcess is created, never changed.
++static std::atomic<uintptr_t> gHostVMStart{0};
  [[clang::no_destroy]] static std::mutex gProcessMutex;
  
  static void verifyNotForked(bool forked) {
@@ -741,6 +764,10 @@ index 933967f..4ccc73f 100644
 -    });
 +        if (isHost) {
 +            gHostProcess = sp<ProcessState>::make(driver, true /*isHost*/);
++            if (gHostProcess->mVMStart != MAP_FAILED) {
++                gHostVMStart.store(reinterpret_cast<uintptr_t>(gHostProcess->mVMStart),
++                                   std::memory_order_release);
++            }
 +        } else {
 +            gProcess = sp<ProcessState>::make(driver, false /*isHost*/);
 +        }
@@ -772,10 +799,19 @@ index 933967f..4ccc73f 100644
 -    return gProcess;
 +    verifyNotForked(selected->mForked);
 +    return selected;
++}
++
++bool ProcessState::isHostMappedAddress(const void* p) {
++    uintptr_t start = gHostVMStart.load(std::memory_order_acquire);
++    if (start == 0) return false;
++    // Compare as integers: relational comparison of pointers into different
++    // allocations is unspecified in C++.
++    uintptr_t addr = reinterpret_cast<uintptr_t>(p);
++    return addr >= start && addr - start < static_cast<uintptr_t>(BINDER_VM_SIZE);
  }
  
  sp<IBinder> ProcessState::getContextObject(const sp<IBinder>& /*caller*/)
-@@ -170,6 +213,13 @@ void ProcessState::childPostFork() {
+@@ -170,6 +231,13 @@ void ProcessState::childPostFork() {
      // the thread handler is installed
      if (gProcess) {
          gProcess->mForked = true;
@@ -789,7 +825,7 @@ index 933967f..4ccc73f 100644
      }
      gProcessMutex.unlock();
  }
-@@ -272,7 +322,7 @@ ssize_t ProcessState::getStrongRefCountForNode(const sp<BpBinder>& binder) {
+@@ -272,7 +340,7 @@ ssize_t ProcessState::getStrongRefCountForNode(const sp<BpBinder>& binder) {
  }
  
  void ProcessState::setCallRestriction(CallRestriction restriction) {
@@ -798,7 +834,7 @@ index 933967f..4ccc73f 100644
          "Call restrictions must be set before the threadpool is started.");
  
      mCallRestriction = restriction;
-@@ -324,7 +374,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
+@@ -324,7 +392,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
                  // Note that this is not race-free if the context manager
                  // dies while this code runs.
  
@@ -807,7 +843,7 @@ index 933967f..4ccc73f 100644
  
                  CallRestriction originalCallRestriction = ipc->getCallRestriction();
                  ipc->setCallRestriction(CallRestriction::NONE);
-@@ -339,7 +389,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
+@@ -339,7 +407,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
                     return nullptr;
              }
  
@@ -816,7 +852,7 @@ index 933967f..4ccc73f 100644
              e->binder = b.get();
              if (b) e->refs = b->getWeakRefs();
              result = b;
-@@ -385,7 +435,7 @@ void ProcessState::spawnPooledThread(bool isMain)
+@@ -385,7 +453,7 @@ void ProcessState::spawnPooledThread(bool isMain)
      if (mThreadPoolStarted) {
          String8 name = makeBinderThreadName();
          ALOGV("Spawning new pooled thread, name=%s\n", name.string());
@@ -825,7 +861,7 @@ index 933967f..4ccc73f 100644
          t->run(name.string());
      }
  }
-@@ -483,7 +533,7 @@ static base::Result<int> open_driver(const char* driver) {
+@@ -483,7 +551,7 @@ static base::Result<int> open_driver(const char* driver) {
      return fd;
  }
  
@@ -834,7 +870,7 @@ index 933967f..4ccc73f 100644
        : mDriverName(String8(driver)),
          mDriverFD(-1),
          mVMStart(MAP_FAILED),
-@@ -496,7 +546,8 @@ ProcessState::ProcessState(const char* driver)
+@@ -496,7 +564,8 @@ ProcessState::ProcessState(const char* driver)
          mForked(false),
          mThreadPoolStarted(false),
          mThreadPoolSeq(1),
@@ -991,22 +1027,24 @@ index 1b3b6f7..5e223f8 100644
  
      mutable bool        mFdsKnown;
 diff --git a/libs/binder/include/binder/ProcessState.h b/libs/binder/include/binder/ProcessState.h
-index 675585e..6fc8345 100644
+index 675585e..dceaddf 100644
 --- a/libs/binder/include/binder/ProcessState.h
 +++ b/libs/binder/include/binder/ProcessState.h
-@@ -34,6 +34,11 @@ public:
+@@ -34,6 +34,13 @@ public:
      static sp<ProcessState> self();
      static sp<ProcessState> selfOrNull();
  
-+    // Waydroid dual-driver: access the host binder ProcessState.
++    // Waydroid dual-driver: access the host binder ProcessState
 +    static sp<ProcessState> self(bool isHost);
 +    static sp<ProcessState> selfOrNull(bool isHost);
 +    bool isHostBinder() const { return mIsHost; }
++    // Waydroid dual-driver: true if p lies inside the host driver's transaction mmap
++    static bool isHostMappedAddress(const void* p);
 +
      /* initWithDriver() can be used to configure libbinder to use
       * a different binder driver dev node. It must be called *before*
       * any call to ProcessState::self(). The default is /dev/vndbinder
-@@ -97,7 +102,7 @@ public:
+@@ -97,7 +104,7 @@ public:
      static bool isDriverFeatureEnabled(const DriverFeature feature);
  
  private:
@@ -1015,7 +1053,7 @@ index 675585e..6fc8345 100644
  
      static void onFork();
      static void parentPostFork();
-@@ -106,7 +111,7 @@ private:
+@@ -106,7 +113,7 @@ private:
      friend class IPCThreadState;
      friend class sp<ProcessState>;
  
@@ -1024,7 +1062,7 @@ index 675585e..6fc8345 100644
      ~ProcessState();
  
      ProcessState(const ProcessState& o);
-@@ -146,6 +151,9 @@ private:
+@@ -146,6 +153,9 @@ private:
      volatile int32_t mThreadPoolSeq;
  
      CallRestriction mCallRestriction;
