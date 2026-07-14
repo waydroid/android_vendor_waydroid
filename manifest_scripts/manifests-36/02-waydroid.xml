@@ -5,7 +5,7 @@
   <project path="device/waydroid/waydroid" name="WayDroid-ATV/android_device_waydroid_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-23.2" />
   <project path="frameworks/waydroid" name="WayDroid-ATV/android_frameworks_waydroid" clone-depth="1" remote="ghub" revision="refs/heads/lineage-20" />
   <project path="hardware/waydroid" name="WayDroid-ATV/android_hardware_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-21" />
-  <project path="vendor/extra" name="WayDroid-ATV/android_vendor_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/lineage-23.2" />
+  <project path="vendor/extra" name="waydroid/android_vendor_waydroid" remote="ghub" clone-depth="1" revision="refs/heads/dev/lineage-23.2" />
   <project path="vendor/waydroid/init" name="WayDroid-ATV/android_vendor_waydroid_init" remote="ghub" clone-depth="1" revision="refs/heads/main" />
   <project path="packages/apps/WaydroidUpdater" name="WayDroid-ATV/android_packages_apps_WaydroidUpdater" remote="ghub" clone-depth="1" revision="refs/heads/lineage-20" />
 
