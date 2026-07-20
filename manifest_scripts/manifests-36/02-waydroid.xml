@@ -24,7 +24,7 @@
   <project path="external/rust/hbm" name="WayDroid-ATV/android_external_rust_hbm" remote="ghub" clone-depth="1" revision="refs/heads/main" />
 
   <!-- Media -->
-  <project path="external/ffmpeg" name="WayDroid-ATV/android_external_ffmpeg" remote="ghub" clone-depth="1" revision="refs/heads/release/7.1/14-x86" />
+  <project path="external/ffmpeg" name="waydroid/android_external_ffmpeg" remote="ghub" clone-depth="1" revision="refs/heads/dev/lineage-23.2" />
   <project path="external/stagefright-plugins" name="WayDroid-ATV/android_external_stagefright-plugins" remote="ghub" clone-depth="1" revision="refs/heads/14-x86/ffmpeg-7.1" />
 
   <!-- VA-API -->
