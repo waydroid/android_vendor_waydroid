@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Mon, 20 Jul 2026 12:15:49 +0300
+Subject: [PATCH] surfaceflinger: Always request client composition
+
+hwcomposer is reached through HWC2On1Adapter, which expects a framebuffer
+target buffer on every frame. When no layer required client composition
+surfaceflinger skipped rendering and queued nothing, leaving the adapter
+without a target.
+---
+ services/surfaceflinger/CompositionEngine/src/Display.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/services/surfaceflinger/CompositionEngine/src/Display.cpp b/services/surfaceflinger/CompositionEngine/src/Display.cpp
+index 5144c967ed..39421d776b 100644
+--- a/services/surfaceflinger/CompositionEngine/src/Display.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/Display.cpp
+@@ -303,7 +303,10 @@ void Display::applyCompositionStrategy(const std::optional<DeviceRequestedChange
+ 
+     // Determine what type of composition we are doing from the final state
+     auto& state = editState();
+-    state.usesClientComposition = anyLayersRequireClientComposition();
++    // Waydroid: hwcomposer runs through HWC2On1Adapter, which always expects a
++    // framebuffer target, so keep client composition on even when no layer asks
++    // for it. Device composition is still selected per layer.
++    state.usesClientComposition = true;
+     state.usesDeviceComposition = !allLayersRequireClientComposition();
+ }
+ 
