@@ -24,7 +24,7 @@ index e08fa53ba381..a54ef4916c13 100644
  import dalvik.annotation.optimization.NeverCompile;
  
  import lineageos.providers.LineageSettings;
-+import lineageos.waydroid.Hardware;
++import id.waydro.waydroid.Hardware;
  
  import java.io.FileDescriptor;
  import java.io.PrintWriter;
