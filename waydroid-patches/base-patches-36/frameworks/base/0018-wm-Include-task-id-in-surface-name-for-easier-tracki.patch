@@ -1,0 +1,113 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 1 Aug 2026 23:56:58 +0300
+Subject: [PATCH] wm: Include task id in surface name for easier tracking
+
+The waydroid hwcomposer identifies an app's layers by a
+"TID:<taskId>#<package>/<component>" surface name and cannot create a
+per-app toplevel without it. Prefix window surfaces with the task id and
+reshape the splash/snapshot/decoration names to match.
+
+Ported from the A13 fork (331a320d). SurfaceFreezer is gone in A16, and
+the splash screen title now lives in SplashscreenContentDrawer.
+
+Change-Id: Iaf9ef57b0138e5569b8c8dfc49065fbd07e5c66b
+---
+ .../startingsurface/SplashscreenContentDrawer.java  |  3 ++-
+ .../shell/startingsurface/TaskSnapshotWindow.java   |  8 +++++---
+ .../wm/shell/windowdecor/WindowDecoration.java      | 13 +++++++++++--
+ .../com/android/server/wm/WindowStateAnimator.java  |  4 ++++
+ 4 files changed, 22 insertions(+), 6 deletions(-)
+
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/SplashscreenContentDrawer.java b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/SplashscreenContentDrawer.java
+index b4bb16d08..1047a9f84 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/SplashscreenContentDrawer.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/SplashscreenContentDrawer.java
+@@ -293,7 +293,8 @@ public class SplashscreenContentDrawer {
+         params.token = appToken;
+         params.packageName = activityInfo.packageName;
+         params.privateFlags |= WindowManager.LayoutParams.SYSTEM_FLAG_SHOW_FOR_ALL_USERS;
+-        params.setTitle("Splash Screen " + title);
++        // Keep "<pkg>/<component>" shape so the TID: layer name stays parseable by Waydroid.
++        params.setTitle(activityInfo.packageName + "/SplashScreen");
+         return params;
+     }
+     /**
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/TaskSnapshotWindow.java b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/TaskSnapshotWindow.java
+index c203ddb61..020407601 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/TaskSnapshotWindow.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/startingsurface/TaskSnapshotWindow.java
+@@ -60,7 +60,7 @@ import java.lang.ref.WeakReference;
+  */
+ public class TaskSnapshotWindow {
+     private static final String TAG = StartingWindowController.TAG;
+-    private static final String TITLE_FORMAT = "SnapshotStartingWindow for taskId=";
++    private static final String TITLE_FORMAT = "/SnapshotStartingWindow";
+ 
+     private final Window mWindow;
+     private final Runnable mClearWindowHandler;
+@@ -92,9 +92,11 @@ public class TaskSnapshotWindow {
+         final int format = com.android.window.flags.Flags.reduceTaskSnapshotMemoryUsage()
+                 ? snapshot.getHardwareBufferFormat()
+                 : snapshot.getHardwareBuffer().getFormat();
++        // "<pkg>/<component>" shape, so the TID: layer name stays parseable by Waydroid.
++        final String title = (info.mainWindowLayoutParams != null
++                ? info.mainWindowLayoutParams.packageName : "") + TITLE_FORMAT;
+         final WindowManager.LayoutParams layoutParams = SnapshotDrawerUtils.createLayoutParameters(
+-                info, TITLE_FORMAT + taskId, TYPE_APPLICATION_STARTING,
+-                format, appToken);
++                info, title, TYPE_APPLICATION_STARTING, format, appToken);
+         if (layoutParams == null) {
+             Slog.e(TAG, "TaskSnapshotWindow no layoutParams");
+             return null;
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/WindowDecoration.java b/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/WindowDecoration.java
+index 6f5ae5b5b..e085e3320 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/WindowDecoration.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/WindowDecoration.java
+@@ -455,12 +455,21 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
+         return (T) LayoutInflater.from(context).inflate(layoutResId, null);
+     }
+ 
++    /** Layer name in the "TID:<task>#<pkg>/<component>" form Waydroid parses. */
++    private String tidLayerName(String component) {
++        if (mTaskInfo.baseActivity == null) {
++            return component + " of Task=" + mTaskInfo.taskId;
++        }
++        return "TID:" + mTaskInfo.taskId + "#" + mTaskInfo.baseActivity.getPackageName()
++                + "/" + component;
++    }
++
+     private void updateDecorationContainerSurface(
+             SurfaceControl.Transaction startT, RelayoutResult<T> outResult) {
+         if (mDecorationContainerSurface == null) {
+             final SurfaceControl.Builder builder = mSurfaceControlBuilderSupplier.get();
+             mDecorationContainerSurface = builder
+-                    .setName("Decor container of Task=" + mTaskInfo.taskId)
++                    .setName(tidLayerName("DecorContainer"))
+                     .setContainerLayer()
+                     .setParent(mTaskSurface)
+                     .setCallsite("WindowDecoration.updateDecorationContainerSurface")
+@@ -751,7 +760,7 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
+             int xPos, int yPos, int width, int height) {
+         final SurfaceControl.Builder builder = mSurfaceControlBuilderSupplier.get();
+         SurfaceControl windowSurfaceControl = builder
+-                .setName(namePrefix + " of Task=" + mTaskInfo.taskId)
++                .setName(tidLayerName(namePrefix))
+                 .setContainerLayer()
+                 .setParent(mDecorationContainerSurface)
+                 .setCallsite("WindowDecoration.addWindow")
+diff --git a/services/core/java/com/android/server/wm/WindowStateAnimator.java b/services/core/java/com/android/server/wm/WindowStateAnimator.java
+index b3c163b76..83145a08e 100644
+--- a/services/core/java/com/android/server/wm/WindowStateAnimator.java
++++ b/services/core/java/com/android/server/wm/WindowStateAnimator.java
+@@ -311,6 +311,10 @@ class WindowStateAnimator {
+             final int format = isHwAccelerated ? PixelFormat.TRANSLUCENT : attrs.format;
+ 
+             mTitle = attrs.getTitle().toString();
++            final Task task = mWin.getTask();
++            if (task != null) {
++                mTitle = String.format("TID:%d#", task.mTaskId) + mTitle;
++            }
+             Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "new SurfaceControl");
+             mSurfaceControl = mWin.makeSurface()
+                     .setParent(mWin.mSurfaceControl)

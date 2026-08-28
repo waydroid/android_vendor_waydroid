@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 1 Aug 2026 23:57:03 +0300
+Subject: [PATCH] base: Add TID to SurfaceView layer name
+
+SurfaceView layers are named from the view root title, so they need the
+same TID: prefix to be attributed to their app. SurfaceControl.toString()
+returns the bare name because layer names are derived from it.
+
+Ported from the A13 fork (7c057ee2).
+
+Change-Id: I8d217fed6f7289eb40c3005105bbd08bcfac5205
+---
+ core/java/android/view/SurfaceControl.java |  4 ++--
+ core/java/android/view/SurfaceView.java    | 15 ++++++++++++---
+ 2 files changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/core/java/android/view/SurfaceControl.java b/core/java/android/view/SurfaceControl.java
+index a95dc9c95..0525a8df1 100644
+--- a/core/java/android/view/SurfaceControl.java
++++ b/core/java/android/view/SurfaceControl.java
+@@ -1947,8 +1947,8 @@ public final class SurfaceControl implements Parcelable {
+ 
+     @Override
+     public String toString() {
+-        return "Surface(name=" + mNativeProperties.name + ")/@0x"
+-                + Integer.toHexString(System.identityHashCode(this));
++        // Waydroid derives layer names from this, so keep it bare.
++        return mNativeProperties.name;
+     }
+ 
+     /**
+diff --git a/core/java/android/view/SurfaceView.java b/core/java/android/view/SurfaceView.java
+index 49a7da2d8..2fd93e38f 100644
+--- a/core/java/android/view/SurfaceView.java
++++ b/core/java/android/view/SurfaceView.java
+@@ -30,6 +30,7 @@ import android.annotation.IntDef;
+ import android.annotation.NonNull;
+ import android.annotation.Nullable;
+ import android.annotation.SuppressLint;
++import android.app.Activity;
+ import android.compat.annotation.UnsupportedAppUsage;
+ import android.content.Context;
+ import android.content.res.CompatibilityInfo.Translator;
+@@ -1374,8 +1375,16 @@ public class SurfaceView extends View implements ViewRootImpl.SurfaceChangedCall
+                 final Transaction surfaceUpdateTransaction = new Transaction();
+                 if (creating) {
+                     updateOpaqueFlag();
+-                    final String name = Integer.toHexString(System.identityHashCode(this))
+-                            + " SurfaceView[" + viewRoot.getTitle().toString() + "]";
++                    // Waydroid parses "TID:<task>#<pkg>/<component>" from the layer name, so the
++                    // prefix must come first and the title must stay bare.
++                    final String name;
++                    if (getContext() instanceof Activity) {
++                        name = String.format("TID:%d#", ((Activity) getContext()).getTaskId())
++                                + viewRoot.getTitle().toString();
++                    } else {
++                        name = Integer.toHexString(System.identityHashCode(this))
++                                + " SurfaceView[" + viewRoot.getTitle().toString() + "]";
++                    }
+                     createBlastSurfaceControls(viewRoot, name, surfaceUpdateTransaction);
+                 } else if (mSurfaceControl == null) {
+                     return;
+@@ -1671,7 +1680,7 @@ public class SurfaceView extends View implements ViewRootImpl.SurfaceChangedCall
+ 
+         if (mBackgroundControl == null) {
+             mBackgroundControl = new SurfaceControl.Builder()
+-                    .setName("Background for " + name)
++                    .setName(name + "$Background")
+                     .setLocalOwnerView(this)
+                     .setOpaque(true)
+                     .setColorLayer()
