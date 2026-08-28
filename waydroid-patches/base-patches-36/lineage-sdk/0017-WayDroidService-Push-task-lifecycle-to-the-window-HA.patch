@@ -1,0 +1,217 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Mon, 3 Aug 2026 03:46:11 +0300
+Subject: [PATCH] WayDroidService: Push task lifecycle to the window HAL
+
+Forward taskCreated/removed/focusChanged from the task stack
+listener to vendor.waydroid.window@1.3 so the hwcomposer keeps an
+authoritative task table instead of inferring lifecycle from layer
+names. The HAL restarts with the framework (and on its own crashes),
+so the full task table is resynced every time its service
+(re)registers with hwservicemanager.
+
+Change-Id: I1c2b86d3b98bd3fadc7d266521870f848cbfd5ba
+---
+ Android.bp                                    |   2 +
+ .../platform/internal/WayDroidService.java    | 148 +++++++++++++++++-
+ 2 files changed, 149 insertions(+), 1 deletion(-)
+
+diff --git a/Android.bp b/Android.bp
+index e916af2..65ef868 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -88,10 +88,12 @@ java_defaults {
+     ],
+ 
+     static_libs: [
++        "android.hidl.manager-V1.0-java",
+         "vendor.lineage.health-V2-java",
+         "vendor.lineage.livedisplay-V1-java",
+         "vendor.lineage.touch-V1-java",
+         "vendor.waydroid.clipboard-V1.0-java",
++        "vendor.waydroid.window-V1.3-java",
+     ],
+ }
+ 
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index d603266..a63486f 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -60,6 +60,10 @@ import android.window.TaskSnapshot;
+ import com.android.internal.content.PackageMonitor;
+ import com.android.internal.os.BackgroundThread;
+ 
++import android.hidl.manager.V1_0.IServiceManager;
++import android.hidl.manager.V1_0.IServiceNotification;
++import vendor.waydroid.window.V1_3.IWaydroidWindow;
++
+ import java.nio.ByteBuffer;
+ import java.nio.ByteOrder;
+ 
+@@ -164,6 +168,7 @@ public class WayDroidService extends LineageSystemService {
+         if (phase == PHASE_ACTIVITY_MANAGER_READY) {
+             clearTaskSnapshots(); // task IDs restart per boot
+             registerTaskStackMonitor();
++            registerWindowHalNotification();
+         }
+         if (phase == PHASE_BOOT_COMPLETED) {
+             mNotificationManager = mContext.getSystemService(NotificationManager.class);
+@@ -544,9 +549,35 @@ public class WayDroidService extends LineageSystemService {
+                     BackgroundThread.getHandler().post(WayDroidService.this::syncActiveApps);
+                 }
+ 
++                /* Task lifecycle push to the hwcomposer (IWaydroidWindow@1.3).
++                 * Rules (see NOTES-appsupport-reference.md): created fires once
++                 * per task creation and nowhere else; focus-change is the only
++                 * raise/lower signal; taskId is the sole key. */
++                @Override
++                public void onTaskCreated(int taskId, ComponentName componentName) {
++                    BackgroundThread.getHandler().post(
++                            () -> pushTaskCreated(taskId, componentName));
++                }
++
++                @Override
++                public void onTaskRemovalStarted(
++                        android.app.ActivityManager.RunningTaskInfo taskInfo) {
++                    BackgroundThread.getHandler().post(
++                            () -> pushTaskRemoved(taskInfo.taskId));
++                }
++
+                 @Override
+                 public void onTaskRemoved(int taskId) {
+-                    BackgroundThread.getHandler().post(WayDroidService.this::publishTaskList);
++                    BackgroundThread.getHandler().post(() -> {
++                        pushTaskRemoved(taskId);
++                        publishTaskList();
++                    });
++                }
++
++                @Override
++                public void onTaskFocusChanged(int taskId, boolean focused) {
++                    BackgroundThread.getHandler().post(
++                            () -> pushTaskFocusChanged(taskId, focused));
+                 }
+             });
+         } catch (RemoteException e) {
+@@ -554,6 +585,121 @@ public class WayDroidService extends LineageSystemService {
+         }
+     }
+ 
++    /* Task control plane: push task lifecycle into the hwcomposer so it stops
++     * inferring lifecycle from per-frame layer names. The HAL restarts with
++     * the framework (and on its own crashes), so resync the full task table
++     * every time its service (re)registers. */
++    private IWaydroidWindow mWindowHal;
++
++    private synchronized IWaydroidWindow getWindowHal() {
++        if (mWindowHal == null) {
++            try {
++                mWindowHal = IWaydroidWindow.getService(false /* retry */);
++                if (mWindowHal != null) {
++                    mWindowHal.linkToDeath(cookie -> {
++                        synchronized (WayDroidService.this) {
++                            mWindowHal = null;
++                        }
++                    }, 0);
++                }
++            } catch (Exception e) {
++                Log.w(TAG, "Waydroid window HAL unavailable: " + e);
++            }
++        }
++        return mWindowHal;
++    }
++
++    private synchronized void dropWindowHal() {
++        mWindowHal = null;
++    }
++
++    private void registerWindowHalNotification() {
++        try {
++            IServiceManager.getService().registerForNotifications(
++                    "vendor.waydroid.window@1.3::IWaydroidWindow", "default",
++                    new IServiceNotification.Stub() {
++                        @Override
++                        public void onRegistration(String fqName, String name,
++                                boolean preexisting) {
++                            Log.i(TAG, "Waydroid window HAL up, resyncing task table");
++                            dropWindowHal();
++                            BackgroundThread.getHandler().post(
++                                    WayDroidService.this::resyncTasks);
++                        }
++                    });
++        } catch (Exception e) {
++            Log.w(TAG, "Unable to watch for the window HAL: " + e);
++        }
++    }
++
++    private void resyncTasks() {
++        IWaydroidWindow hal = getWindowHal();
++        if (hal == null)
++            return;
++        try {
++            List<android.app.ActivityManager.RunningTaskInfo> tasks =
++                    ActivityTaskManager.getService().getTasks(200,
++                            false /* filterOnlyVisibleRecents */,
++                            true /* keepIntentExtra */,
++                            android.view.Display.INVALID_DISPLAY);
++            for (android.app.ActivityManager.RunningTaskInfo t : tasks) {
++                ComponentName c = t.realActivity != null ? t.realActivity : t.baseActivity;
++                hal.taskCreated(t.taskId,
++                        c != null ? c.getPackageName() : "",
++                        c != null ? c.flattenToShortString() : "");
++            }
++            ActivityTaskManager.RootTaskInfo focused =
++                    ActivityTaskManager.getService().getFocusedRootTaskInfo();
++            if (focused != null && focused.taskId > 0)
++                hal.taskFocusChanged(focused.taskId, true);
++            Log.i(TAG, "Resynced " + tasks.size() + " tasks to the window HAL");
++        } catch (Exception e) {
++            Log.w(TAG, "Task table resync failed: " + e);
++            dropWindowHal();
++        }
++    }
++
++    private void pushTaskCreated(int taskId, ComponentName component) {
++        IWaydroidWindow hal = getWindowHal();
++        if (hal == null)
++            return;
++        String pkg = component != null ? component.getPackageName() : "";
++        String comp = component != null ? component.flattenToShortString() : "";
++        Log.i(TAG, "taskCreated " + taskId + " " + comp);
++        try {
++            hal.taskCreated(taskId, pkg, comp);
++        } catch (Exception e) {
++            Log.w(TAG, "taskCreated push failed: " + e);
++            dropWindowHal();
++        }
++    }
++
++    private void pushTaskRemoved(int taskId) {
++        IWaydroidWindow hal = getWindowHal();
++        if (hal == null)
++            return;
++        Log.i(TAG, "taskRemoved " + taskId);
++        try {
++            hal.taskRemoved(taskId);
++        } catch (Exception e) {
++            Log.w(TAG, "taskRemoved push failed: " + e);
++            dropWindowHal();
++        }
++    }
++
++    private void pushTaskFocusChanged(int taskId, boolean focused) {
++        IWaydroidWindow hal = getWindowHal();
++        if (hal == null)
++            return;
++        Log.i(TAG, "taskFocusChanged " + taskId + " focused=" + focused);
++        try {
++            hal.taskFocusChanged(taskId, focused);
++        } catch (Exception e) {
++            Log.w(TAG, "taskFocusChanged push failed: " + e);
++            dropWindowHal();
++        }
++    }
++
+     /* Live task IDs, so the hwcomposer can close cards whose task is gone
+      * (a dead task's card otherwise lingers forever, and its open.<pkg> prop
+      * makes the host launcher think the app is still running — icon clicks
