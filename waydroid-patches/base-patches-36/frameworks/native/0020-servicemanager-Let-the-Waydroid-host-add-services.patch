@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 1 Aug 2026 22:45:35 +0300
+Subject: [PATCH] servicemanager: Let the Waydroid host add services
+
+The host runs outside Android and reaches servicemanager over the host
+binder node, so its caller uid is the desktop user's Linux uid. That is
+inside the Android app uid range, so the app-uid rule rejected the host's
+own services.
+
+Only waydroidusermonitor was affected in practice: it is registered by
+the session process running as the user, while waydroidhardware comes
+from the root container process and was allowed. Losing the user monitor
+meant Android's userUnlocked never reached the host, so no per-app
+desktop files were written and app launches never completed.
+
+The rejection was invisible from the host: it returns before any logging,
+and gbinder reports the transaction status rather than the exception in
+the reply, so add_service_sync still returned success.
+
+Change-Id: Id9bf77aa849b5cd4c9f8f3823da89416a8e3af40
+---
+ cmds/servicemanager/ServiceManager.cpp | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/cmds/servicemanager/ServiceManager.cpp b/cmds/servicemanager/ServiceManager.cpp
+index 57a0817..ad1fe1a 100644
+--- a/cmds/servicemanager/ServiceManager.cpp
++++ b/cmds/servicemanager/ServiceManager.cpp
+@@ -509,13 +509,23 @@ bool isValidServiceName(const std::string& name) {
+     return true;
+ }
+ 
++// The Waydroid host talks to us over the host binder node, so its caller uid is
++// an ordinary Linux uid of the desktop user. That lands in the Android app uid
++// range, which would reject the host's own services (waydroidusermonitor).
++// Read per call: the property is set from the container config, which is not
++// guaranteed to be loaded before servicemanager first runs.
++static bool isWaydroidHostUid(uid_t uid) {
++    uid_t hostUid = android::base::GetUintProperty<uid_t>("waydroid.host.uid", 0);
++    return hostUid != 0 && uid == hostUid;
++}
++
+ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& binder, bool allowIsolated, int32_t dumpPriority) {
+     SM_PERFETTO_TRACE_FUNC(PERFETTO_TE_PROTO_FIELDS(
+             PERFETTO_TE_PROTO_FIELD_CSTR(kProtoServiceName, name.c_str())));
+ 
+     auto ctx = mAccess->getCallingContext();
+ 
+-    if (multiuser_get_app_id(ctx.uid) >= AID_APP) {
++    if (multiuser_get_app_id(ctx.uid) >= AID_APP && !isWaydroidHostUid(ctx.uid)) {
+         return Status::fromExceptionCode(Status::EX_SECURITY, "App UIDs cannot add services.");
+     }
+ 
