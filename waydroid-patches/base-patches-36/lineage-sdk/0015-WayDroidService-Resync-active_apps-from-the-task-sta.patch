@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sun, 2 Aug 2026 14:37:32 +0300
+Subject: [PATCH] WayDroidService: Resync active_apps from the task stack
+
+Only host-side launches wrote waydroid.active_apps, so any
+Android-side navigation (in-app intents, notifications, task
+switches) left it stale and cards/input then targeted the wrong app.
+
+Register a TaskStackListener and publish the focused task's package.
+The host-owned closed/full-ui values and the hidden launcher are left
+alone.
+
+Change-Id: I2b6834d10c1dbe78ba86068ca42dff5fde036df5
+---
+ .../platform/internal/WayDroidService.java    | 54 +++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index a42b7cc..47acc11 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -16,10 +16,12 @@
+ 
+ package org.lineageos.platform.internal;
+ 
++import android.app.ActivityTaskManager;
+ import android.app.Notification;
+ import android.app.NotificationChannel;
+ import android.app.NotificationManager;
+ import android.app.PendingIntent;
++import android.app.TaskStackListener;
+ import android.annotation.NonNull;
+ import android.content.ActivityNotFoundException;
+ import android.content.BroadcastReceiver;
+@@ -153,6 +155,9 @@ public class WayDroidService extends LineageSystemService {
+ 
+     @Override
+     public void onBootPhase(int phase) {
++        if (phase == PHASE_ACTIVITY_MANAGER_READY) {
++            registerTaskStackMonitor();
++        }
+         if (phase == PHASE_BOOT_COMPLETED) {
+             mNotificationManager = mContext.getSystemService(NotificationManager.class);
+ 
+@@ -515,6 +520,55 @@ public class WayDroidService extends LineageSystemService {
+         });
+     }
+ 
++    /* Per-app window mode keys off waydroid.active_apps, but only host-side
++     * launches write it. Android-side navigation (in-app intents, notifications,
++     * task switches) leaves it stale, and cards/input then target the wrong app.
++     * Publish the real foreground task whenever the task stack changes. */
++    private void registerTaskStackMonitor() {
++        try {
++            ActivityTaskManager.getService().registerTaskStackListener(new TaskStackListener() {
++                @Override
++                public void onTaskStackChanged() {
++                    BackgroundThread.getHandler().post(WayDroidService.this::syncActiveApps);
++                }
++
++                @Override
++                public void onTaskMovedToFront(int taskId) {
++                    BackgroundThread.getHandler().post(WayDroidService.this::syncActiveApps);
++                }
++            });
++        } catch (RemoteException e) {
++            Log.e(TAG, "Unable to register task stack listener", e);
++        }
++    }
++
++    private void syncActiveApps() {
++        String current = SystemProperties.get("waydroid.active_apps", "none");
++        // The host owns closed ("none") and full-ui ("Waydroid") modes
++        if (current.equals("none") || current.equals("Waydroid"))
++            return;
++
++        String pkg;
++        try {
++            ActivityTaskManager.RootTaskInfo info =
++                    ActivityTaskManager.getService().getFocusedRootTaskInfo();
++            if (info == null || info.topActivity == null)
++                return;
++            pkg = info.topActivity.getPackageName();
++        } catch (RemoteException e) {
++            return;
++        }
++        if (pkg.equals(current) || pkg.equals("android"))
++            return;
++        // The hidden launcher in front means "everything backgrounded", not an app switch
++        for (String hidden : SystemProperties.get("waydroid.blacklist_apps", "").split(":")) {
++            if (pkg.equals(hidden))
++                return;
++        }
++        Log.i(TAG, "Foreground task changed, active_apps " + current + " -> " + pkg);
++        SystemProperties.set("waydroid.active_apps", pkg);
++    }
++
+     private void registerShutdownHandler() {
+         IntentFilter filter = new IntentFilter();
+         BroadcastReceiver receiver = new BroadcastReceiver() {

@@ -1,0 +1,198 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Tue, 4 Aug 2026 15:59:06 +0300
+Subject: [PATCH] IPlatform: Add showApp and showFullUI
+
+The host set waydroid.active_apps itself and then called launchApp, so a
+launch that failed left the window mode pointing at an app with no window
+- and the hwcomposer's task gate fail-closes on that, rendering nothing
+anywhere. showApp does both in one call and answers false when the package
+has nothing launchable.
+
+showApp also fronts an existing task for the package instead of restarting
+it, so a host icon tap on a running app keeps its back stack. launchApp
+shares that helper, so older hosts get it too.
+
+Appended at the end of the interface: the host keys off transaction
+numbers, which follow declaration order.
+
+Change-Id: I3be8a1bee05dcd4439ea7cda29ed2c19823a8143
+---
+ .../platform/internal/WayDroidService.java    | 93 ++++++++++++++++---
+ .../java/lineageos/waydroid/IPlatform.aidl    |  8 ++
+ sdk/src/java/lineageos/waydroid/Platform.java | 24 +++++
+ 3 files changed, 110 insertions(+), 15 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 6ce6844..9e98b45 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -307,6 +307,61 @@ public class WayDroidService extends LineageSystemService {
+         return launchIntent;
+     }
+ 
++    /* Most recent task of the package, or -1. getTasks is ordered
++     * most-recent-first, so the first match is the one to front. */
++    private int findTaskForPackage(String packageName) {
++        try {
++            List<android.app.ActivityManager.RunningTaskInfo> tasks =
++                    ActivityTaskManager.getService().getTasks(MAX_SNAPSHOT_TASKS,
++                            false /* filterOnlyVisibleRecents */,
++                            false /* keepIntentExtra */,
++                            android.view.Display.INVALID_DISPLAY);
++            for (android.app.ActivityManager.RunningTaskInfo t : tasks) {
++                if (packageMatches(t.topActivity, packageName)
++                        || packageMatches(t.realActivity, packageName)
++                        || packageMatches(t.baseActivity, packageName))
++                    return t.taskId;
++            }
++        } catch (Exception e) {
++            Log.w(TAG, "findTaskForPackage failed: " + e);
++        }
++        return -1;
++    }
++
++    private static boolean packageMatches(ComponentName component, String packageName) {
++        return component != null && packageName.equals(component.getPackageName());
++    }
++
++    /* Front the app's existing task, or start its launcher activity if it has
++     * none. Fronting rather than restarting keeps the task's back stack, which
++     * is what tapping a host icon for a running app should do. */
++    private boolean frontOrLaunch(String packageName, String reason) {
++        if (mPm == null || mContext == null)
++            return false;
++
++        Intent launchIntent = getAppLaunchIntent(packageName);
++        if (launchIntent == null) {
++            Log.w(TAG, "no launchable activity for " + packageName);
++            return false;
++        }
++
++        wakeUpDevice(reason);
++
++        int taskId = findTaskForPackage(packageName);
++        if (taskId > 0) {
++            try {
++                ActivityTaskManager.getService().moveTaskToFront(null /* appThread */,
++                        "android", taskId, 0 /* flags */, null /* options */);
++                return true;
++            } catch (Exception e) {
++                Log.w(TAG, "moveTaskToFront(" + taskId + ") failed: " + e);
++            }
++        }
++
++        mContext.startActivity(launchIntent);
++        return true;
++    }
++
+     private void saveApplicationIcon(String packageName) {
+         Drawable icon = null;
+         try {
+@@ -749,7 +804,8 @@ public class WayDroidService extends LineageSystemService {
+         publishTaskList();
+ 
+         String current = SystemProperties.get("waydroid.active_apps", "none");
+-        // The host owns closed ("none") and full-ui ("Waydroid") modes
++        // Only per-app mode follows the foreground task; closed ("none") and
++        // full-ui ("Waydroid") are host requests, not app switches
+         if (current.equals("none") || current.equals("Waydroid"))
+             return;
+ 
+@@ -1079,23 +1135,30 @@ public class WayDroidService extends LineageSystemService {
+ 
+         @Override
+         public void launchApp(String packageName) {
+-            if (mPm == null || mContext == null)
+-                return;
++            frontOrLaunch(packageName, "waydroid:launchApp");
++        }
+ 
+-            ApplicationInfo appInfo;
+-            try {
+-                appInfo = mPm.getApplicationInfo(packageName, 0);
+-            } catch (NameNotFoundException e) {
+-                Log.e(TAG, e.getMessage());
+-                return;
+-            }
+-            Intent launchIntent = getAppLaunchIntent(appInfo.packageName);
+-            if (launchIntent == null) {
+-                return;
++        /* The host used to set waydroid.active_apps itself and then call
++         * launchApp. Two calls means two truths: a launch that failed left the
++         * mode pointing at an app with no window, which fail-closes the
++         * hwcomposer's task gate and stops anything rendering. */
++        @Override
++        public boolean showApp(String packageName) {
++            if (mPm == null || mContext == null
++                    || getAppLaunchIntent(packageName) == null) {
++                Log.w(TAG, "showApp: nothing launchable for " + packageName);
++                return false;
+             }
++            /* Mode first: the hwcomposer only creates a window for the app it
++             * is already in per-app mode for. */
++            SystemProperties.set("waydroid.active_apps", packageName);
++            return frontOrLaunch(packageName, "waydroid:showApp");
++        }
+ 
+-            wakeUpDevice("waydroid:launchApp");
+-            mContext.startActivity(launchIntent);
++        @Override
++        public void showFullUI() {
++            wakeUpDevice("waydroid:showFullUI");
++            SystemProperties.set("waydroid.active_apps", "Waydroid");
+         }
+ 
+         @Override
+diff --git a/sdk/src/java/lineageos/waydroid/IPlatform.aidl b/sdk/src/java/lineageos/waydroid/IPlatform.aidl
+index c602efa..a84403f 100644
+--- a/sdk/src/java/lineageos/waydroid/IPlatform.aidl
++++ b/sdk/src/java/lineageos/waydroid/IPlatform.aidl
+@@ -35,4 +35,12 @@ interface IPlatform {
+     void settingsPutInt(int mode, String key, int value);
+     int settingsGetInt(int mode, String key);
+     String launchIntent(String action, String uri);
++
++    /* Append only: the host keys off transaction numbers, which follow
++     * declaration order here. */
++
++    /* Show an app in the host shell: one call for the window mode and the
++     * launch, so the two cannot disagree. False means nothing launchable. */
++    boolean showApp(String packageName);
++    void showFullUI();
+ }
+diff --git a/sdk/src/java/lineageos/waydroid/Platform.java b/sdk/src/java/lineageos/waydroid/Platform.java
+index 59b85ad..19e4c56 100644
+--- a/sdk/src/java/lineageos/waydroid/Platform.java
++++ b/sdk/src/java/lineageos/waydroid/Platform.java
+@@ -173,6 +173,30 @@ public class Platform {
+         return;
+     }
+ 
++    public boolean showApp(String packageName) {
++        if (sService == null) {
++            return false;
++        }
++        try {
++            return sService.showApp(packageName);
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return false;
++    }
++
++    public void showFullUI() {
++        if (sService == null) {
++            return;
++        }
++        try {
++            sService.showFullUI();
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return;
++    }
++
+     public String getAppName(String packageName) {
+         if (sService == null) {
+             return "";
