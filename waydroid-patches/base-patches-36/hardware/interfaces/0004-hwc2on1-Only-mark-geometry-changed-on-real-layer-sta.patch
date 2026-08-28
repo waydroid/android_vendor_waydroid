@@ -1,0 +1,121 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sun, 2 Aug 2026 12:24:47 +0300
+Subject: [PATCH] hwc2on1: Only mark geometry changed on real layer state
+ changes
+
+Modern SF re-sends every layer's state each frame, and the layer
+setters marked the geometry changed unconditionally. HWC1 clients
+then saw HWC_GEOMETRY_CHANGED on every single frame; the waydroid
+hwcomposer reacts to that by dropping its wl_buffer cache, so it
+recreated every wl_buffer on every frame.
+
+Skip the marker when the incoming value equals the current one.
+
+Change-Id: Ie7b3c3079b97c4bdbc5bbabc8395cc6c14c8d2e4
+---
+ .../utils/hwc2on1adapter/HWC2On1Adapter.cpp   | 42 +++++++++++++++----
+ 1 file changed, 35 insertions(+), 7 deletions(-)
+
+diff --git a/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp b/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+index 7d684a2..375ae52 100644
+--- a/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
++++ b/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+@@ -1966,19 +1966,44 @@ Error HWC2On1Adapter::Layer::setSurfaceDamage(hwc_region_t damage) {
+ 
+ // Layer state functions
+ 
++// SF on modern Android re-sends layer state every frame; only mark the
++// geometry changed when a value actually changes, or HWC1 clients see
++// HWC_GEOMETRY_CHANGED on every single frame.
++
++static bool compareRects(const hwc_rect_t& rect1, const hwc_rect_t& rect2) {
++    return rect1.left == rect2.left &&
++            rect1.right == rect2.right &&
++            rect1.top == rect2.top &&
++            rect1.bottom == rect2.bottom;
++}
++
++static bool compareFRects(const hwc_frect_t& rect1, const hwc_frect_t& rect2) {
++    return rect1.left == rect2.left &&
++            rect1.right == rect2.right &&
++            rect1.top == rect2.top &&
++            rect1.bottom == rect2.bottom;
++}
++
+ Error HWC2On1Adapter::Layer::setBlendMode(BlendMode mode) {
++    if (mBlendMode == mode)
++        return Error::None;
+     mBlendMode = mode;
+     mDisplay.markGeometryChanged();
+     return Error::None;
+ }
+ 
+ Error HWC2On1Adapter::Layer::setColor(hwc_color_t color) {
++    if (mColor.r == color.r && mColor.g == color.g &&
++            mColor.b == color.b && mColor.a == color.a)
++        return Error::None;
+     mColor = color;
+     mDisplay.markGeometryChanged();
+     return Error::None;
+ }
+ 
+ Error HWC2On1Adapter::Layer::setCompositionType(Composition type) {
++    if (mCompositionType == type)
++        return Error::None;
+     mCompositionType = type;
+     mDisplay.markGeometryChanged();
+     return Error::None;
+@@ -1989,42 +2014,45 @@ Error HWC2On1Adapter::Layer::setDataspace(android_dataspace_t) {
+ }
+ 
+ Error HWC2On1Adapter::Layer::setDisplayFrame(hwc_rect_t frame) {
++    if (compareRects(mDisplayFrame, frame))
++        return Error::None;
+     mDisplayFrame = frame;
+     mDisplay.markGeometryChanged();
+     return Error::None;
+ }
+ 
+ Error HWC2On1Adapter::Layer::setPlaneAlpha(float alpha) {
++    if (mPlaneAlpha == alpha)
++        return Error::None;
+     mPlaneAlpha = alpha;
+     mDisplay.markGeometryChanged();
+     return Error::None;
+ }
+ 
+ Error HWC2On1Adapter::Layer::setSidebandStream(const native_handle_t* stream) {
++    if (mSidebandStream == stream)
++        return Error::None;
+     mSidebandStream = stream;
+     mDisplay.markGeometryChanged();
+     return Error::None;
+ }
+ 
+ Error HWC2On1Adapter::Layer::setSourceCrop(hwc_frect_t crop) {
++    if (compareFRects(mSourceCrop, crop))
++        return Error::None;
+     mSourceCrop = crop;
+     mDisplay.markGeometryChanged();
+     return Error::None;
+ }
+ 
+ Error HWC2On1Adapter::Layer::setTransform(Transform transform) {
++    if (mTransform == transform)
++        return Error::None;
+     mTransform = transform;
+     mDisplay.markGeometryChanged();
+     return Error::None;
+ }
+ 
+-static bool compareRects(const hwc_rect_t& rect1, const hwc_rect_t& rect2) {
+-    return rect1.left == rect2.left &&
+-            rect1.right == rect2.right &&
+-            rect1.top == rect2.top &&
+-            rect1.bottom == rect2.bottom;
+-}
+-
+ Error HWC2On1Adapter::Layer::setVisibleRegion(hwc_region_t visible) {
+     if ((getNumVisibleRegions() != visible.numRects) ||
+         !std::equal(mVisibleRegion.begin(), mVisibleRegion.end(), visible.rects,
