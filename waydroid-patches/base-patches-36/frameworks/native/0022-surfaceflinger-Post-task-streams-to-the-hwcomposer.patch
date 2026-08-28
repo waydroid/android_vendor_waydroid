@@ -1,0 +1,255 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Mon, 3 Aug 2026 10:40:10 +0300
+Subject: [PATCH] surfaceflinger: Post task streams to the hwcomposer
+
+Each task renders into a 2-slot buffer pool and is posted over
+vendor.waydroid.display@1.3. Slot busy-ness follows the HAL's
+wl_buffer.release reports; when both slots are held the frame is
+skipped and the compositor keeps the last posted buffer.
+
+Change-Id: I7496046d05500ff604dc72d5969dc71e1e3645ba
+---
+ services/surfaceflinger/Android.bp            |   2 +
+ .../surfaceflinger/WaydroidTaskStreams.cpp    | 108 +++++++++++++++---
+ services/surfaceflinger/WaydroidTaskStreams.h |  20 +++-
+ .../surfaceflinger/tests/unittests/Android.bp |   1 +
+ 4 files changed, 113 insertions(+), 18 deletions(-)
+
+diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
+index 1952338..e3aecec 100644
+--- a/services/surfaceflinger/Android.bp
++++ b/services/surfaceflinger/Android.bp
+@@ -99,6 +99,7 @@ cc_defaults {
+         "vendor.waydroid.display@1.0",
+         "vendor.waydroid.display@1.1",
+         "vendor.waydroid.display@1.2",
++        "vendor.waydroid.display@1.3",
+     ],
+     static_libs: [
+         "iinputflinger_aidl_lib_static",
+@@ -143,6 +144,7 @@ cc_defaults {
+         "vendor.waydroid.display@1.0",
+         "vendor.waydroid.display@1.1",
+         "vendor.waydroid.display@1.2",
++        "vendor.waydroid.display@1.3",
+     ],
+     // TODO (marissaw): this library is not used by surfaceflinger. This is here so
+     // the library compiled in a way that is accessible to system partition when running
+diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
+index b2d3f36..c113f25 100644
+--- a/services/surfaceflinger/WaydroidTaskStreams.cpp
++++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
+@@ -151,6 +151,19 @@ void WaydroidTaskStreams::renderTasks(const std::vector<TaskCapture>& tasks) {
+ }
+ 
+ void WaydroidTaskStreams::renderTask(const TaskCapture& task, TaskStream& stream, bool dump) {
++    // Pick a slot the host compositor is not holding.
++    uint32_t slot = kSlotsPerTask;
++    for (uint32_t i = 0; i < kSlotsPerTask; i++) {
++        if (!stream.slots[i].busy) {
++            slot = i;
++            break;
++        }
++    }
++    if (slot == kSlotsPerTask) {
++        stream.starvedFrames++;
++        return;
++    }
++
+     auto filterFn = [&task](const frontend::LayerSnapshot& snapshot,
+                             bool& /*outStopTraversal*/) -> bool {
+         return task.layerIds.count(snapshot.path.id) != 0;
+@@ -180,9 +193,10 @@ void WaydroidTaskStreams::renderTask(const TaskCapture& task, TaskStream& stream
+         return;
+     }
+ 
+-    if (!stream.texture ||
+-        stream.texture->getBuffer()->getWidth() != static_cast<uint32_t>(args.size.getWidth()) ||
+-        stream.texture->getBuffer()->getHeight() != static_cast<uint32_t>(args.size.getHeight())) {
++    auto& texture = stream.slots[slot].texture;
++    if (!texture ||
++        texture->getBuffer()->getWidth() != static_cast<uint32_t>(args.size.getWidth()) ||
++        texture->getBuffer()->getHeight() != static_cast<uint32_t>(args.size.getHeight())) {
+         const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER |
+                 GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER;
+         sp<GraphicBuffer> buffer =
+@@ -194,38 +208,100 @@ void WaydroidTaskStreams::renderTask(const TaskCapture& task, TaskStream& stream
+                   args.size.getWidth(), args.size.getHeight(), buffer->initCheck());
+             return;
+         }
+-        stream.texture = std::make_shared<
++        texture = std::make_shared<
+                 renderengine::impl::ExternalTexture>(buffer, mFlinger.getRenderEngine(),
+                                                      renderengine::impl::ExternalTexture::Usage::
+                                                              WRITEABLE);
+-        ALOGI("task %d: allocated %dx%d stream buffer", task.taskId, args.size.getWidth(),
+-              args.size.getHeight());
++        ALOGI("task %d: allocated %dx%d stream buffer (slot %u)", task.taskId,
++              args.size.getWidth(), args.size.getHeight(), slot);
+     }
+ 
+-    FenceResult fenceResult = mFlinger.captureScreenshot(args, stream.texture, nullptr).get();
+-    if (fenceResult.ok()) {
+-        fenceResult.value()->waitForever(LOG_TAG);
+-    } else {
++    FenceResult fenceResult = mFlinger.captureScreenshot(args, texture, nullptr).get();
++    if (!fenceResult.ok()) {
+         ALOGW("task %d: render failed (%d)", task.taskId, fenceResult.error());
+         return;
+     }
+ 
++    postBuffer(task.taskId, slot, stream, fenceResult.value());
++
+     stream.renderTotalNs += systemTime() - start;
+     if (++stream.renderedFrames % kLogEveryFrames == 0) {
+-        ALOGI("task %d: %d frames rendered, avg %.2f ms, %d empty, %zu layers last frame",
++        ALOGI("task %d: %d frames rendered, avg %.2f ms, %d empty, %d starved, %d post failures,"
++              " %zu layers last frame",
+               task.taskId, stream.renderedFrames,
+               stream.renderTotalNs / 1e6 / stream.renderedFrames, stream.emptyFrames,
+-              args.layers.size());
++              stream.starvedFrames, stream.postFailures, args.layers.size());
+     }
+ 
+     if (dump) {
+-        dumpStream(task.taskId, stream);
++        fenceResult.value()->waitForever(LOG_TAG);
++        dumpBuffer(task.taskId, texture->getBuffer());
++    }
++}
++
++void WaydroidTaskStreams::postBuffer(int32_t taskId, uint32_t slot, TaskStream& stream,
++                                     const sp<Fence>& fence) {
++    using ::android::hardware::hidl_handle;
++    using ::android::hardware::hidl_vec;
++    using ::android::hardware::graphics::composer::V2_1::Error;
++    using ::vendor::waydroid::display::V1_3::IWaydroidDisplay;
++
++    if (!mHal) {
++        mHal = IWaydroidDisplay::tryGetService();
++        if (!mHal) {
++            if (++mNoHalLogged % kLogEveryFrames == 1) {
++                ALOGW("display@1.3 HAL not up yet, dropping posts");
++            }
++            return;
++        }
++        ALOGI("connected to display@1.3");
++    }
++
++    const sp<GraphicBuffer>& buffer = stream.slots[slot].texture->getBuffer();
++    hidl_handle bufferHandle;
++    bufferHandle.setTo(const_cast<native_handle_t*>(buffer->handle), false /*shouldOwn*/);
++
++    hidl_handle fenceHandle;
++    if (fence && fence->isValid()) {
++        const int fd = fence->dup();
++        if (fd >= 0) {
++            native_handle_t* h = native_handle_create(1, 0);
++            h->data[0] = fd;
++            fenceHandle.setTo(h, true /*shouldOwn*/);
++        }
++    }
++
++    Error error = Error::NO_RESOURCES;
++    auto ret = mHal->postTaskBuffer(static_cast<uint32_t>(taskId), slot, bufferHandle,
++                                    buffer->getWidth(), buffer->getHeight(),
++                                    buffer->getStride(),
++                                    static_cast<int32_t>(buffer->getPixelFormat()), fenceHandle,
++                                    [&](Error e, const hidl_vec<uint32_t>& releasedSlots) {
++                                        error = e;
++                                        for (uint32_t released : releasedSlots) {
++                                            if (released < kSlotsPerTask) {
++                                                stream.slots[released].busy = false;
++                                            }
++                                        }
++                                    });
++    if (!ret.isOk()) {
++        ALOGW("display@1.3 died (%s), reconnecting", ret.description().c_str());
++        mHal = nullptr;
++        return;
++    }
++    if (error == Error::NONE) {
++        stream.slots[slot].busy = true;
++    } else {
++        // BAD_DISPLAY: task streams inactive HAL-side; BAD_LAYER: task not in
++        // the HAL's table (yet). Both retry naturally on the next frame.
++        if (++stream.postFailures % kLogEveryFrames == 1) {
++            ALOGW("task %d: post rejected (%d)", taskId, static_cast<int32_t>(error));
++        }
+     }
+ }
+ 
+-void WaydroidTaskStreams::dumpStream(int32_t taskId, const TaskStream& stream) {
+-    if (!stream.texture) return;
+-    const sp<GraphicBuffer>& buffer = stream.texture->getBuffer();
++void WaydroidTaskStreams::dumpBuffer(int32_t taskId, const sp<GraphicBuffer>& buffer) {
++    if (!buffer) return;
+ 
+     void* data = nullptr;
+     if (buffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, &data) != OK || data == nullptr) {
+diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
+index a04549c..b7ae40c 100644
+--- a/services/surfaceflinger/WaydroidTaskStreams.h
++++ b/services/surfaceflinger/WaydroidTaskStreams.h
+@@ -18,7 +18,10 @@
+ 
+ #include <android-base/thread_annotations.h>
+ #include <renderengine/ExternalTexture.h>
++#include <ui/Fence.h>
++#include <ui/GraphicBuffer.h>
+ #include <utils/Timers.h>
++#include <vendor/waydroid/display/1.3/IWaydroidDisplay.h>
+ 
+ #include <condition_variable>
+ #include <memory>
+@@ -58,22 +61,35 @@ private:
+         std::unordered_set<uint32_t> layerIds;
+     };
+ 
++    // Two buffers per task: one held by the host compositor, one to render
++    // into. Slot busy-ness follows the HAL's wl_buffer.release reports.
++    static constexpr uint32_t kSlotsPerTask = 2;
++
+     struct TaskStream {
+-        std::shared_ptr<renderengine::ExternalTexture> texture;
++        struct Slot {
++            std::shared_ptr<renderengine::ExternalTexture> texture;
++            bool busy = false;
++        };
++        Slot slots[kSlotsPerTask];
+         nsecs_t renderTotalNs = 0;
+         int renderedFrames = 0;
+         int emptyFrames = 0;
++        int starvedFrames = 0;
++        int postFailures = 0;
+     };
+ 
+     void threadMain();
+     void renderTasks(const std::vector<TaskCapture>& tasks);
+     void renderTask(const TaskCapture& task, TaskStream& stream, bool dump);
+-    void dumpStream(int32_t taskId, const TaskStream& stream);
++    void postBuffer(int32_t taskId, uint32_t slot, TaskStream& stream, const sp<Fence>& fence);
++    void dumpBuffer(int32_t taskId, const sp<GraphicBuffer>& buffer);
+ 
+     SurfaceFlinger& mFlinger;
+ 
+     // Render thread only.
+     std::unordered_map<int32_t, TaskStream> mStreams;
++    sp<vendor::waydroid::display::V1_3::IWaydroidDisplay> mHal;
++    int mNoHalLogged = 0;
+ 
+     std::mutex mMutex;
+     std::condition_variable mCondition;
+diff --git a/services/surfaceflinger/tests/unittests/Android.bp b/services/surfaceflinger/tests/unittests/Android.bp
+index b4f4199..855e531 100644
+--- a/services/surfaceflinger/tests/unittests/Android.bp
++++ b/services/surfaceflinger/tests/unittests/Android.bp
+@@ -166,6 +166,7 @@ cc_defaults {
+         "vendor.waydroid.display@1.0",
+         "vendor.waydroid.display@1.1",
+         "vendor.waydroid.display@1.2",
++        "vendor.waydroid.display@1.3",
+     ],
+     header_libs: [
+         "android.hardware.graphics.composer3-command-buffer",
