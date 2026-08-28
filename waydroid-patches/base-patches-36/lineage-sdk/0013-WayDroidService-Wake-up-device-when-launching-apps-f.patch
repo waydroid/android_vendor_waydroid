@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 1 Aug 2026 19:07:19 +0300
+Subject: [PATCH] WayDroidService: Wake up device when launching apps from host
+
+While asleep SurfaceFlinger stops compositing, so an activity started
+through launchApp/launchIntent never produces a window on the Wayland
+side, and the host cannot tell why the launch did nothing. Wake up the
+device first so host-initiated launches always surface.
+
+Change-Id: I5cfa33ad9681ca7ca3ab9a5bda41830c1f3b7453
+---
+ .../platform/internal/WayDroidService.java        | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 20acf6f..f052af3 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -33,7 +33,9 @@ import android.content.pm.PackageManager;
+ import android.content.pm.PackageManager.NameNotFoundException;
+ import android.content.pm.ResolveInfo;
+ import android.os.IBinder;
++import android.os.PowerManager;
+ import android.os.RemoteException;
++import android.os.SystemClock;
+ import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.provider.Settings;
+@@ -261,6 +263,17 @@ public class WayDroidService extends LineageSystemService {
+         mNotificationManager.notify(notificationId, notification.build());
+     }
+ 
++    /* While asleep SurfaceFlinger stops compositing, so an activity started
++     * from the host never produces a window on the Wayland side. Wake up
++     * first so host-initiated launches always surface. */
++    private void wakeUpDevice(String details) {
++        PowerManager pm = mContext.getSystemService(PowerManager.class);
++        if (pm != null && !pm.isInteractive()) {
++            pm.wakeUp(SystemClock.uptimeMillis(),
++                    PowerManager.WAKE_REASON_APPLICATION, details);
++        }
++    }
++
+     private Intent getAppLaunchIntent(String packageName) {
+         Intent launchIntent = null;
+ 
+@@ -704,6 +717,7 @@ public class WayDroidService extends LineageSystemService {
+                 return;
+             }
+ 
++            wakeUpDevice("waydroid:launchApp");
+             mContext.startActivity(launchIntent);
+         }
+ 
+@@ -721,6 +735,7 @@ public class WayDroidService extends LineageSystemService {
+ 
+             ResolveInfo ri = mPm.resolveActivity(i, 0);
+             try {
++                wakeUpDevice("waydroid:launchIntent");
+                 mContext.startActivity(i);
+             } catch (ActivityNotFoundException ignored) {}
+ 

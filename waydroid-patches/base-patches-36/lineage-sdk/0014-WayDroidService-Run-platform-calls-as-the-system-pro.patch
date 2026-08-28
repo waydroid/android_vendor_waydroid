@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 1 Aug 2026 23:05:01 +0300
+Subject: [PATCH] WayDroidService: Run platform calls as the system process
+
+Calls come from the Waydroid host, whose uid means nothing to Android.
+Nothing cleared the calling identity, so every method that reached a
+framework service checking its caller was refused: launchApp and
+settingsPutString returned EX_SECURITY, and getInstalledApplications
+returned almost nothing, leaving the host with a single app.
+
+Clear the identity around the whole transaction instead of per method,
+since none of them want the host's identity. Property calls never
+checked a caller, which is why only some methods looked broken.
+
+Change-Id: I7fae5d03ca319660b6aee45030c5891106d48dbf
+---
+ .../platform/internal/WayDroidService.java     | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index f052af3..a42b7cc 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -32,7 +32,9 @@ import android.content.pm.PackageInstaller;
+ import android.content.pm.PackageManager;
+ import android.content.pm.PackageManager.NameNotFoundException;
+ import android.content.pm.ResolveInfo;
++import android.os.Binder;
+ import android.os.IBinder;
++import android.os.Parcel;
+ import android.os.PowerManager;
+ import android.os.RemoteException;
+ import android.os.SystemClock;
+@@ -548,6 +550,22 @@ public class WayDroidService extends LineageSystemService {
+ 
+     /* Service */
+     private final IBinder mPlatformService = new IPlatform.Stub() {
++        /* Calls arrive from the Waydroid host, whose uid means nothing to
++         * Android, so anything that reaches a framework service checking the
++         * caller (startActivity, Settings writes, PowerManager) is refused with
++         * a SecurityException. Run every method with the identity of the system
++         * process we already live in. */
++        @Override
++        public boolean onTransact(int code, Parcel data, Parcel reply, int flags)
++                throws RemoteException {
++            final long ident = Binder.clearCallingIdentity();
++            try {
++                return super.onTransact(code, data, reply, flags);
++            } finally {
++                Binder.restoreCallingIdentity(ident);
++            }
++        }
++
+         @Override
+         public String getprop(String prop, String default_value) {
+             return SystemProperties.get(prop, default_value);
