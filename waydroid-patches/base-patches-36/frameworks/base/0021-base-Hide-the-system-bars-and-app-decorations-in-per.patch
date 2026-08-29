@@ -1,0 +1,367 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 29 Aug 2026 15:24:26 +0300
+Subject: [PATCH] base: Hide the system bars and app decorations in per-app
+ host windows
+
+A per-app host window is composed from one task's layers, so the system bars
+and the app handle never reach it. They only take space from the app, and the
+window swallows touches meant for it, so claim nothing while the host is in
+that mode.
+
+The back gesture stays: EdgeBackGestureHandler watches the display rather
+than the navigation bar window, so an edge swipe still goes back inside a
+per-app window. That needs gesture navigation; three-button mode leaves one
+with no way back until the host sends one.
+
+The mode arrives in the per_app_host_windows setting, published by the
+Waydroid platform service. Nothing here reads waydroid properties.
+
+Change-Id: I02a0d51709a2bd3a122f712f9d390984254e270f
+---
+ .../android/wm/shell/common/WaydroidMode.java | 114 ++++++++++++++++++
+ .../DesktopModeWindowDecorViewModel.java      |  20 +++
+ .../AppHandleAndHeaderVisibilityHelper.kt     |   4 +
+ .../navigationbar/views/NavigationBar.java    |  29 ++++-
+ .../window/StatusBarWindowControllerImpl.java |  35 +++++-
+ 5 files changed, 197 insertions(+), 5 deletions(-)
+ create mode 100644 libs/WindowManager/Shell/src/com/android/wm/shell/common/WaydroidMode.java
+
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/common/WaydroidMode.java b/libs/WindowManager/Shell/src/com/android/wm/shell/common/WaydroidMode.java
+new file mode 100644
+index 000000000..294ed5f31
+--- /dev/null
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/common/WaydroidMode.java
+@@ -0,0 +1,114 @@
++/*
++ * Copyright (C) 2026 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.wm.shell.common;
++
++import android.annotation.NonNull;
++import android.content.ContentResolver;
++import android.content.Context;
++import android.database.ContentObserver;
++import android.os.Handler;
++import android.os.Looper;
++import android.provider.Settings;
++
++import java.util.ArrayList;
++import java.util.List;
++
++/**
++ * How the Waydroid host is presenting Android: either the whole UI inside one host window
++ * ("full UI"), or every task in its own host window.
++ *
++ * <p>A per-app host window is composed from one task's layers, so layers that belong to no task -
++ * the system bars among them - never reach it. Anything sized to the status bar is dead space
++ * there, and the host draws its own panel and window decorations instead.
++ *
++ * <p>The navigation bar goes the same way, but its back gesture does not: EdgeBackGestureHandler
++ * watches the display rather than the bar window, so an edge swipe still goes back inside a
++ * per-app window - the host frames the window and Android keeps back, as ChromeOS does it. That
++ * needs gesture navigation to be on; in three-button mode a per-app window has no way back at all
++ * until the host sends one.
++ */
++public final class WaydroidMode {
++    /**
++     * Whether every task is shown in its own host window, published by the Waydroid platform
++     * service - the only component that knows how the host composes. Unset on a stock device,
++     * which is the same thing as full UI.
++     */
++    private static final String SETTING_PER_APP_WINDOWS = "per_app_host_windows";
++
++    private static final Object sLock = new Object();
++    private static final List<Runnable> sCallbacks = new ArrayList<>();
++    private static ContentResolver sResolver;
++    private static volatile boolean sPerAppWindows;
++
++    private WaydroidMode() {}
++
++    /** Whether the host is showing the whole Android UI inside a single window. */
++    public static boolean isFullUi() {
++        return !sPerAppWindows;
++    }
++
++    /**
++     * Registers {@code callback} for mode changes. It runs on the main thread, and only when the
++     * mode really flips. The host switches modes while apps are running, so callers must re-read
++     * {@link #isFullUi()} rather than caching it.
++     */
++    public static void addChangeCallback(@NonNull Context context, @NonNull Runnable callback) {
++        synchronized (sLock) {
++            if (sResolver == null) {
++                // The application context outlives any display context we may be called with.
++                final Context appContext = context.getApplicationContext();
++                sResolver = (appContext != null ? appContext : context).getContentResolver();
++                sResolver.registerContentObserver(
++                        Settings.Global.getUriFor(SETTING_PER_APP_WINDOWS), false,
++                        new ContentObserver(new Handler(Looper.getMainLooper())) {
++                            @Override
++                            public void onChange(boolean selfChange) {
++                                onModeChanged();
++                            }
++                        });
++                sPerAppWindows = readPerAppWindows();
++            }
++            sCallbacks.add(callback);
++        }
++    }
++
++    /** Unregisters a callback added by {@link #addChangeCallback}. */
++    public static void removeChangeCallback(@NonNull Runnable callback) {
++        synchronized (sLock) {
++            sCallbacks.remove(callback);
++        }
++    }
++
++    private static void onModeChanged() {
++        final List<Runnable> callbacks;
++        synchronized (sLock) {
++            final boolean perAppWindows = readPerAppWindows();
++            if (perAppWindows == sPerAppWindows) {
++                return;
++            }
++            sPerAppWindows = perAppWindows;
++            callbacks = new ArrayList<>(sCallbacks);
++        }
++        for (int i = 0; i < callbacks.size(); i++) {
++            callbacks.get(i).run();
++        }
++    }
++
++    private static boolean readPerAppWindows() {
++        return Settings.Global.getInt(sResolver, SETTING_PER_APP_WINDOWS, 0) != 0;
++    }
++}
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/DesktopModeWindowDecorViewModel.java b/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/DesktopModeWindowDecorViewModel.java
+index 52aa957a7..b3266530a 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/DesktopModeWindowDecorViewModel.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/DesktopModeWindowDecorViewModel.java
+@@ -105,6 +105,7 @@ import com.android.wm.shell.common.MultiInstanceHelper;
+ import com.android.wm.shell.common.ShellExecutor;
+ import com.android.wm.shell.common.SyncTransactionQueue;
+ import com.android.wm.shell.common.UserProfileContexts;
++import com.android.wm.shell.common.WaydroidMode;
+ import com.android.wm.shell.compatui.CompatUIController;
+ import com.android.wm.shell.compatui.api.CompatUIHandler;
+ import com.android.wm.shell.compatui.impl.CompatUIRequests;
+@@ -571,6 +572,25 @@ public class DesktopModeWindowDecorViewModel implements WindowDecorViewModel,
+             return Unit.INSTANCE;
+         });
+         mLockTaskChangeListener.addListener(this);
++        WaydroidMode.addChangeCallback(mContext,
++                () -> mMainExecutor.execute(this::onWaydroidModeChanged));
++    }
++
++    /**
++     * Drops decorations that the host's current mode disallows. The opposite direction is picked up
++     * by the next task change, as only the creation path consults the mode.
++     */
++    private void onWaydroidModeChanged() {
++        final List<RunningTaskInfo> stale = new ArrayList<>();
++        forAllWindowDecorations(decoration -> {
++            final RunningTaskInfo taskInfo = decoration.getTaskInfo();
++            if (!shouldShowWindowDecor(taskInfo)) {
++                stale.add(taskInfo);
++            }
++        });
++        for (int i = 0; i < stale.size(); i++) {
++            destroyWindowDecoration(stale.get(i));
++        }
+     }
+ 
+     @Override
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/common/AppHandleAndHeaderVisibilityHelper.kt b/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/common/AppHandleAndHeaderVisibilityHelper.kt
+index 6a06b08b1..cc47bd158 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/common/AppHandleAndHeaderVisibilityHelper.kt
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/windowdecor/common/AppHandleAndHeaderVisibilityHelper.kt
+@@ -25,6 +25,7 @@ import android.window.DesktopExperienceFlags.ENABLE_PROJECTED_DISPLAY_DESKTOP_MO
+ import com.android.internal.policy.DesktopModeCompatPolicy
+ import com.android.wm.shell.bubbles.BubbleController
+ import com.android.wm.shell.common.DisplayController
++import com.android.wm.shell.common.WaydroidMode
+ import com.android.wm.shell.desktopmode.DesktopWallpaperActivity.Companion.isWallpaperTask
+ import com.android.wm.shell.shared.bubbles.BubbleAnythingFlagHelper
+ import com.android.wm.shell.shared.desktopmode.DesktopState
+@@ -48,6 +49,9 @@ class AppHandleAndHeaderVisibilityHelper(
+      * should show or not for this task.
+      */
+     fun shouldShowAppHandleOrHeader(taskInfo: ActivityManager.RunningTaskInfo): Boolean {
++        // The Waydroid host frames and decorates per-app windows itself, and the fullscreen handle
++        // is sized to the status bar, which is not shown in that mode either.
++        if (!WaydroidMode.isFullUi()) return false
+ 
+         // If DisplayController doesn't have it tracked, it could be a private/managed display, so
+         // return false if display is null
+diff --git a/packages/SystemUI/src/com/android/systemui/navigationbar/views/NavigationBar.java b/packages/SystemUI/src/com/android/systemui/navigationbar/views/NavigationBar.java
+index 417a1d606..c9166199b 100644
+--- a/packages/SystemUI/src/com/android/systemui/navigationbar/views/NavigationBar.java
++++ b/packages/SystemUI/src/com/android/systemui/navigationbar/views/NavigationBar.java
+@@ -165,6 +165,7 @@ import com.android.systemui.statusbar.policy.KeyguardStateController;
+ import com.android.systemui.util.DeviceConfigProxy;
+ import com.android.systemui.util.ViewController;
+ import com.android.wm.shell.back.BackAnimation;
++import com.android.wm.shell.common.WaydroidMode;
+ import com.android.wm.shell.pip.Pip;
+ import com.android.wm.shell.shared.handles.RegionSamplingHelper;
+ 
+@@ -818,6 +819,7 @@ public class NavigationBar extends ViewController<NavigationBarView> implements
+         mView.setBehavior(mBehavior);
+         setNavBarMode(mNavBarMode);
+         repositionNavigationBar(mCurrentRotation);
++        WaydroidMode.addChangeCallback(mContext, mWaydroidModeCallback);
+         mView.setUpdateActiveTouchRegionsCallback(
+                 () -> mLauncherProxyService.onActiveNavBarRegionChanges(
+                         getButtonLocations(true /* inScreen */, true /* useNearestRegion */)));
+@@ -870,6 +872,7 @@ public class NavigationBar extends ViewController<NavigationBarView> implements
+ 
+     @Override
+     public void onViewDetached() {
++        WaydroidMode.removeChangeCallback(mWaydroidModeCallback);
+         mView.setUpdateActiveTouchRegionsCallback(null);
+         getBarTransitions().destroy();
+         mLauncherProxyService.removeCallback(mLauncherProxyListener);
+@@ -1767,6 +1770,14 @@ public class NavigationBar extends ViewController<NavigationBarView> implements
+         getBarTransitions().finishAnimations();
+     }
+ 
++    // Method reference, not a lambda reading mHandler: that field is a blank final assigned in
++    // the constructor, which an initializer may not read.
++    private final Runnable mWaydroidModeCallback = this::onWaydroidModeChanged;
++
++    private void onWaydroidModeChanged() {
++        mHandler.post(() -> repositionNavigationBar(mCurrentRotation));
++    }
++
+     private WindowManager.LayoutParams getBarLayoutParams(int rotation) {
+         WindowManager.LayoutParams lp = getBarLayoutParamsForRotation(rotation);
+         lp.paramsForRotation = new WindowManager.LayoutParams[4];
+@@ -1816,6 +1827,18 @@ public class NavigationBar extends ViewController<NavigationBarView> implements
+                     break;
+             }
+         }
++        if (!WaydroidMode.isFullUi()) {
++            // A per-app host window is composed from one task's layers, so the bar never reaches
++            // it: claim nothing rather than leave a strip the app cannot use. Whichever dimension
++            // the bar occupies was set above; the other is MATCH_PARENT.
++            if (width != WindowManager.LayoutParams.MATCH_PARENT) {
++                width = 0;
++            }
++            if (height != WindowManager.LayoutParams.MATCH_PARENT) {
++                height = 0;
++            }
++            insetsHeight = 0;
++        }
+         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                 width,
+                 height,
+@@ -1863,7 +1886,11 @@ public class NavigationBar extends ViewController<NavigationBarView> implements
+         final boolean handlingGesture = mEdgeBackGestureHandler.isHandlingGestures();
+         final InsetsFrameProvider mandatoryGestureProvider = new InsetsFrameProvider(
+                 mInsetsSourceOwner, 0, WindowInsets.Type.mandatorySystemGestures());
+-        if (handlingGesture) {
++        /* The bottom region is the home swipe, which needs the navigation bar window that a
++         * per-app host window does not get. The left and right edges below are the back gesture,
++         * handled by EdgeBackGestureHandler's own display-wide input monitor, so they keep
++         * working there - the host frames the window, Android still owns back. */
++        if (handlingGesture && WaydroidMode.isFullUi()) {
+             mandatoryGestureProvider.setInsetsSize(Insets.of(0, 0, 0, gestureHeight));
+         }
+         final int gestureInsetsLeft = handlingGesture
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/window/StatusBarWindowControllerImpl.java b/packages/SystemUI/src/com/android/systemui/statusbar/window/StatusBarWindowControllerImpl.java
+index 7e21e55cb..3a09bec36 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/window/StatusBarWindowControllerImpl.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/window/StatusBarWindowControllerImpl.java
+@@ -66,6 +66,7 @@ import com.android.systemui.statusbar.policy.ConfigurationController;
+ import com.android.systemui.statusbar.window.StatusBarWindowModule.InternalWindowViewInflater;
+ import com.android.systemui.unfold.UnfoldTransitionProgressProvider;
+ import com.android.systemui.unfold.util.JankMonitorTransitionProgressListener;
++import com.android.wm.shell.common.WaydroidMode;
+ 
+ import dagger.assisted.Assisted;
+ import dagger.assisted.AssistedFactory;
+@@ -110,6 +111,14 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController
+                 }
+             };
+ 
++    // Method reference, not a lambda reading mMainExecutor: that field is a blank final assigned in
++    // the constructor, which an initializer may not read.
++    private final Runnable mWaydroidModeCallback = this::onWaydroidModeChanged;
++
++    private void onWaydroidModeChanged() {
++        mMainExecutor.execute(() -> apply(mCurrentState));
++    }
++
+     @AssistedInject
+     public StatusBarWindowControllerImpl(
+             @Assisted Context context,
+@@ -201,6 +210,7 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController
+ 
+         mContentInsetsProvider.addCallback(this::calculateStatusBarLocationsForAllRotations);
+         calculateStatusBarLocationsForAllRotations();
++        WaydroidMode.addChangeCallback(mContext, mWaydroidModeCallback);
+         mIsAttached = true;
+         apply(mCurrentState);
+     }
+@@ -209,6 +219,7 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController
+     public void stop() {
+         StatusBarConnectedDisplays.unsafeAssertInNewMode();
+ 
++        WaydroidMode.removeChangeCallback(mWaydroidModeCallback);
+         try {
+             mWindowManager.removeView(mStatusBarWindowView);
+         } catch (IllegalArgumentException e) {
+@@ -280,8 +291,23 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController
+         return lp;
+     }
+ 
++    /**
++     * Height the status bar window and the insets it provides should claim. A per-app Waydroid
++     * window never shows the status bar, so claiming nothing there hands the space back to the app
++     * and keeps the window from swallowing touches meant for it.
++     *
++     * <p>Deliberately not folded into {@link #getStatusBarHeight()}: the rest of SystemUI lays
++     * itself out against that, and only what reaches the display should shrink.
++     */
++    private int claimedHeightForRotation(int rotation) {
++        if (!WaydroidMode.isFullUi()) {
++            return 0;
++        }
++        return SystemBarUtils.getStatusBarHeightForRotation(mContext, rotation);
++    }
++
+     private WindowManager.LayoutParams getBarLayoutParamsForRotation(int rotation) {
+-        int height = SystemBarUtils.getStatusBarHeightForRotation(mContext, rotation);
++        int height = claimedHeightForRotation(rotation);
+         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                 WindowManager.LayoutParams.MATCH_PARENT,
+                 height,
+@@ -390,10 +416,11 @@ public class StatusBarWindowControllerImpl implements StatusBarWindowController
+     }
+ 
+     private void applyHeight(State state) {
+-        mLpChanged.height =
+-                state.mIsLaunchAnimationRunning ? ViewGroup.LayoutParams.MATCH_PARENT : mBarHeight;
++        mLpChanged.height = state.mIsLaunchAnimationRunning
++                ? ViewGroup.LayoutParams.MATCH_PARENT
++                : (WaydroidMode.isFullUi() ? mBarHeight : 0);
+         for (int rot = Surface.ROTATION_0; rot <= Surface.ROTATION_270; rot++) {
+-            int height = SystemBarUtils.getStatusBarHeightForRotation(mContext, rot);
++            int height = claimedHeightForRotation(rot);
+             mLpChanged.paramsForRotation[rot].height =
+                     state.mIsLaunchAnimationRunning ? ViewGroup.LayoutParams.MATCH_PARENT : height;
+             // The status bar height could change at runtime if one display has a cutout while
