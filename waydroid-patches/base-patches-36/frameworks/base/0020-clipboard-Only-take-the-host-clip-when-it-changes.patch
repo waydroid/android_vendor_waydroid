@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 29 Aug 2026 15:24:26 +0300
+Subject: [PATCH] clipboard: Only take the host clip when it changes
+
+Rebuilding the clip from the host on every read threw away whatever an app
+had just copied. Take it only when the host text is new, and give it an
+owner instead of leaving the previous app's uid on it.
+
+Also stop pushing clips that carry no text, such as a URI or an intent.
+
+Change-Id: I243fbaa4c05431296a5b1358d6bb585e4dc2b2e8
+---
+ .../server/clipboard/ClipboardService.java    | 38 +++++++++++++++----
+ 1 file changed, 30 insertions(+), 8 deletions(-)
+
+diff --git a/services/core/java/com/android/server/clipboard/ClipboardService.java b/services/core/java/com/android/server/clipboard/ClipboardService.java
+index 5fa7311ab..09f3c7dff 100644
+--- a/services/core/java/com/android/server/clipboard/ClipboardService.java
++++ b/services/core/java/com/android/server/clipboard/ClipboardService.java
+@@ -180,6 +180,10 @@ public class ClipboardService extends SystemService {
+     private final Handler mWorkerHandler;
+     private WaydroidClipboard mWaydroidClipboard;
+ 
++    // Last host clipboard text synced in either direction.
++    @GuardedBy("mLock")
++    private String mLastHostClip;
++
+     @GuardedBy("mLock")
+     // Maps (userId, deviceId) to Clipboard.
+     private final SparseArrayMap<Integer, Clipboard> mClipboards = new SparseArrayMap<>();
+@@ -944,14 +948,28 @@ public class ClipboardService extends SystemService {
+             clipboard = new Clipboard(userId, deviceId);
+             mClipboards.add(userId, deviceId, clipboard);
+         }
+-        if (mWaydroidClipboard != null && mWaydroidClipboard.getService() != null) {
+-            clipboard.primaryClip = new ClipData("host clipboard",
+-                                                 new String[]{"text/plain"},
+-                                                 new ClipData.Item(mWaydroidClipboard.getClipboardData()));
+-        }
++        adoptHostClipLocked(clipboard);
+         return clipboard;
+     }
+ 
++    // Pull the host clipboard in only when it has new text; overwriting unconditionally
++    // would discard whatever an app just copied.
++    @GuardedBy("mLock")
++    private void adoptHostClipLocked(Clipboard clipboard) {
++        if (mWaydroidClipboard == null || mWaydroidClipboard.getService() == null) {
++            return;
++        }
++        String hostClip = mWaydroidClipboard.getClipboardData();
++        if (TextUtils.isEmpty(hostClip) || hostClip.equals(mLastHostClip)) {
++            return;
++        }
++        mLastHostClip = hostClip;
++        clipboard.primaryClip = new ClipData("host clipboard", new String[]{"text/plain"},
++                new ClipData.Item(hostClip));
++        clipboard.primaryClipUid = android.os.Process.SYSTEM_UID;
++        clipboard.mPrimaryClipPackage = null;
++    }
++
+     List<UserInfo> getRelatedProfiles(@UserIdInt int userId) {
+         final List<UserInfo> related;
+         final long origId = Binder.clearCallingIdentity();
+@@ -1086,9 +1104,13 @@ public class ClipboardService extends SystemService {
+             if (description != null) {
+                 description.setTimestamp(System.currentTimeMillis());
+             }
+-            if (mWaydroidClipboard != null) {
+-                ClipData.Item firstItem = clip.getItemAt(0);
+-                mWaydroidClipboard.sendClipboardData(firstItem.getText().toString());
++            // A clip without text (a URI or intent) has nothing to push to the host.
++            if (mWaydroidClipboard != null && clip.getItemCount() > 0) {
++                CharSequence text = clip.getItemAt(0).getText();
++                if (text != null) {
++                    mLastHostClip = text.toString();
++                    mWaydroidClipboard.sendClipboardData(mLastHostClip);
++                }
+             }
+         }
+         sendClipChangedBroadcast(clipboard);
