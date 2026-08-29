@@ -1,0 +1,173 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 29 Aug 2026 15:31:20 +0300
+Subject: [PATCH] WayDroidService: Follow the host window mode into gesture
+ navigation
+
+A per-app host window has no navigation bar, so an edge swipe is the only way
+back inside one. Switch to gesture navigation while the host is in that mode,
+and put the previous mode back on the way out.
+
+A navigation mode picked while we hold one wins: the saved mode is dropped and
+nothing is restored. Closed mode is left alone - nothing is on screen to
+navigate, and switching overlays costs every app a configuration change.
+
+Change-Id: Ic97c84d1d9dd3c0fcd1dd5c7ffe68452282bfb5b
+---
+ .../platform/internal/WayDroidService.java    | 116 +++++++++++++++---
+ 1 file changed, 99 insertions(+), 17 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 7e4827f..f451298 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -29,6 +29,8 @@ import android.content.ComponentName;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.IntentFilter;
++import android.content.om.OverlayInfo;
++import android.content.om.OverlayManager;
+ import android.content.pm.ApplicationInfo;
+ import android.content.pm.PackageInstaller;
+ import android.content.pm.PackageManager;
+@@ -801,43 +803,123 @@ public class WayDroidService extends LineageSystemService {
+ 
+     /* The framework must not read waydroid props: they are stale by design, and with no SELinux
+      * in the container any app can read them. Translate the host's mode into a single setting
+-     * here instead, mirroring the hwcomposer's select_mode -- a task gets a host window of its
+-     * own only in multi-window mode, and only while the host asks for apps rather than for the
+-     * whole UI ("Waydroid") or for nothing ("none").
++     * here instead, mirroring the hwcomposer's select_mode. Single-window mode counts as full UI:
++     * its window holds the whole screen composite, system bars included.
+      * Blind spot: the hwcomposer also drops multi-window when the host binds no wl_subcompositor. */
+     private static final String SETTING_PER_APP_WINDOWS = "per_app_host_windows";
+ 
+-    private volatile boolean mPerAppWindows;
++    private static final int MODE_FULL_UI = 0;
++    private static final int MODE_PER_APP = 1;
++    private static final int MODE_CLOSED = 2;
+ 
+-    private boolean readPerAppWindows() {
+-        if (!SystemProperties.getBoolean("persist.waydroid.multi_windows", false))
+-            return false;
++    private volatile int mWindowMode = MODE_FULL_UI;
++
++    private int readWindowMode() {
+         String activeApps = SystemProperties.get("waydroid.active_apps", "Waydroid");
+-        return !activeApps.equals("Waydroid") && !activeApps.equals("none");
++        if (activeApps.equals("none"))
++            return MODE_CLOSED;
++        if (activeApps.equals("Waydroid")
++                || !SystemProperties.getBoolean("persist.waydroid.multi_windows", false))
++            return MODE_FULL_UI;
++        return MODE_PER_APP;
+     }
+ 
+     private void publishWindowMode() {
+         try {
+             Settings.Global.putInt(mContext.getContentResolver(), SETTING_PER_APP_WINDOWS,
+-                    mPerAppWindows ? 1 : 0);
++                    mWindowMode == MODE_PER_APP ? 1 : 0);
+         } catch (Exception e) {
+             Log.w(TAG, "publishWindowMode failed: " + e);
+         }
+     }
+ 
++    /* A per-app host window has no navigation bar, so the edge gesture is the only way back
++     * inside one: follow the mode into gesture navigation and put the old mode back on the way
++     * out. Both values are persisted, so a container restart taken in per-app mode can still
++     * restore. Closed mode changes nothing -- nothing is on screen to navigate, and switching
++     * overlays costs every app a configuration change. */
++    private static final String SETTING_SAVED_NAV_MODE = "per_app_host_windows_saved_nav_mode";
++    private static final String SETTING_OUR_NAV_MODE = "per_app_host_windows_nav_mode";
++    private static final String NAV_MODE_CATEGORY = "com.android.internal.navigation_bar_mode";
++    private static final String NAV_MODE_GESTURAL =
++            "com.android.internal.systemui.navbar.gestural";
++    // No overlay enabled at all, which leaves config_navBarInteractionMode: three buttons.
++    private static final String NAV_MODE_STOCK = "stock";
++
++    private String enabledNavMode(OverlayManager om) {
++        for (OverlayInfo info : om.getOverlayInfosForTarget("android", UserHandle.CURRENT)) {
++            if (NAV_MODE_CATEGORY.equals(info.getCategory()) && info.isEnabled())
++                return info.getPackageName();
++        }
++        return NAV_MODE_STOCK;
++    }
++
++    private void setNavMode(OverlayManager om, String mode) {
++        if (NAV_MODE_STOCK.equals(mode)) {
++            om.setEnabled(NAV_MODE_GESTURAL, false, UserHandle.CURRENT);
++        } else {
++            om.setEnabledExclusiveInCategory(mode, UserHandle.CURRENT);
++        }
++    }
++
++    private void saveNavMode(String saved, String ours) {
++        Settings.Global.putString(mContext.getContentResolver(), SETTING_SAVED_NAV_MODE, saved);
++        Settings.Global.putString(mContext.getContentResolver(), SETTING_OUR_NAV_MODE, ours);
++    }
++
++    private void applyNavigationMode() {
++        if (mWindowMode == MODE_CLOSED)
++            return;
++        OverlayManager om = mContext.getSystemService(OverlayManager.class);
++        if (om == null)
++            return;
++        try {
++            String current = enabledNavMode(om);
++            String saved = Settings.Global.getString(mContext.getContentResolver(),
++                    SETTING_SAVED_NAV_MODE);
++            String ours = Settings.Global.getString(mContext.getContentResolver(),
++                    SETTING_OUR_NAV_MODE);
++            /* Someone picked a navigation mode while we held one: that choice wins, so let go of
++             * both and leave it alone. */
++            if (ours != null && !ours.equals(current)) {
++                Log.i(TAG, "Navigation mode changed to " + current + ", dropping " + saved);
++                saveNavMode(null, null);
++                saved = null;
++                ours = null;
++            }
++            if (mWindowMode == MODE_PER_APP) {
++                if (NAV_MODE_GESTURAL.equals(current))
++                    return;
++                setNavMode(om, NAV_MODE_GESTURAL);
++                saveNavMode(saved != null ? saved : current, NAV_MODE_GESTURAL);
++                Log.i(TAG, "Per-app windows, navigation mode " + current + " -> gestures");
++            } else if (saved != null) {
++                setNavMode(om, saved);
++                saveNavMode(null, null);
++                Log.i(TAG, "Full UI, navigation mode restored to " + saved);
++            }
++        } catch (Exception e) {
++            Log.w(TAG, "applyNavigationMode failed: " + e);
++        }
++    }
++
++    private void applyWindowMode() {
++        publishWindowMode();
++        applyNavigationMode();
++    }
++
+     /* active_apps is written by the host, by the hwcomposer and by us, so a property callback is
+      * the only place that sees every change. It fires for every property in the container, so
+-     * compare first and only touch settings when the mode really flips. */
++     * compare first and only act when the mode really flips. */
+     private void registerWindowModeMonitor() {
+-        mPerAppWindows = readPerAppWindows();
+-        publishWindowMode();
++        mWindowMode = readWindowMode();
++        BackgroundThread.getHandler().post(this::applyWindowMode);
+         SystemProperties.addChangeCallback(() -> {
+-            boolean perAppWindows = readPerAppWindows();
+-            if (perAppWindows == mPerAppWindows)
++            int windowMode = readWindowMode();
++            if (windowMode == mWindowMode)
+                 return;
+-            mPerAppWindows = perAppWindows;
+-            Log.i(TAG, "Host window mode changed, per-app windows " + perAppWindows);
+-            BackgroundThread.getHandler().post(this::publishWindowMode);
++            mWindowMode = windowMode;
++            BackgroundThread.getHandler().post(this::applyWindowMode);
+         });
+     }
+ 
