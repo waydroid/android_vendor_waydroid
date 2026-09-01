@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Tue, 1 Sep 2026 13:50:12 +0300
+Subject: [PATCH] display: Do not die on a mode change for an unknown mode
+
+SurfaceFlinger hands out new display mode ids whenever it reloads a display's
+modes, which a Waydroid window resize does through a hotplug. The mode change
+can then name an id missing from the list we last queried: getModeById returned
+null and the frame-rate-override event behind it dereferenced it, taking
+system_server down. Drop the event instead; the hotplug refreshes the mode list
+and the active mode together.
+
+Change-Id: If4f9de79a67ac544a63890bfe6ff8a58e28a8d1f
+---
+ .../server/display/LocalDisplayAdapter.java   | 28 +++++++++++++++++--
+ 1 file changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/display/LocalDisplayAdapter.java b/services/core/java/com/android/server/display/LocalDisplayAdapter.java
+index 3da7874f6..03f96acd8 100644
+--- a/services/core/java/com/android/server/display/LocalDisplayAdapter.java
++++ b/services/core/java/com/android/server/display/LocalDisplayAdapter.java
+@@ -323,7 +323,20 @@ final class LocalDisplayAdapter extends DisplayAdapter {
+                     getFeatureFlags().isSizeOverrideForExternalDisplaysEnabled() && !isInternal;
+ 
+             mSfDisplayModes = Arrays.copyOf(displayModes, displayModes.length);
+-            mActiveSfDisplayMode = getModeById(displayModes, activeSfDisplayModeId);
++            SurfaceControl.DisplayMode activeSfDisplayMode =
++                    getModeById(displayModes, activeSfDisplayModeId);
++            if (activeSfDisplayMode == null) {
++                // The active id SurfaceFlinger reports is not always one of the modes it
++                // reports alongside it. Every user of mActiveSfDisplayMode dereferences it,
++                // so keep the display on a real mode rather than crashing here.
++                Slog.w(TAG, "Active mode id " + activeSfDisplayModeId
++                        + " is not among the supported modes, using the first one");
++                if (displayModes.length == 0) {
++                    return false;
++                }
++                activeSfDisplayMode = displayModes[0];
++            }
++            mActiveSfDisplayMode = activeSfDisplayMode;
+             mAppVsyncOffsetNanos = mActiveSfDisplayMode.appVsyncOffsetNanos;
+             mPresentationDeadlineNanos = mActiveSfDisplayMode.presentationDeadlineNanos;
+             SurfaceControl.DisplayMode preferredSfDisplayMode =
+@@ -1285,7 +1298,18 @@ final class LocalDisplayAdapter extends DisplayAdapter {
+                             || Arrays.equals(supportedRefreshRates, mSupportedRefreshRates))) {
+                 return false;
+             }
+-            mActiveSfDisplayMode = getModeById(mSfDisplayModes, activeSfModeId);
++            SurfaceControl.DisplayMode activeSfDisplayMode =
++                    getModeById(mSfDisplayModes, activeSfModeId);
++            if (activeSfDisplayMode == null) {
++                // SurfaceFlinger re-mints mode ids when it reloads a display's modes, so an
++                // event can name an id our list does not have. mActiveSfDisplayMode is
++                // dereferenced unguarded elsewhere, and the reload's hotplug refreshes both
++                // the list and the active mode, so drop the event.
++                Slog.w(TAG, "Ignoring active mode change to unknown mode id "
++                        + activeSfModeId);
++                return false;
++            }
++            mActiveSfDisplayMode = activeSfDisplayMode;
+             mActiveModeId = findMatchingModeIdLocked(activeSfModeId);
+             if (mActiveModeId == INVALID_MODE_ID) {
+                 Slog.w(TAG, "In unknown mode after setting allowed modes"
