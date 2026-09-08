@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Tue, 8 Sep 2026 17:48:26 +0300
+Subject: [PATCH] libdmabufheap: Export the BufferAllocator destructor
+
+Change-Id: I6fe9a65f863f5810ef43dd412fdd274bcee5b28c
+---
+ BufferAllocator.cpp                       | 2 ++
+ include/BufferAllocator/BufferAllocator.h | 4 +++-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/BufferAllocator.cpp b/BufferAllocator.cpp
+index eee2393..708cbfa 100644
+--- a/BufferAllocator.cpp
++++ b/BufferAllocator.cpp
+@@ -119,6 +119,8 @@ BufferAllocator::BufferAllocator() {
+         QueryIonHeaps();
+ }
+ 
++BufferAllocator::~BufferAllocator() {}
++
+ int BufferAllocator::MapNameToIonMask(const std::string& heap_name, unsigned int ion_heap_mask,
+                                       unsigned int ion_heap_flags) {
+     if (!ion_heap_mask)
+diff --git a/include/BufferAllocator/BufferAllocator.h b/include/BufferAllocator/BufferAllocator.h
+index 8ad85ec..b6daf55 100644
+--- a/include/BufferAllocator/BufferAllocator.h
++++ b/include/BufferAllocator/BufferAllocator.h
+@@ -35,7 +35,9 @@
+ class BufferAllocator {
+   public:
+     BufferAllocator();
+-    ~BufferAllocator() {}
++    // Out of line so the destructor is exported: vendor blobs built against
++    // newer platform copies of this library link against it.
++    ~BufferAllocator();
+ 
+     /* Not copyable or movable */
+     BufferAllocator(const BufferAllocator&) = delete;

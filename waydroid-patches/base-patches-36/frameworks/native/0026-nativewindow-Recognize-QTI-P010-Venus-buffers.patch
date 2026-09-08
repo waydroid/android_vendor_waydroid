@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Tue, 8 Sep 2026 17:48:26 +0300
+Subject: [PATCH] nativewindow: Recognize QTI P010 Venus buffers
+
+Change-Id: Idb6e787349adde0e61dbdde2b31a868e033317e6
+---
+ libs/nativewindow/AHardwareBuffer.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libs/nativewindow/AHardwareBuffer.cpp b/libs/nativewindow/AHardwareBuffer.cpp
+index a03b3a1..0aa4391 100644
+--- a/libs/nativewindow/AHardwareBuffer.cpp
++++ b/libs/nativewindow/AHardwareBuffer.cpp
+@@ -761,6 +761,10 @@ bool AHardwareBuffer_formatIsYuv(uint32_t format) {
+         case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
+         case AHARDWAREBUFFER_FORMAT_YCbCr_P010:
+         case AHARDWAREBUFFER_FORMAT_YCbCr_P210:
++        // QTI HAL_PIXEL_FORMAT_YCbCr_420_P010_VENUS; stock OxygenOS ships the
++        // same addition so OEM camera libs can lockPlanes() this format. The
++        // plane geometry comes from the QTI gralloc mapper, not from here.
++        case 0x7FA30C0A:
+             return true;
+         default:
+             return false;

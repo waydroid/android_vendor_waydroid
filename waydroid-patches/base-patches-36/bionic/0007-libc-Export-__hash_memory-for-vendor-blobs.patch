@@ -1,0 +1,77 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Tue, 8 Sep 2026 17:48:25 +0300
+Subject: [PATCH] libc: Export __hash_memory for vendor blobs
+
+Change-Id: Iaba1458d66fd1862173199ae2bab8ba18ecc615c
+---
+ libc/bionic/ndk_cruft.cpp | 47 +++++++++++++++++++++++++++++++++++++++
+ libc/libc.map.txt         |  2 ++
+ 2 files changed, 49 insertions(+)
+
+diff --git a/libc/bionic/ndk_cruft.cpp b/libc/bionic/ndk_cruft.cpp
+index bc06d9d..a07570f 100644
+--- a/libc/bionic/ndk_cruft.cpp
++++ b/libc/bionic/ndk_cruft.cpp
+@@ -390,3 +390,50 @@ int putw(int value, FILE* fp) {
+ } // extern "C"
+ 
+ #endif // !defined (__LP64__)
++
++// Waydroid: vendor blobs built against a newer platform libc++ link
++// std::__1::__hash_memory(const void*, size_t), which the libc++ prebuilt in
++// this tree does not export. Provide it from libc so it resolves everywhere,
++// on LP64 too. Only self-consistency matters: hash values are never shared
++// between the blob and the rest of the platform.
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++extern "C" size_t __waydroid_hash_memory(const void* ptr, size_t size)
++    __asm__("_ZNSt3__113__hash_memoryEPKvm");
++
++extern "C" size_t __waydroid_hash_memory(const void* ptr, size_t size) {
++  // MurmurHash64A, reading via memcpy to stay alignment-safe.
++  static const uint64_t m = 0xc6a4a7935bd1e995ULL;
++  static const int r = 47;
++
++  const unsigned char* data = static_cast<const unsigned char*>(ptr);
++  uint64_t h = size * m;
++
++  for (size_t i = size / 8; i != 0; --i) {
++    uint64_t k;
++    memcpy(&k, data, sizeof(k));
++    data += sizeof(k);
++
++    k *= m;
++    k ^= k >> r;
++    k *= m;
++
++    h ^= k;
++    h *= m;
++  }
++
++  uint64_t tail = 0;
++  memcpy(&tail, data, size & 7);
++  if (size & 7) {
++    h ^= tail;
++    h *= m;
++  }
++
++  h ^= h >> r;
++  h *= m;
++  h ^= h >> r;
++
++  return h;
++}
+diff --git a/libc/libc.map.txt b/libc/libc.map.txt
+index 8b652c9..9e50dcd 100644
+--- a/libc/libc.map.txt
++++ b/libc/libc.map.txt
+@@ -1839,4 +1839,6 @@ LIBC_PLATFORM {
+     android_net_res_stats_get_info_for_net;
+     android_net_res_stats_aggregate;
+     android_net_res_stats_get_usable_servers;
++    # std::__1::__hash_memory, for vendor blobs built against a newer libc++
++    _ZNSt3__113__hash_memoryEPKvm;
+ } LIBC_Q;
