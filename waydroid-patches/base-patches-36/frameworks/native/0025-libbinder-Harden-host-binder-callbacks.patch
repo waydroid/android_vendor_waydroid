@@ -1,0 +1,237 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Tue, 8 Sep 2026 17:48:26 +0300
+Subject: [PATCH] libbinder: Harden host binder callbacks
+
+Change-Id: I8f488a5c689a136ad7383d9cf0a57653e325513a
+---
+ libs/binder/BackendUnifiedServiceManager.cpp | 74 ++++++++++++++++++--
+ libs/binder/BpBinder.cpp                     |  8 +--
+ libs/binder/IPCThreadState.cpp               |  6 +-
+ libs/binder/IServiceManager.cpp              |  6 +-
+ libs/binder/Parcel.cpp                       | 10 ++-
+ libs/binder/include/binder/IBinder.h         |  4 ++
+ 6 files changed, 91 insertions(+), 17 deletions(-)
+
+diff --git a/libs/binder/BackendUnifiedServiceManager.cpp b/libs/binder/BackendUnifiedServiceManager.cpp
+index 65b95cc..1535a72 100644
+--- a/libs/binder/BackendUnifiedServiceManager.cpp
++++ b/libs/binder/BackendUnifiedServiceManager.cpp
+@@ -354,19 +354,69 @@ bool BackendUnifiedServiceManager::returnIfCached(const std::string& serviceName
+     return false;
+ }
+ 
++// The host servicemanager, or null when the host driver is absent.
++static sp<IBinder> hostServicemanager(const char* why) {
++    sp<ProcessState> host = ProcessState::self(/*isHost=*/true);
++    if (host == nullptr || host->getDriverName().empty()) {
++        ALOGW("Waydroid: host ProcessState unavailable for %s", why);
++        return nullptr;
++    }
++    // A host service is never a pure client relationship: we hand container-side
++    // Bn objects to it (ICameraProviderCallback, IServiceCallback, ...) and the
++    // host calls back on /dev/host_binder. Nothing reads that fd unless the host
++    // ProcessState has a thread pool, so callbacks would only ever be seen while
++    // some thread happens to block in an outbound host transaction.
++    // No-op once started.
++    host->startThreadPool();
++    sp<IBinder> ctx = host->getContextObject(nullptr);
++    if (ctx == nullptr) {
++        ALOGW("Waydroid: no host servicemanager context for %s", why);
++    }
++    return ctx;
++}
++
++// Service (un)registration notifications for a host name. The container's own
++// servicemanager does not own host names, so a registration there can never
++// fire -- and clients that re-acquire a HAL from onRegistration() (cameraserver
++// after a provider crash) would hold a dead binder until they restart.
++static Status hostServiceNotifications(const std::string& name,
++                                       const sp<os::IServiceCallback>& callback, bool add) {
++    if (hostServicemanagerIsPreA16()) {
++        // A16 shifted every transaction code after checkService, and only the
++        // checkService bridge above is wire-compatible. Sending a pre-A16 host
++        // our (un)registerForNotifications code would hit an unrelated method.
++        ALOGW("Waydroid: pre-A16 host servicemanager, no service notifications for %s",
++              name.c_str());
++        return Status::ok();
++    }
++    sp<IBinder> ctx = hostServicemanager(name.c_str());
++    if (ctx == nullptr) return Status::ok();
++    sp<AidlServiceManager> hostSm = interface_cast<AidlServiceManager>(ctx);
++    if (hostSm == nullptr) {
++        ALOGW("Waydroid: host context is not an AidlServiceManager");
++        return Status::ok();
++    }
++    Status status = add ? hostSm->registerForNotifications(name, callback)
++                        : hostSm->unregisterForNotifications(name, callback);
++    if (!status.isOk()) {
++        // Soft-fail: a client that cannot get notifications should still keep
++        // the service it already resolved (CameraProviderManager treats an
++        // error here as fatal to enumeration).
++        ALOGW("Waydroid: host %sregisterForNotifications(%s) failed: %s", add ? "" : "un",
++              name.c_str(), status.toString8().c_str());
++        return Status::ok();
++    }
++    ALOGI("Waydroid: host %sregistered notifications for %s", add ? "" : "un", name.c_str());
++    return Status::ok();
++}
++
+ Status BackendUnifiedServiceManager::queryHostService(const std::string& name,
+                                                       os::Service* _out) {
+     *_out = os::Service::make<os::Service::Tag::serviceWithMetadata>(
+             createServiceWithMetadata(nullptr, false));
+ 
+-    sp<ProcessState> host = ProcessState::self(/*isHost=*/true);
+-    if (host == nullptr || host->getDriverName().empty()) {
+-        ALOGW("Waydroid: host ProcessState unavailable for %s", name.c_str());
+-        return Status::ok();
+-    }
+-    sp<IBinder> ctx = host->getContextObject(nullptr);
++    sp<IBinder> ctx = hostServicemanager(name.c_str());
+     if (ctx == nullptr) {
+-        ALOGW("Waydroid: no host servicemanager context for %s", name.c_str());
+         return Status::ok();
+     }
+     // Stability is already set by getContextObject()'s markCompilationUnit().
+@@ -418,6 +468,10 @@ Status BackendUnifiedServiceManager::getService2(const ::std::string& name, os::
+     if (status.isOk()) {
+         status = toBinderService(name, service, _out);
+         if (status.isOk()) {
++            // Deliberately no host retry here: getService() is the blocking
++            // variant and already funnels through checkService(), so host names
++            // are covered there. Hooking it here too would put a host round-trip
++            // (and the pre-A16 probe) on a path that waits.
+             return updateCache(name, service);
+         }
+     }
+@@ -578,6 +632,9 @@ Status BackendUnifiedServiceManager::listServices(int32_t dumpPriority,
+ }
+ Status BackendUnifiedServiceManager::registerForNotifications(
+         const ::std::string& name, const sp<os::IServiceCallback>& callback) {
++    if (isHostAidlService(name)) {
++        return hostServiceNotifications(name, callback, /*add=*/true);
++    }
+     if (mTheRealServiceManager) {
+         return mTheRealServiceManager->registerForNotifications(name, callback);
+     }
+@@ -586,6 +643,9 @@ Status BackendUnifiedServiceManager::registerForNotifications(
+ }
+ Status BackendUnifiedServiceManager::unregisterForNotifications(
+         const ::std::string& name, const sp<os::IServiceCallback>& callback) {
++    if (isHostAidlService(name)) {
++        return hostServiceNotifications(name, callback, /*add=*/false);
++    }
+     if (mTheRealServiceManager) {
+         return mTheRealServiceManager->unregisterForNotifications(name, callback);
+     }
+diff --git a/libs/binder/BpBinder.cpp b/libs/binder/BpBinder.cpp
+index 7a7a9a0..65ed968 100644
+--- a/libs/binder/BpBinder.cpp
++++ b/libs/binder/BpBinder.cpp
+@@ -635,10 +635,10 @@ void BpBinder::onFrozenStateChangeListenerRemoved() {
+ status_t BpBinder::addFrozenStateChangeCallback(const wp<FrozenStateChangeCallback>& callback) {
+     LOG_ALWAYS_FATAL_IF(isRpcBinder(),
+                         "addFrozenStateChangeCallback() is not supported for RPC Binder.");
+-    // Waydroid dual-driver: host ProcessState never calls startThreadPool() (we
+-    // only act as a client toward Halium), so the thread-pool check below would
+-    // always abort for host proxies. Frozen-state callbacks are not supported
+-    // on host binders; return a non-fatal error instead.
++    // Waydroid dual-driver: freeze notifications are not meaningful across the
++    // Halium boundary — the host runs its own freezer policy and its kernel need
++    // not support BC_REQUEST_FREEZE_NOTIFICATION at all. Fail non-fatally rather
++    // than asking the host driver for something it may reject.
+     if (isHostBinderHandle()) return INVALID_OPERATION;
+     LOG_ALWAYS_FATAL_IF(!kEnableKernelIpc, "Binder kernel driver disabled at build time");
+     LOG_ALWAYS_FATAL_IF(ProcessState::self(isHostBinderHandle())
+diff --git a/libs/binder/IPCThreadState.cpp b/libs/binder/IPCThreadState.cpp
+index e7ddcb4..bc40c33 100644
+--- a/libs/binder/IPCThreadState.cpp
++++ b/libs/binder/IPCThreadState.cpp
+@@ -1167,7 +1167,8 @@ IPCThreadState::IPCThreadState(bool isHost)
+         mIsProcessingPostWriteDerefs(false),
+         mStrictModePolicy(0),
+         mLastTransactionBinderFlags(0),
+-        mCallRestriction(mProcess->mCallRestriction),
++        // Waydroid dual-driver: mProcess is null when the host driver is absent.
++        mCallRestriction(mProcess ? mProcess->mCallRestriction : CallRestriction::NONE),
+         mIsHost(isHost) {
+     pthread_setspecific(mIsHost ? gHostTLS : gTLS, this);
+     clearCaller();
+@@ -1593,6 +1594,9 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
+             //    (mCallingSid ? mCallingSid : "<N/A>"), mCallingUid);
+ 
+             Parcel reply;
++            // Waydroid dual-driver: binders written into the reply belong to the
++            // device the transaction arrived on, not the container's.
++            reply.SetIsHost(mIsHost);
+             status_t error;
+             IF_LOG_TRANSACTIONS() {
+                 std::ostringstream logStream;
+diff --git a/libs/binder/IServiceManager.cpp b/libs/binder/IServiceManager.cpp
+index e5255cd..a85389c 100644
+--- a/libs/binder/IServiceManager.cpp
++++ b/libs/binder/IServiceManager.cpp
+@@ -660,9 +660,9 @@ Vector<String16> CppBackendShim::listServices(int dumpsysPriority) {
+ }
+ 
+ sp<IBinder> CppBackendShim::waitForService(const String16& name16) {
+-    // Waydroid dual-driver: host-AIDL names never register for notifications
+-    // against the local servicemanager (which doesn't own them), so
+-    // short-circuit to checkService which triggers the host-binder retry path.
++    // Waydroid dual-driver: checkService already triggers the host-binder retry
++    // path and answers immediately, so keep this non-blocking rather than going
++    // through the notification round trip on the host servicemanager.
+     {
+         const std::string hostName = String8(name16).c_str();
+         if (isHostAidlService(hostName)) {
+diff --git a/libs/binder/Parcel.cpp b/libs/binder/Parcel.cpp
+index 8265400..e72e992 100644
+--- a/libs/binder/Parcel.cpp
++++ b/libs/binder/Parcel.cpp
+@@ -166,6 +166,8 @@ static void acquire_object(const sp<ProcessState>& proc, const flat_binder_objec
+             }
+             return;
+         case BINDER_TYPE_HANDLE: {
++            // Waydroid dual-driver: null when the host driver is absent.
++            if (proc == nullptr) return;
+             const sp<IBinder> b = proc->getStrongProxyForHandle(obj.handle);
+             if (b != nullptr) {
+                 LOG_REFS("Parcel %p acquiring reference on remote %p", who, b.get());
+@@ -194,6 +196,8 @@ static void release_object(const sp<ProcessState>& proc, const flat_binder_objec
+             }
+             return;
+         case BINDER_TYPE_HANDLE: {
++            // Waydroid dual-driver: null when the host driver is absent.
++            if (proc == nullptr) return;
+             const sp<IBinder> b = proc->getStrongProxyForHandle(obj.handle);
+             if (b != nullptr) {
+                 LOG_REFS("Parcel %p releasing reference on remote %p", who, b.get());
+@@ -462,8 +466,10 @@ status_t Parcel::unflattenBinder(sp<IBinder>* out) const
+                 return finishUnflattenBinder(binder, out);
+             }
+             case BINDER_TYPE_HANDLE: {
+-                sp<IBinder> binder =
+-                    ProcessState::self(mIsHost)->getStrongProxyForHandle(flat->handle);
++                // Waydroid dual-driver: null when the host driver is absent.
++                sp<ProcessState> proc = ProcessState::self(mIsHost);
++                if (proc == nullptr) return BAD_TYPE;
++                sp<IBinder> binder = proc->getStrongProxyForHandle(flat->handle);
+                 return finishUnflattenBinder(binder, out);
+             }
+         }
+diff --git a/libs/binder/include/binder/IBinder.h b/libs/binder/include/binder/IBinder.h
+index b0dede9..fd354f9 100644
+--- a/libs/binder/include/binder/IBinder.h
++++ b/libs/binder/include/binder/IBinder.h
+@@ -344,6 +344,10 @@ public:
+     // Waydroid dual-driver: true when this IBinder is a proxy minted from
+     // the host ProcessState. Default: delegates to remoteBinder()->isHostBinder()
+     // (returns false for local binders and null proxies).
++    // FIXME: this has no callers anywhere in the tree, and being virtual it
++    // shifts every later slot in IBinder's vtable (including the destructor),
++    // so libbinder.so cannot be swapped in isolation. Delete it — along with the
++    // equally unused IInterface::isHostBinder — at the next full image rebuild.
+     virtual bool            isHostBinder() const;
+     typedef sp<IBinder> (*object_make_func)(const void* makeArgs);
+     sp<IBinder> lookupOrCreateWeak(const void* objectID, object_make_func make,
