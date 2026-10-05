@@ -1,0 +1,34 @@
+From be3102c6249acfa9edccddb8106ea8d4ac448177 Mon Sep 17 00:00:00 2001
+From: utzcoz <utzcoz@outlook.com>
+Date: Mon, 5 Oct 2026 17:51:03 +0900
+Subject: [PATCH] waydroid: Disable overlay with decor caption by default
+
+Waydroid's freeform caption can cover app content in multi-window mode
+on Android 13. Use the non-overlay default so app content starts below
+the caption.
+
+This ports the behavior introduced by utzcoz for Boringdroid and
+already carried in Waydroid's Android 11 patch set. The earlier patch
+cited missed caption inset dispatch when a window first opens; this
+patch restores its workaround for the Android 13 patch set.
+
+Original change: https://github.com/boringdroid/platform_frameworks_base/pull/1
+---
+ core/java/android/view/Window.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/core/java/android/view/Window.java b/core/java/android/view/Window.java
+index 9db3a33..887ce52 100644
+--- a/core/java/android/view/Window.java
++++ b/core/java/android/view/Window.java
+@@ -329,7 +329,7 @@ public abstract class Window {
+     @UnsupportedAppUsage
+     private boolean mDestroyed;
+ 
+-    private boolean mOverlayWithDecorCaptionEnabled = true;
++    private boolean mOverlayWithDecorCaptionEnabled = false;
+     private boolean mCloseOnSwipeEnabled = false;
+ 
+     // The current window attributes.
+-- 
+2.56.0
