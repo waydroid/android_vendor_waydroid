@@ -1,0 +1,152 @@
+From 5ba279bbb90f7883756e6b0da616539263d25a76 Mon Sep 17 00:00:00 2001
+From: Aditya Sethi <72063181+TechyAditya@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 14:58:26 +0530
+Subject: [PATCH] hwc2on1: Pass HDR capabilities and layer dataspaces to the
+ HWC1 module
+
+HWC1 has no HDR capabilities, and its layers carry no dataspace, so the
+adapter reported no HDR types and dropped every layer's dataspace.
+
+If the HWC1 module exports waydroid_hwc_get_hdr_capabilities, answer
+getHdrCapabilities through it. If it exports
+waydroid_hwc_set_layer_dataspaces, pass the dataspace of each HWC1 layer
+to it before every prepare. Both are looked up with dlsym on the module.
+The new state is in Display and Layer, which the adapter allocates; the
+HWC2On1Adapter object is allocated by the composer service, so its layout
+is unchanged.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+---
+ HWC2On1Adapter.cpp                      | 43 ++++++++++++++++++++++---
+ include/hwc2on1adapter/HWC2On1Adapter.h | 12 +++++++
+ 2 files changed, 50 insertions(+), 5 deletions(-)
+
+diff --git a/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp b/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+index 39ae5f4..37a14d6 100644
+--- a/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
++++ b/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+@@ -23,6 +23,7 @@
+ #define ATRACE_TAG ATRACE_TAG_GRAPHICS
+ 
+ 
++#include <dlfcn.h>
+ #include <inttypes.h>
+ 
+ #include <chrono>
+@@ -528,8 +529,19 @@ HWC2On1Adapter::Display::Display(HWC2On1Adapter& device, HWC2::DisplayType type)
+     mHwc1LayerMap(),
+     mNumAvailableRects(0),
+     mNextAvailableRect(nullptr),
+-    mGeometryChanged(false)
+-    {}
++    mGeometryChanged(false),
++    mWaydroidGetHdrCapabilities(nullptr),
++    mWaydroidSetLayerDataspaces(nullptr),
++    mHwc1LayerDataspaces()
++{
++    void* dso = mDevice.mHwc1Device->common.module->dso;
++    if (dso) {
++        mWaydroidGetHdrCapabilities = reinterpret_cast<decltype(mWaydroidGetHdrCapabilities)>(
++                dlsym(dso, "waydroid_hwc_get_hdr_capabilities"));
++        mWaydroidSetLayerDataspaces = reinterpret_cast<decltype(mWaydroidSetLayerDataspaces)>(
++                dlsym(dso, "waydroid_hwc_set_layer_dataspaces"));
++    }
++}
+ 
+ Error HWC2On1Adapter::Display::acceptChanges() {
+     std::unique_lock<std::recursive_mutex> lock(mStateMutex);
+@@ -702,8 +714,17 @@ Error HWC2On1Adapter::Display::getDozeSupport(int32_t* outSupport) {
+ }
+ 
+ Error HWC2On1Adapter::Display::getHdrCapabilities(uint32_t* outNumTypes,
+-        int32_t* /*outTypes*/, float* /*outMaxLuminance*/,
+-        float* /*outMaxAverageLuminance*/, float* /*outMinLuminance*/) {
++        int32_t* outTypes, float* outMaxLuminance,
++        float* outMaxAverageLuminance, float* outMinLuminance) {
++    std::unique_lock<std::recursive_mutex> lock(mStateMutex);
++
++    if (mWaydroidGetHdrCapabilities && mHwc1Id != -1) {
++        mWaydroidGetHdrCapabilities(mDevice.mHwc1Device, mHwc1Id, outNumTypes,
++                outTypes, outMaxLuminance, outMaxAverageLuminance,
++                outMinLuminance);
++        return Error::None;
++    }
++
+     // This isn't supported on HWC1, so per the HWC2 header, return numTypes = 0
+     *outNumTypes = 0;
+     return Error::None;
+@@ -1237,6 +1258,16 @@ bool HWC2On1Adapter::Display::prepare() {
+         layer->applyState(hwc1Layer);
+     }
+ 
++    if (mWaydroidSetLayerDataspaces) {
++        mHwc1LayerDataspaces.assign(mHwc1RequestedContents->numHwLayers,
++                HAL_DATASPACE_UNKNOWN);
++        for (auto& layer : mLayers) {
++            mHwc1LayerDataspaces[layer->getHwc1Id()] = layer->getDataspace();
++        }
++        mWaydroidSetLayerDataspaces(mDevice.mHwc1Device, mHwc1Id,
++                mHwc1LayerDataspaces.data(), mHwc1LayerDataspaces.size());
++    }
++
+     prepareFramebufferTarget();
+ 
+     resetGeometryMarker();
+@@ -1918,6 +1949,7 @@ HWC2On1Adapter::Layer::Layer(Display& display)
+     mSourceCrop({0.0f, 0.0f, -1.0f, -1.0f}),
+     mTransform(Transform::None),
+     mVisibleRegion(),
++    mDataspace(HAL_DATASPACE_UNKNOWN),
+     mZ(0),
+     mReleaseFence(),
+     mHwc1Id(0),
+@@ -1981,7 +2013,8 @@ Error HWC2On1Adapter::Layer::setCompositionType(Composition type) {
+     return Error::None;
+ }
+ 
+-Error HWC2On1Adapter::Layer::setDataspace(android_dataspace_t) {
++Error HWC2On1Adapter::Layer::setDataspace(android_dataspace_t dataspace) {
++    mDataspace = dataspace;
+     return Error::None;
+ }
+ 
+diff --git a/graphics/composer/2.1/utils/hwc2on1adapter/include/hwc2on1adapter/HWC2On1Adapter.h b/graphics/composer/2.1/utils/hwc2on1adapter/include/hwc2on1adapter/HWC2On1Adapter.h
+index da771dc..bc6fe8a 100644
+--- a/graphics/composer/2.1/utils/hwc2on1adapter/include/hwc2on1adapter/HWC2On1Adapter.h
++++ b/graphics/composer/2.1/utils/hwc2on1adapter/include/hwc2on1adapter/HWC2On1Adapter.h
+@@ -458,6 +458,16 @@ private:
+             // updated with anything other than a buffer since last call to
+             // Display::set()
+             bool mGeometryChanged;
++
++            // Waydroid extensions exported by the HWC1 module, or null.
++            // HWC1 layers carry no dataspace, and HWC1 reports no HDR
++            // capabilities. The HWC2On1Adapter object itself is allocated by
++            // the composer service, so new state must not go there.
++            int (*mWaydroidGetHdrCapabilities)(hwc_composer_device_1*, int,
++                    uint32_t*, int32_t*, float*, float*, float*);
++            void (*mWaydroidSetLayerDataspaces)(hwc_composer_device_1*, int,
++                    const int32_t*, size_t);
++            std::vector<int32_t> mHwc1LayerDataspaces;
+     };
+ 
+     // Utility template calling a Display object method directly based on the
+@@ -553,6 +563,7 @@ private:
+                 return mCompositionType;
+             }
+             uint32_t getZ() const { return mZ; }
++            android_dataspace_t getDataspace() const { return mDataspace; }
+ 
+             void addReleaseFence(int fenceFd);
+             const sp<MiniFence>& getReleaseFence() const;
+@@ -598,6 +609,7 @@ private:
+             hwc_frect_t mSourceCrop;
+             HWC2::Transform mTransform;
+             std::vector<hwc_rect_t> mVisibleRegion;
++            android_dataspace_t mDataspace;
+ 
+             uint32_t mZ;
+ 
+-- 
+2.56.0
+
