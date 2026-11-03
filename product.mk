@@ -37,6 +37,10 @@ PRODUCT_COPY_FILES += \
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.setupwizard.mode=DISABLED
 
+# SurfaceFlinger parses this with atoi(), so it must be 1, not true
+PRODUCT_VENDOR_PROPERTIES += \
+    debug.sf.treat_170m_as_sRGB=1
+
 # PC mode
 PRODUCT_PACKAGES += \
     pc.xml
