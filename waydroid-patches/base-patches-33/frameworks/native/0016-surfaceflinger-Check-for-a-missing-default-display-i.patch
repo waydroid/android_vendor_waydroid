@@ -1,0 +1,42 @@
+From 40aa2decb6d010d31fe919fe419e891f1a36fe74 Mon Sep 17 00:00:00 2001
+From: Aditya Sethi <72063181+TechyAditya@users.noreply.github.com>
+Date: Wed, 4 Nov 2026 03:48:55 +0530
+Subject: [PATCH] surfaceflinger: Check for a missing default display in
+ getPhysicalDisplayIds
+
+getPhysicalDisplayIdsLocked() dereferenced getDefaultDisplayDeviceLocked()
+without a check. Waydroid reconnects the primary display when its window
+is resized, and DisplayManager calls getPhysicalDisplayIds() in the gap,
+so SurfaceFlinger crashed in DisplayDevice::getId(). Without a default
+display, return the other physical displays.
+
+Addresses waydroid/waydroid#2464.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+---
+ services/surfaceflinger/SurfaceFlinger.cpp | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 96b85d1..55a7143 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -602,8 +602,13 @@ std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIdsLocked() con
+     std::vector<PhysicalDisplayId> displayIds;
+     displayIds.reserve(mPhysicalDisplayTokens.size());
+ 
+-    const auto defaultDisplayId = getDefaultDisplayDeviceLocked()->getPhysicalId();
+-    displayIds.push_back(defaultDisplayId);
++    // Waydroid reconnects the primary display when its window is resized, and a call during the
++    // reconnect finds no default display
++    std::optional<PhysicalDisplayId> defaultDisplayId;
++    if (const auto defaultDisplay = getDefaultDisplayDeviceLocked()) {
++        defaultDisplayId = defaultDisplay->getPhysicalId();
++        displayIds.push_back(*defaultDisplayId);
++    }
+ 
+     for (const auto& [id, token] : mPhysicalDisplayTokens) {
+         if (id != defaultDisplayId) {
+-- 
+2.56.0
+
