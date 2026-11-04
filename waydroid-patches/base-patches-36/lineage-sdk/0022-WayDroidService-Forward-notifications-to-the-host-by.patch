@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Wed, 4 Nov 2026 20:18:45 +0200
+Subject: [PATCH] WayDroidService: Forward notifications to the host by default
+
+Notification forwarding worked out of the box on Waydroid 13. Keep that
+behaviour; persist.waydroid.forward_notifications=false still turns it off.
+
+Change-Id: Ie6170e5b6d6500cd2ea311806d06ffef40b739ce
+---
+ .../java/org/lineageos/platform/internal/WayDroidService.java   | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index f451298..6bac87f 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -144,7 +144,7 @@ public class WayDroidService extends LineageSystemService {
+         if (mContext != null) {
+             mUM = UserMonitor.getInstance(mContext);
+             mWaydroidHardware = Hardware.getInstance(mContext);
+-            if (SystemProperties.getBoolean("persist.waydroid.forward_notifications", false)) {
++            if (SystemProperties.getBoolean("persist.waydroid.forward_notifications", true)) {
+                 try {
+                     mWaydroidNotifications = Notifications.getInstance(mContext);
+                 } catch (Exception e) {
