@@ -1,0 +1,109 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Mon, 31 Aug 2026 17:06:48 +0300
+Subject: [PATCH] WayDroidService: Republish the window mode on task changes
+
+SystemProperties.addChangeCallback only registers a process-local
+listener, and nothing in the container ever triggers it, so no change
+to waydroid.active_apps was ever noticed. per_app_host_windows kept the
+value it got at boot, SystemUI stayed in full-UI mode, and a per-app
+card never switched to gesture navigation -- leaving no way back.
+
+Re-read the mode from the task-stack listener instead, and right away
+when the host switches it through showApp, showFullUI or setprop, since
+no task change may follow.
+
+Change-Id: I2f2536fd294a6a57bb539437585fb012f3a97a1c
+---
+ .../platform/internal/WayDroidService.java    | 40 ++++++++++++++-----
+ 1 file changed, 30 insertions(+), 10 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 6bac87f7..8c8a9abf 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -908,19 +908,26 @@ public class WayDroidService extends LineageSystemService {
+         applyNavigationMode();
+     }
+ 
+-    /* active_apps is written by the host, by the hwcomposer and by us, so a property callback is
+-     * the only place that sees every change. It fires for every property in the container, so
+-     * compare first and only act when the mode really flips. */
++    /* Re-read the mode and apply it if it flipped. Returns on the caller's thread, so only call
++     * it from BackgroundThread (applyWindowMode does binder and settings work). */
++    private void refreshWindowMode() {
++        int windowMode = readWindowMode();
++        if (windowMode == mWindowMode)
++            return;
++        mWindowMode = windowMode;
++        applyWindowMode();
++    }
++
++    /* active_apps is written by the host, by the hwcomposer and by us. The property callback below
++     * cannot see any of those: addChangeCallback only registers a process-local listener, which
++     * nothing outside system_server (and no property write at all) ever triggers. The task-stack
++     * monitor is what actually keeps the mode fresh -- see syncActiveApps -- and this stays for the
++     * day the callback works. */
+     private void registerWindowModeMonitor() {
+         mWindowMode = readWindowMode();
+         BackgroundThread.getHandler().post(this::applyWindowMode);
+-        SystemProperties.addChangeCallback(() -> {
+-            int windowMode = readWindowMode();
+-            if (windowMode == mWindowMode)
+-                return;
+-            mWindowMode = windowMode;
+-            BackgroundThread.getHandler().post(this::applyWindowMode);
+-        });
++        SystemProperties.addChangeCallback(() ->
++                BackgroundThread.getHandler().post(this::refreshWindowMode));
+     }
+ 
+     private int mLastForegroundTaskId = -1;
+@@ -928,6 +935,12 @@ public class WayDroidService extends LineageSystemService {
+     private void syncActiveApps() {
+         publishTaskList();
+ 
++        /* Every real mode change is accompanied by a task-stack change, and this is the only
++         * notification that actually arrives (see registerWindowModeMonitor). Without it
++         * per_app_host_windows keeps its boot value, so SystemUI never switches to gestural
++         * navigation and there is no way back inside a per-app card. */
++        refreshWindowMode();
++
+         String current = SystemProperties.get("waydroid.active_apps", "none");
+         // Only per-app mode follows the foreground task; closed ("none") and
+         // full-ui ("Waydroid") are host requests, not app switches
+@@ -967,6 +980,8 @@ public class WayDroidService extends LineageSystemService {
+         }
+         Log.i(TAG, "Foreground task changed, active_apps " + current + " -> " + pkg);
+         SystemProperties.set("waydroid.active_apps", pkg);
++        // Our own write can be the one that flips full UI -> per-app.
++        refreshWindowMode();
+     }
+ 
+     private static final String SNAPSHOTS_DIR = "/data/waydroid_snapshots";
+@@ -1114,6 +1129,8 @@ public class WayDroidService extends LineageSystemService {
+         @Override
+         public void setprop(String prop, String value) {
+             SystemProperties.set(prop, value);
++            if ("waydroid.active_apps".equals(prop))
++                BackgroundThread.getHandler().post(WayDroidService.this::refreshWindowMode);
+         }
+ 
+         @Override
+@@ -1277,6 +1294,7 @@ public class WayDroidService extends LineageSystemService {
+             /* Mode first: the hwcomposer only creates a window for the app it
+              * is already in per-app mode for. */
+             SystemProperties.set("waydroid.active_apps", packageName);
++            BackgroundThread.getHandler().post(WayDroidService.this::refreshWindowMode);
+             return frontOrLaunch(packageName, "waydroid:showApp");
+         }
+ 
+@@ -1284,6 +1302,8 @@ public class WayDroidService extends LineageSystemService {
+         public void showFullUI() {
+             wakeUpDevice("waydroid:showFullUI");
+             SystemProperties.set("waydroid.active_apps", "Waydroid");
++            // Not left to the next task change: none may follow
++            BackgroundThread.getHandler().post(WayDroidService.this::refreshWindowMode);
+         }
+ 
+         @Override

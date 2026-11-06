@@ -12,7 +12,7 @@ Change-Id: Ie6170e5b6d6500cd2ea311806d06ffef40b739ce
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
-index f451298..6bac87f 100644
+index f4512989..6bac87f7 100644
 --- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
 +++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
 @@ -144,7 +144,7 @@ public class WayDroidService extends LineageSystemService {

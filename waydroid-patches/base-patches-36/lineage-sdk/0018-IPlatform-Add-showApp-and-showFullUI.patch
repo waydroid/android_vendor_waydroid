@@ -24,7 +24,7 @@ Change-Id: I3be8a1bee05dcd4439ea7cda29ed2c19823a8143
  3 files changed, 110 insertions(+), 15 deletions(-)
 
 diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
-index 6ce6844..9e98b45 100644
+index 6ce68448..9e98b45d 100644
 --- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
 +++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
 @@ -307,6 +307,61 @@ public class WayDroidService extends LineageSystemService {
@@ -145,7 +145,7 @@ index 6ce6844..9e98b45 100644
  
          @Override
 diff --git a/sdk/src/java/lineageos/waydroid/IPlatform.aidl b/sdk/src/java/lineageos/waydroid/IPlatform.aidl
-index c602efa..a84403f 100644
+index c602efa1..a84403fc 100644
 --- a/sdk/src/java/lineageos/waydroid/IPlatform.aidl
 +++ b/sdk/src/java/lineageos/waydroid/IPlatform.aidl
 @@ -35,4 +35,12 @@ interface IPlatform {
@@ -162,7 +162,7 @@ index c602efa..a84403f 100644
 +    void showFullUI();
  }
 diff --git a/sdk/src/java/lineageos/waydroid/Platform.java b/sdk/src/java/lineageos/waydroid/Platform.java
-index 59b85ad..19e4c56 100644
+index 59b85adb..19e4c561 100644
 --- a/sdk/src/java/lineageos/waydroid/Platform.java
 +++ b/sdk/src/java/lineageos/waydroid/Platform.java
 @@ -173,6 +173,30 @@ public class Platform {

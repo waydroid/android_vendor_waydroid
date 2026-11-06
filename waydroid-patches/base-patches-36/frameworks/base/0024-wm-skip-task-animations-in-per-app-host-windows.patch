@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 6 Nov 2026 20:04:31 +0200
+Subject: [PATCH] wm: skip task animations in per-app host windows
+
+The host animates its own windows. A task animating to the front showed
+its transition frames, and the previous task, in the new app's window.
+In per-app mode, show task-level transitions in their end state at
+once. Activity transitions inside a task still animate.
+
+Change-Id: I77c3795a411f01dacdfa9bd154cf67a824802e80
+---
+ .../wm/shell/transition/Transitions.java      | 33 +++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/libs/WindowManager/Shell/src/com/android/wm/shell/transition/Transitions.java b/libs/WindowManager/Shell/src/com/android/wm/shell/transition/Transitions.java
+index 5801f0494..110061622 100644
+--- a/libs/WindowManager/Shell/src/com/android/wm/shell/transition/Transitions.java
++++ b/libs/WindowManager/Shell/src/com/android/wm/shell/transition/Transitions.java
+@@ -84,6 +84,7 @@ import com.android.wm.shell.ShellTaskOrganizer;
+ import com.android.wm.shell.common.DisplayController;
+ import com.android.wm.shell.common.DisplayInsetsController;
+ import com.android.wm.shell.common.ExternalInterfaceBinder;
++import com.android.wm.shell.common.WaydroidMode;
+ import com.android.wm.shell.common.RemoteCallable;
+ import com.android.wm.shell.common.ShellExecutor;
+ import com.android.wm.shell.desktopmode.DesktopModeTransitionTypes;
+@@ -374,6 +375,9 @@ public class Transitions implements RemoteCallable<Transitions>,
+         mShellController.addExternalInterface(IShellTransitions.DESCRIPTOR,
+                 this::createExternalInterface, this);
+ 
++        // Starts tracking the Waydroid window mode; see isUnanimatedTaskSwitch.
++        WaydroidMode.addChangeCallback(mContext, () -> {});
++
+         ContentResolver resolver = mContext.getContentResolver();
+         mTransitionAnimationScaleSetting = getTransitionAnimationScaleSetting();
+         dispatchAnimScaleSetting(mTransitionAnimationScaleSetting);
+@@ -1029,6 +1033,17 @@ public class Transitions implements RemoteCallable<Transitions>,
+ 
+         setupAnimHierarchy(active.mInfo, active.mStartT, active.mFinishT);
+ 
++        if (isUnanimatedTaskSwitch(active.mInfo)) {
++            ProtoLog.v(WM_SHELL_TRANSITIONS, " per-app host windows, no task animation");
++            if (active.mHandler != null) {
++                active.mHandler.onTransitionConsumed(token, false /* aborted */, null);
++                active.mHandler = null;
++            }
++            active.mStartT.apply();
++            onFinish(token, null);
++            return;
++        }
++
+         // If a handler already chose to run this animation, try delegating to it first.
+         if (active.mHandler != null) {
+             ProtoLog.v(WM_SHELL_TRANSITIONS, " try firstHandler %s",
+@@ -1052,6 +1067,24 @@ public class Transitions implements RemoteCallable<Transitions>,
+                 active.mFinishT, (wct) -> onFinish(token, wct), active.mHandler);
+     }
+ 
++    /**
++     * Whether to show a task opening, closing or moving to the front or back in its end state
++     * straight away. In per-app host windows the host animates its own windows, and an
++     * animating task would show its transition frames in another app's window.
++     */
++    private static boolean isUnanimatedTaskSwitch(@NonNull TransitionInfo info) {
++        if (WaydroidMode.isFullUi()) return false;
++        final int type = info.getType();
++        if (type != TRANSIT_OPEN && type != TRANSIT_CLOSE && type != TRANSIT_TO_FRONT
++                && type != TRANSIT_TO_BACK) {
++            return false;
++        }
++        for (int i = info.getChanges().size() - 1; i >= 0; --i) {
++            if (info.getChanges().get(i).getTaskInfo() != null) return true;
++        }
++        return false;
++    }
++
+     /**
+      * Gives every handler (in order) a chance to animate until one consumes the transition.
+      * @return the handler which consumed the transition.

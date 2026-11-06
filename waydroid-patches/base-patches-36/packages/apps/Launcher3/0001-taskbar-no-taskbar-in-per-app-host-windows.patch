@@ -1,0 +1,77 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 6 Nov 2026 20:29:35 +0200
+Subject: [PATCH] taskbar: no taskbar in per-app host windows
+
+A per-app host window is composed from one task's layers, so the
+taskbar is never seen there. It still reserved the navigation bar
+inset, leaving a gap under every app, and took touches.
+
+Follow the per_app_host_windows setting from the Waydroid platform
+service and only create the taskbar in full UI. Recreating it after
+it was disabled also needs its root layout again, which was only made
+at startup.
+
+Change-Id: I283849e90b9a6066109f9858f49b8c77c6c728d2
+---
+ .../launcher3/taskbar/TaskbarManagerImpl.java | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarManagerImpl.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarManagerImpl.java
+index 5ed45bb..be8c78e 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/TaskbarManagerImpl.java
++++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarManagerImpl.java
+@@ -171,6 +171,12 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
+     private static final Uri NAV_BAR_KIDS_MODE = Settings.Secure.getUriFor(
+             Settings.Secure.NAV_BAR_KIDS_MODE);
+ 
++    // Published by the Waydroid platform service. A per-app host window is composed from one
++    // task's layers, so the taskbar would never be seen there: do not create it at all.
++    private static final String PER_APP_HOST_WINDOWS = "per_app_host_windows";
++    private static final Uri PER_APP_HOST_WINDOWS_URI = Settings.Global.getUriFor(
++            PER_APP_HOST_WINDOWS);
++
+     public static final Uri ENABLE_TASKBAR_URI = LineageSettings.System.getUriFor(
+             LineageSettings.System.ENABLE_TASKBAR);
+ 
+@@ -480,6 +486,8 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
+                 .register(USER_SETUP_COMPLETE_URI, mOnSettingsChangeListener);
+         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
+                 .register(NAV_BAR_KIDS_MODE, mOnSettingsChangeListener);
++        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
++                .register(PER_APP_HOST_WINDOWS_URI, mOnSettingsChangeListener);
+         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
+                 .register(ENABLE_TASKBAR_URI, mOnTaskBarChangeListener);
+         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
+@@ -872,6 +880,10 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
+             }
+ 
+             debugTaskbarManager("recreateTaskbarForDisplay: adding rootView", displayId);
++            // Disabling the taskbar dropped its root layout, which is otherwise made only once
++            if (mRootLayouts.get(displayId) == null) {
++                createTaskbarRootLayout(displayId);
++            }
+             addTaskbarRootViewToWindow(taskbar);
+             FrameLayout taskbarRootLayout = getTaskbarRootLayoutForDisplay(displayId);
+             if (taskbarRootLayout != null) {
+@@ -981,6 +993,11 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
+     }
+ 
+     private boolean isTaskbarEnabled(int displayId, DeviceProfile deviceProfile) {
++        if (Settings.Global.getInt(mBaseContext.getContentResolver(), PER_APP_HOST_WINDOWS, 0)
++                != 0) {
++            debugTaskbarManager("No taskbar in per-app host windows", displayId);
++            return false;
++        }
+         boolean taskbarDisallowedByDisplayPolicy = (getSharedStateForDisplay(displayId)
+                 .sysuiStateFlags & SYSUI_STATE_NAVIGATION_BAR_DISABLED) != 0;
+         if (taskbarDisallowedByDisplayPolicy) {
+@@ -1217,6 +1234,8 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
+                 .unregister(USER_SETUP_COMPLETE_URI, mOnSettingsChangeListener);
+         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
+                 .unregister(NAV_BAR_KIDS_MODE, mOnSettingsChangeListener);
++        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
++                .unregister(PER_APP_HOST_WINDOWS_URI, mOnSettingsChangeListener);
+         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
+                 .unregister(ENABLE_TASKBAR_URI, mOnTaskBarChangeListener);
+         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
