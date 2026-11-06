@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Thu, 5 Nov 2026 15:58:28 +0200
+Subject: [PATCH] binder: start lazy host services on lookup
+
+checkService never starts a lazy host service. Ask for it through getService
+and poll until it registers, for names the host VINTF declares.
+
+Change-Id: Iec42acdf521a21889f2ee146cb247ddacecfafa2
+---
+ libs/binder/BackendUnifiedServiceManager.cpp | 24 ++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/libs/binder/BackendUnifiedServiceManager.cpp b/libs/binder/BackendUnifiedServiceManager.cpp
+index 1535a723..407d71df 100644
+--- a/libs/binder/BackendUnifiedServiceManager.cpp
++++ b/libs/binder/BackendUnifiedServiceManager.cpp
+@@ -26,6 +26,7 @@
+ #include <cutils/sockets.h>
+ #include <sys/socket.h>
+ #include <sys/un.h>
++#include <unistd.h>
+ 
+ #include <fstream>
+ #include <mutex>
+@@ -185,6 +186,26 @@ static Status hostCheckServiceAidl(const sp<IBinder>& ctx, const std::string& na
+     return hostSm->checkService(name, out);
+ }
+ 
++// A lazy host service (disabled oneshot, registered with registerLazyService)
++// only runs while it has clients, and checkService never starts it. getService
++// does, through init's ctl.interface_start, so ask for it and poll until it
++// registers. Only for names the host VINTF declares, so a plain miss stays cheap.
++static sp<IBinder> hostStartLazyService(const sp<IBinder>& ctx, const std::string& name) {
++    sp<AidlServiceManager> hostSm = interface_cast<AidlServiceManager>(ctx);
++    bool declared = false;
++    if (hostSm == nullptr || !hostSm->isDeclared(name, &declared).isOk() || !declared) {
++        return nullptr;
++    }
++    sp<IBinder> out;
++    hostSm->getService(name, &out);
++    for (int i = 0; i < 40 && out == nullptr; i++) {
++        usleep(50 * 1000);
++        hostSm->checkService(name, &out);
++    }
++    ALOGI("Waydroid: host lazy start of %s %s", name.c_str(), out != nullptr ? "ok" : "timed out");
++    return out;
++}
++
+ static const char* kUnsupportedOpNoServiceManager =
+         "Unsupported operation without a kernel binder servicemanager process";
+ 
+@@ -431,6 +452,9 @@ Status BackendUnifiedServiceManager::queryHostService(const std::string& name,
+               status.toString8().c_str());
+         return status;
+     }
++    if (out == nullptr && !hostServicemanagerIsPreA16()) {
++        out = hostStartLazyService(ctx, name);
++    }
+ 
+     if (out != nullptr) {
+         ALOGI("Waydroid: host resolved %s -> binder %p", name.c_str(), out.get());
