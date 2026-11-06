@@ -1,0 +1,181 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Thu, 5 Nov 2026 15:58:28 +0200
+Subject: [PATCH] wm: publish task card metadata for task streams
+
+Tag root tasks with card, focus and uid metadata, and name crash/ANR
+dialog surfaces so the hwcomposer can place them.
+
+Change-Id: I71db8eea56dd4f2c0052753a76cd69adc86fda4a
+---
+ .../com/android/server/wm/DisplayContent.java | 39 ++++++++++
+ .../server/wm/WindowStateAnimator.java        |  8 ++
+ .../server/wm/DisplayContentTests.java        | 75 +++++++++++++++++++
+ 3 files changed, 122 insertions(+)
+
+diff --git a/services/core/java/com/android/server/wm/DisplayContent.java b/services/core/java/com/android/server/wm/DisplayContent.java
+index 96860526c..0fd446e2c 100644
+--- a/services/core/java/com/android/server/wm/DisplayContent.java
++++ b/services/core/java/com/android/server/wm/DisplayContent.java
+@@ -5703,10 +5703,49 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
+         child.assignRelativeLayer(t, mImeWindowsContainer.getSurfaceControl(), 1);
+     }
+ 
++    // Private SF capture metadata; keep keys in sync with WaydroidTaskStreams.cpp.
++    private static final int WAYDROID_CARD = 0x57590001;
++    private static final int WAYDROID_FOCUSED = 0x57590002;
++    private static final int WAYDROID_UID = 0x57590003;
++
++    @VisibleForTesting
++    void updateWaydroidTaskCards() {
++        if (mDisplayId != DEFAULT_DISPLAY) {
++            return;
++        }
++        final Task[] below = {null};
++        final Task focused = mFocusedApp != null ? mFocusedApp.getRootTask() : null;
++        forAllRootTasks((java.util.function.Consumer<Task>) task -> {
++            final ActivityRecord top = task.getTopNonFinishingActivity();
++            int card = task.mTaskId;
++            if (task.isVisible() && top != null && !task.isActivityTypeHomeOrRecents()) {
++                if (!top.occludesParent() && below[0] != null
++                        && below[0].mUserId == task.mUserId) {
++                    card = below[0].mTaskId;
++                } else {
++                    below[0] = task;
++                }
++            } else {
++                below[0] = null;
++            }
++            final SurfaceControl.Transaction t = getPendingTransaction();
++            final SurfaceControl[] surfaces = {task.mSurfaceControl, task.mSurfaceAnimator.mLeash};
++            for (SurfaceControl surface : surfaces) {
++                if (surface == null) continue;
++                t.setMetadata(surface, WAYDROID_CARD, card);
++                t.setMetadata(surface, WAYDROID_FOCUSED, task == focused ? 1 : 0);
++                t.setMetadata(surface, WAYDROID_UID, top != null ? top.getUid() : -1);
++            }
++        }, false /* traverseTopToBottom */);
++    }
++
+     @Override
+     void prepareSurfaces() {
+         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "prepareSurfaces");
+         try {
++            if (android.os.SystemProperties.getBoolean("persist.waydroid.task_streams", false)) {
++                updateWaydroidTaskCards();
++            }
+             super.prepareSurfaces();
+         } finally {
+             Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
+diff --git a/services/core/java/com/android/server/wm/WindowStateAnimator.java b/services/core/java/com/android/server/wm/WindowStateAnimator.java
+index 83145a08e..1ebfe70f3 100644
+--- a/services/core/java/com/android/server/wm/WindowStateAnimator.java
++++ b/services/core/java/com/android/server/wm/WindowStateAnimator.java
+@@ -28,6 +28,9 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_IS_ROUNDED_CO
+ import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_STARTING;
+ import static android.view.WindowManager.LayoutParams.TYPE_BASE_APPLICATION;
+ import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
++import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
++import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG;
++import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
+ 
+ import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_ANIM;
+ import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_DRAW;
+@@ -314,6 +317,11 @@ class WindowStateAnimator {
+             final Task task = mWin.getTask();
+             if (task != null) {
+                 mTitle = String.format("TID:%d#", task.mTaskId) + mTitle;
++            } else if (attrs.type == TYPE_SYSTEM_ERROR || attrs.type == TYPE_SYSTEM_DIALOG
++                    || attrs.type == TYPE_SYSTEM_ALERT) {
++                // Crash and ANR dialogs have no task; this lets a multi-window
++                // hwcomposer draw them on the focused app's window.
++                mTitle = "SystemDialog#" + mTitle;
+             }
+             Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "new SurfaceControl");
+             mSurfaceControl = mWin.makeSurface()
+diff --git a/services/tests/wmtests/src/com/android/server/wm/DisplayContentTests.java b/services/tests/wmtests/src/com/android/server/wm/DisplayContentTests.java
+index bfae696eb..ef8e81157 100644
+--- a/services/tests/wmtests/src/com/android/server/wm/DisplayContentTests.java
++++ b/services/tests/wmtests/src/com/android/server/wm/DisplayContentTests.java
+@@ -192,6 +192,81 @@ import java.util.function.BooleanSupplier;
+ public class DisplayContentTests extends WindowTestsBase {
+ 
+     @SetupWindows(addAllCommonWindows = true)
++    @Test
++    public void testWaydroidTransientCardMetadata() {
++        final Task parent = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        final Task popup = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        doReturn(true).when(parent).isVisible();
++        doReturn(true).when(popup).isVisible();
++        doReturn(false).when(popup.getTopNonFinishingActivity()).occludesParent();
++        mDisplayContent.mFocusedApp = popup.getTopNonFinishingActivity();
++        popup.mSurfaceAnimator.mLeash = mock(SurfaceControl.class);
++        clearInvocations(mTransaction);
++
++        mDisplayContent.updateWaydroidTaskCards();
++
++        verify(mTransaction).setMetadata(popup.mSurfaceControl, 0x57590001, parent.mTaskId);
++        verify(mTransaction).setMetadata(popup.mSurfaceAnimator.mLeash, 0x57590001,
++                parent.mTaskId);
++        verify(mTransaction).setMetadata(popup.mSurfaceControl, 0x57590002, 1);
++        verify(mTransaction).setMetadata(parent.mSurfaceControl, 0x57590002, 0);
++    }
++
++    @Test
++    public void testWaydroidTransientChainSharesOneCard() {
++        final Task parent = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        final Task popup = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        final Task child = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        doReturn(true).when(parent).isVisible();
++        doReturn(true).when(popup).isVisible();
++        doReturn(true).when(child).isVisible();
++        doReturn(false).when(popup.getTopNonFinishingActivity()).occludesParent();
++        doReturn(false).when(child.getTopNonFinishingActivity()).occludesParent();
++        clearInvocations(mTransaction);
++
++        mDisplayContent.updateWaydroidTaskCards();
++
++        verify(mTransaction).setMetadata(popup.mSurfaceControl, 0x57590001, parent.mTaskId);
++        verify(mTransaction).setMetadata(child.mSurfaceControl, 0x57590001, parent.mTaskId);
++    }
++
++    @Test
++    public void testWaydroidOpaqueTaskKeepsOwnCard() {
++        final Task parent = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        final Task other = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        doReturn(true).when(parent).isVisible();
++        doReturn(true).when(other).isVisible();
++        doReturn(true).when(other.getTopNonFinishingActivity()).occludesParent();
++        clearInvocations(mTransaction);
++
++        mDisplayContent.updateWaydroidTaskCards();
++
++        verify(mTransaction).setMetadata(other.mSurfaceControl, 0x57590001, other.mTaskId);
++    }
++
++    @Test
++    public void testWaydroidTransientWithoutVisibleParentKeepsOwnCard() {
++        final Task parent = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        final Task popup = new TaskBuilder(mSupervisor).setDisplay(mDisplayContent)
++                .setCreateActivity(true).build().getRootTask();
++        doReturn(false).when(parent).isVisible();
++        doReturn(true).when(popup).isVisible();
++        doReturn(false).when(popup.getTopNonFinishingActivity()).occludesParent();
++        clearInvocations(mTransaction);
++
++        mDisplayContent.updateWaydroidTaskCards();
++
++        verify(mTransaction).setMetadata(popup.mSurfaceControl, 0x57590001, popup.mTaskId);
++    }
++
+     @Test
+     public void testForAllWindows() {
+         final var exitingAppWin = newWindowBuilder("exitingAppWin", TYPE_BASE_APPLICATION)

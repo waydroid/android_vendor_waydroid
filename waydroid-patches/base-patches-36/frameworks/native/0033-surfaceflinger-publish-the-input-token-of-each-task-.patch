@@ -1,0 +1,135 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 6 Nov 2026 10:52:41 +0200
+Subject: [PATCH] surfaceflinger: publish the input token of each task card
+
+Record the topmost visible activity with input for each card, and return
+it to system and root through a private transaction.
+
+Change-Id: Ia3a97d79606730e2d4e1870082e6624c644bd2f0
+---
+ services/surfaceflinger/SurfaceFlinger.cpp    | 12 +++++++
+ .../surfaceflinger/WaydroidTaskStreams.cpp    | 34 ++++++++++++++++---
+ services/surfaceflinger/WaydroidTaskStreams.h |  6 ++++
+ 3 files changed, 48 insertions(+), 4 deletions(-)
+
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index ca63a460..5df45994 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -7139,6 +7139,18 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
+ 
+ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                     uint32_t flags) {
++    // Waydroid: application token of a task card, for host input routing.
++    constexpr uint32_t kWaydroidGetTaskInputToken = 0x57440002;
++    if (code == kWaydroidGetTaskInputToken) {
++        CHECK_INTERFACE(ISurfaceComposer, data, reply);
++        const uid_t uid = IPCThreadState::self()->getCallingUid();
++        if (uid != AID_ROOT && uid != AID_SYSTEM) return PERMISSION_DENIED;
++        int32_t card;
++        if (reply == nullptr || data.readInt32(&card) != OK) return BAD_VALUE;
++        return reply->writeStrongBinder(mWaydroidTaskStreams ? mWaydroidTaskStreams->inputToken(card)
++                                                             : nullptr);
++    }
++
+     if (const status_t error = CheckTransactCodeCredentials(code); error != OK) {
+         return error;
+     }
+diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
+index 25edaa0d..7ec0b2ed 100644
+--- a/services/surfaceflinger/WaydroidTaskStreams.cpp
++++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
+@@ -238,6 +238,12 @@ bool WaydroidTaskStreams::enabledByProp() {
+     return base::GetBoolProperty(std::string("persist.waydroid.task_streams"), false);
+ }
+ 
++sp<IBinder> WaydroidTaskStreams::inputToken(int32_t card) {
++    std::lock_guard lock(mInputTokensMutex);
++    auto it = mInputTokens.find(card);
++    return it == mInputTokens.end() ? nullptr : it->second;
++}
++
+ void WaydroidTaskStreams::onCompositionPresented(const frontend::LayerHierarchy& hierarchy) {
+     // Private WM metadata, published atomically with the surface scene.
+     constexpr uint32_t kCard = 0x57590001;
+@@ -249,7 +255,8 @@ void WaydroidTaskStreams::onCompositionPresented(const frontend::LayerHierarchy&
+     std::unordered_map<int32_t, int32_t> uidCards;
+     std::vector<std::pair<int32_t, int32_t>> owners;
+     int32_t focusedCard = -1;
+-    std::vector<std::pair<size_t, uint32_t>> roots; // (task index, task layer)
++    // (task index, task layer)
++    std::vector<std::pair<size_t, const frontend::LayerHierarchy*>> roots;
+     auto collect = [](const frontend::LayerHierarchy& root, auto& ids) {
+         root.traverse([&](const auto& node, const auto& path) {
+             if (path.variant == frontend::LayerHierarchy::Variant::Detached) return false;
+@@ -268,7 +275,7 @@ void WaydroidTaskStreams::onCompositionPresented(const frontend::LayerHierarchy&
+         if (inserted) tasks.push_back({cardId, {}, {}});
+         auto& task = tasks[it->second];
+         task.members.push_back(static_cast<uint32_t>(taskId));
+-        roots.emplace_back(it->second, node.getLayer()->id);
++        roots.emplace_back(it->second, &node);
+         collect(node, task.layerIds);
+         const int32_t uid = metadata.getInt32(kUid, -1);
+         if (uid >= 0) {
+@@ -314,8 +321,22 @@ void WaydroidTaskStreams::onCompositionPresented(const frontend::LayerHierarchy&
+ 
+     // Where the tasks themselves are on screen: global transform, bounds and
+     // alpha of each task layer, which window transitions animate.
+-    for (const auto& [index, layerId] : roots) {
+-        const auto* snapshot = mFlinger.mLayerSnapshotBuilder.getSnapshot(layerId);
++    std::unordered_map<int32_t, sp<IBinder>> inputTokens;
++    for (const auto& [index, root] : roots) {
++        // Host input for the card goes to its topmost activity with an input window.
++        root->traverseInZOrder([&](const frontend::LayerHierarchy& node, const auto&)
++                                       REQUIRES(kMainThreadContext) {
++            const auto* s = mFlinger.mLayerSnapshotBuilder.getSnapshot(node.getLayer()->id);
++            if (!s) return true;
++            const auto& info = s->inputInfo;
++            if (s->isVisible && info.applicationInfo.token != nullptr &&
++                !info.inputConfig.test(gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL) &&
++                !info.inputConfig.test(gui::WindowInfo::InputConfig::NOT_VISIBLE)) {
++                inputTokens[tasks[index].taskId] = info.applicationInfo.token;
++            }
++            return true;
++        });
++        const auto* snapshot = mFlinger.mLayerSnapshotBuilder.getSnapshot(root->getLayer()->id);
+         if (!snapshot) continue;
+         uint64_t& sig = tasks[index].rootSig;
+         const ui::Transform& t = snapshot->geomLayerTransform;
+@@ -329,6 +350,11 @@ void WaydroidTaskStreams::onCompositionPresented(const frontend::LayerHierarchy&
+         }
+     }
+ 
++    {
++        std::lock_guard lock(mInputTokensMutex);
++        mInputTokens = std::move(inputTokens);
++    }
++
+     {
+         std::lock_guard lock(mMutex);
+         mPending = std::move(tasks);
+diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
+index 4a5cbbf2..c45b8a0c 100644
+--- a/services/surfaceflinger/WaydroidTaskStreams.h
++++ b/services/surfaceflinger/WaydroidTaskStreams.h
+@@ -62,6 +62,9 @@ public:
+     void onCompositionPresented(const surfaceflinger::frontend::LayerHierarchy& hierarchy)
+             REQUIRES(kMainThreadContext);
+ 
++    // Application token that host input for a card should be delivered to.
++    sp<IBinder> inputToken(int32_t card);
++
+ private:
+     struct TaskCapture {
+         int32_t taskId;
+@@ -169,6 +172,9 @@ private:
+     std::unordered_set<int32_t> mWanted;
+     Gate mGate = Gate::Unavailable;
+ 
++    std::mutex mInputTokensMutex;
++    std::unordered_map<int32_t, sp<IBinder>> mInputTokens GUARDED_BY(mInputTokensMutex);
++
+     std::mutex mMutex;
+     std::condition_variable mCondition;
+     std::vector<TaskCapture> mPending GUARDED_BY(mMutex);

@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 6 Nov 2026 18:42:06 +0200
+Subject: [PATCH] inputflinger: send device keys to the host-focused task
+
+A private transaction sets the application whose window gets device key
+events, while it has one, instead of Android's focused window. Keys typed
+on a card before Android moves its focus there no longer reach the
+previously focused app.
+
+Change-Id: I4971c49d2b850d95f1c744323a6339967c2c6435
+---
+ services/inputflinger/InputManager.cpp             | 13 ++++++++++++-
+ .../inputflinger/dispatcher/InputDispatcher.cpp    | 14 ++++++++++++++
+ services/inputflinger/dispatcher/InputDispatcher.h |  5 +++++
+ 3 files changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/services/inputflinger/InputManager.cpp b/services/inputflinger/InputManager.cpp
+index 559c14b0..816c9cfd 100644
+--- a/services/inputflinger/InputManager.cpp
++++ b/services/inputflinger/InputManager.cpp
+@@ -306,15 +306,26 @@ binder::Status InputManager::setFocusedWindow(const gui::FocusRequest& request)
+ // Android task that window shows, whatever Android's focus and z-order say.
+ // The caller resolves the task to its application token.
+ constexpr uint32_t kWaydroidInjectTaskTouch = 0x57440001;
++constexpr uint32_t kWaydroidSetKeyTarget = 0x57440003;
+ constexpr int32_t kMaxTaskTouchPointers = 16;
+ 
+ status_t InputManager::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                   uint32_t flags) {
+-    if (code != kWaydroidInjectTaskTouch) return BnInputFlinger::onTransact(code, data, reply, flags);
++    if (code != kWaydroidInjectTaskTouch && code != kWaydroidSetKeyTarget) {
++        return BnInputFlinger::onTransact(code, data, reply, flags);
++    }
+     CHECK_INTERFACE(IInputFlinger, data, reply);
+     const uid_t uid = IPCThreadState::self()->getCallingUid();
+     if (uid != AID_ROOT && uid != AID_SYSTEM) return PERMISSION_DENIED;
+     if (reply == nullptr) return BAD_VALUE;
++    if (code == kWaydroidSetKeyTarget) {
++        // Device keys go to this application's window; null restores focus.
++        sp<IBinder> token;
++        if (data.readNullableStrongBinder(&token) != OK) return BAD_VALUE;
++        static_cast<inputdispatcher::InputDispatcher*>(mDispatcher.get())
++                ->setWaydroidKeyTarget(token);
++        return OK;
++    }
+     return injectTaskTouch(data, reply);
+ }
+ 
+diff --git a/services/inputflinger/dispatcher/InputDispatcher.cpp b/services/inputflinger/dispatcher/InputDispatcher.cpp
+index 386bd0c8..b5e6b225 100644
+--- a/services/inputflinger/dispatcher/InputDispatcher.cpp
++++ b/services/inputflinger/dispatcher/InputDispatcher.cpp
+@@ -2364,6 +2364,15 @@ InputDispatcher::findFocusedWindowTargetLocked(nsecs_t currentTime, const EventE
+             targetApplicationToken != nullptr
+             ? nullptr
+             : getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
++    // Waydroid: device keys go to the card the host keyboard is on, while it
++    // has an input window; otherwise to Android's focus as usual.
++    if (entry.type == EventEntry::Type::KEY && entry.injectionState == nullptr &&
++        mWaydroidKeyTarget != nullptr) {
++        if (sp<WindowInfoHandle> window =
++                    mWindowInfos.findWindowByApplicationToken(displayId, mWaydroidKeyTarget)) {
++            focusedWindowHandle = window;
++        }
++    }
+ 
+     if (targetApplicationToken != nullptr && focusedWindowHandle == nullptr) {
+         ALOGW("Dropping targeted injected event because its application has no input window on "
+@@ -4862,6 +4871,11 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
+                                          nullptr);
+ }
+ 
++void InputDispatcher::setWaydroidKeyTarget(const sp<IBinder>& applicationToken) {
++    std::scoped_lock _l(mLock);
++    mWaydroidKeyTarget = applicationToken;
++}
++
+ InputEventInjectionResult InputDispatcher::injectInputEventToApplication(
+         const InputEvent* event, std::optional<gui::Uid> targetUid,
+         InputEventInjectionSync syncMode, std::chrono::milliseconds timeout, uint32_t policyFlags,
+diff --git a/services/inputflinger/dispatcher/InputDispatcher.h b/services/inputflinger/dispatcher/InputDispatcher.h
+index 07d58247..38237fbd 100644
+--- a/services/inputflinger/dispatcher/InputDispatcher.h
++++ b/services/inputflinger/dispatcher/InputDispatcher.h
+@@ -115,6 +115,10 @@ public:
+             android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
+             uint32_t policyFlags) override;
+ 
++    // Waydroid: application whose window gets device key events, or null for
++    // Android's focused window.
++    void setWaydroidKeyTarget(const sp<IBinder>& applicationToken);
++
+     android::os::InputEventInjectionResult injectInputEventToApplication(
+             const InputEvent* event, std::optional<gui::Uid> targetUid,
+             android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
+@@ -690,6 +694,7 @@ private:
+     // Focused applications.
+     std::unordered_map<ui::LogicalDisplayId /*displayId*/, std::shared_ptr<InputApplicationHandle>>
+             mFocusedApplicationHandlesByDisplay GUARDED_BY(mLock);
++    sp<IBinder> mWaydroidKeyTarget GUARDED_BY(mLock);
+ 
+     // Top focused display.
+     ui::LogicalDisplayId mFocusedDisplayId GUARDED_BY(mLock);

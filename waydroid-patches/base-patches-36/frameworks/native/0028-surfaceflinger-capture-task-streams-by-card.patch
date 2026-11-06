@@ -1,0 +1,156 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Thu, 5 Nov 2026 15:58:28 +0200
+Subject: [PATCH] surfaceflinger: capture task streams by card
+
+Group task layers by the WM card metadata, and include IME, toast and
+system dialog windows in the focused card.
+
+Change-Id: I0bd9fad01f40eba3f455613a4a8aa6c6e675cda7
+---
+ .../surfaceflinger/WaydroidTaskStreams.cpp    | 104 +++++++++++++-----
+ services/surfaceflinger/WaydroidTaskStreams.h |   1 +
+ 2 files changed, 77 insertions(+), 28 deletions(-)
+
+diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
+index 2bc1f8f1..09019e8c 100644
+--- a/services/surfaceflinger/WaydroidTaskStreams.cpp
++++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
+@@ -85,42 +85,77 @@ bool WaydroidTaskStreams::enabledByProp() {
+ }
+ 
+ void WaydroidTaskStreams::onCompositionPresented(const frontend::LayerHierarchy& hierarchy) {
++    // Private WM metadata, published atomically with the surface scene.
++    constexpr uint32_t kCard = 0x57590001;
++    constexpr uint32_t kFocused = 0x57590002;
++    constexpr uint32_t kUid = 0x57590003;
+     std::vector<TaskCapture> tasks;
+     std::unordered_set<int32_t> seenTasks;
+-
+-    // Find the topmost layer of each task. Unlike FpsReporter we do not
+-    // descend into a task's subtree looking for more roots: nested (organized)
+-    // tasks belong to their root task's window.
+-    std::vector<const frontend::LayerHierarchy*> roots;
+-    hierarchy.traverse([&](const frontend::LayerHierarchy& node,
+-                           const frontend::LayerHierarchy::TraversalPath& traversalPath) {
+-        if (traversalPath.variant == frontend::LayerHierarchy::Variant::Detached) {
+-            return false;
++    std::unordered_map<int32_t, size_t> cards;
++    std::unordered_map<int32_t, int32_t> uidCards;
++    std::vector<std::pair<int32_t, int32_t>> owners;
++    int32_t focusedCard = -1;
++    auto collect = [](const frontend::LayerHierarchy& root, auto& ids) {
++        root.traverse([&](const auto& node, const auto& path) {
++            if (path.variant == frontend::LayerHierarchy::Variant::Detached) return false;
++            ids.insert(node.getLayer()->id);
++            return true;
++        });
++    };
++    hierarchy.traverse([&](const auto& node, const auto& path) {
++        if (path.variant == frontend::LayerHierarchy::Variant::Detached) return false;
++        const auto& metadata = node.getLayer()->metadata;
++        if (!metadata.has(gui::METADATA_TASK_ID)) return true;
++        const int32_t taskId = metadata.getInt32(gui::METADATA_TASK_ID, 0);
++        if (!seenTasks.insert(taskId).second) return false;
++        const int32_t cardId = metadata.getInt32(kCard, taskId);
++        auto [it, inserted] = cards.emplace(cardId, tasks.size());
++        if (inserted) tasks.push_back({cardId, {}, {}});
++        auto& task = tasks[it->second];
++        task.members.push_back(static_cast<uint32_t>(taskId));
++        collect(node, task.layerIds);
++        const int32_t uid = metadata.getInt32(kUid, -1);
++        if (uid >= 0) {
++            uidCards[uid] = cardId;
++            owners.emplace_back(uid, cardId);
+         }
++        if (metadata.getInt32(kFocused, 0)) focusedCard = cardId;
++        return false;
++    });
++    for (const auto& [uid, card] : owners) {
++        if (card == focusedCard) uidCards[uid] = card;
++    }
++    // Window type metadata belongs to the window container; include its
++    // descendants, but never descend through a task already captured above.
++    hierarchy.traverse([&](const auto& node, const auto& path) {
++        if (path.variant == frontend::LayerHierarchy::Variant::Detached) return false;
+         const auto& metadata = node.getLayer()->metadata;
+-        if (metadata.has(gui::METADATA_TASK_ID)) {
+-            const int32_t taskId = metadata.getInt32(gui::METADATA_TASK_ID, 0);
+-            if (seenTasks.insert(taskId).second) {
+-                tasks.push_back({taskId, {}});
+-                roots.push_back(&node);
++        if (metadata.has(gui::METADATA_TASK_ID)) return false;
++        const int32_t type = metadata.getInt32(gui::METADATA_WINDOW_TYPE, 0);
++        int32_t card = -1;
++        switch (type) {
++            case 2011: // IME
++            case 2012: // IME dialog
++            case 2005: // Toast
++            case 2008: // System dialog
++            case 2003: // System alert (crash/ANR)
++            case 2010: // System error
++                card = focusedCard;
++                break;
++            case 2038: { // Application overlay
++                auto owner = uidCards.find(metadata.getInt32(gui::METADATA_OWNER_UID,
++                        static_cast<int32_t>(node.getLayer()->ownerUid.val())));
++                if (owner != uidCards.end()) card = owner->second;
++                break;
+             }
+-            return false;
++            default:
++                return true;
+         }
+-        return true;
++        auto target = cards.find(card);
++        if (target != cards.end()) collect(node, tasks[target->second].layerIds);
++        return false;
+     });
+ 
+-    for (size_t i = 0; i < roots.size(); i++) {
+-        auto& layerIds = tasks[i].layerIds;
+-        roots[i]->traverse([&](const frontend::LayerHierarchy& node,
+-                               const frontend::LayerHierarchy::TraversalPath& traversalPath) {
+-            if (traversalPath.variant == frontend::LayerHierarchy::Variant::Detached) {
+-                return false;
+-            }
+-            layerIds.insert(node.getLayer()->id);
+-            return true;
+-        });
+-    }
+-
+     {
+         std::lock_guard lock(mMutex);
+         mPending = std::move(tasks);
+@@ -408,6 +443,19 @@ WaydroidTaskStreams::Gate WaydroidTaskStreams::queryWantedTasks(
+         ids[i] = static_cast<uint32_t>(tasks[i].taskId);
+     }
+ 
++    std::vector<uint32_t> members, cardIds;
++    for (const auto& task : tasks) {
++        for (uint32_t member : task.members) {
++            members.push_back(member);
++            cardIds.push_back(static_cast<uint32_t>(task.taskId));
++        }
++    }
++    auto groups = mHal->updateTaskGroups(hidl_vec<uint32_t>(members),
++                                         hidl_vec<uint32_t>(cardIds));
++    if (!groups.isOk()) {
++        mHal = nullptr;
++        return Gate::Inactive;
++    }
+     Error error = Error::BAD_DISPLAY;
+     auto ret = mHal->updateTaskList(ids, [&](Error e, const hidl_vec<uint32_t>& wanted) {
+         error = e;
+diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
+index 2b129f50..395139b5 100644
+--- a/services/surfaceflinger/WaydroidTaskStreams.h
++++ b/services/surfaceflinger/WaydroidTaskStreams.h
+@@ -59,6 +59,7 @@ private:
+     struct TaskCapture {
+         int32_t taskId;
+         std::unordered_set<uint32_t> layerIds;
++        std::vector<uint32_t> members;
+     };
+ 
+     // Three buffers per task: Mir holds current + previous, and a release
