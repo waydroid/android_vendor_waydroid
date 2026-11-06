@@ -1,0 +1,219 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 6 Nov 2026 20:50:52 +0200
+Subject: [PATCH] WayDroidService: forward only notifications the host can show
+
+Skip group summaries and notifications without text, read styled text, and
+do not re-send updates with unchanged content. Low importance and
+alert-once updates go to the host as silent, and a dismissal on the host
+cancels the Android notification.
+
+Change-Id: Iba94105da2deeb221bc0de6224cd7023790f4095
+---
+ .../platform/internal/WayDroidService.java    | 113 ++++++++++++++++--
+ .../lineageos/waydroid/INotifications.aidl    |   5 +
+ 2 files changed, 108 insertions(+), 10 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 524a2caa..e35eb0c6 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -37,7 +37,10 @@ import android.content.pm.PackageManager;
+ import android.content.pm.PackageManager.NameNotFoundException;
+ import android.content.pm.ResolveInfo;
+ import android.os.Binder;
++import android.os.Bundle;
++import android.os.Handler;
+ import android.os.IBinder;
++import android.os.Looper;
+ import android.os.Parcel;
+ import android.os.PowerManager;
+ import android.os.RemoteException;
+@@ -45,6 +48,7 @@ import android.os.SystemClock;
+ import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.provider.Settings;
++import android.text.TextUtils;
+ import android.util.Log;
+ import android.net.Uri;
+ import android.graphics.drawable.BitmapDrawable;
+@@ -125,6 +129,12 @@ public class WayDroidService extends LineageSystemService {
+     // Map (host notification id, host action id) -> PendingIntent
+     private Map<Integer, Map<String, PendingIntent>> mNotificationActionsMap = new HashMap<Integer, Map<String, PendingIntent>>();
+ 
++    // Map android notification key -> title and text last sent to the host
++    private Map<String, String> mNotificationContentMap = new HashMap<String, String>();
++
++    // Listener callbacks run on the main looper; host callbacks are posted there too
++    private final Handler mNotificationHandler = new Handler(Looper.getMainLooper());
++
+     public WayDroidService(Context context) {
+         super(context);
+         mContext = context;
+@@ -514,9 +524,43 @@ public class WayDroidService extends LineageSystemService {
+                     return;
+                 }
+ 
++                // The host shows every child on its own; a summary only repeats them,
++                // and the auto-generated ones carry no text at all
++                if ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0) {
++                    return;
++                }
++
++                Bundle extras = notification.extras;
++                String summary = getNotificationText(extras, Notification.EXTRA_TITLE,
++                        Notification.EXTRA_TITLE_BIG, Notification.EXTRA_CONVERSATION_TITLE);
++                String body = getNotificationText(extras, Notification.EXTRA_TEXT,
++                        Notification.EXTRA_BIG_TEXT, Notification.EXTRA_SUB_TEXT);
++
++                int existingId = mNotificationIdMap.getOrDefault(key, INotifications.ID_NONE);
++
++                // Custom-view notifications (live activities, media players) have no
++                // text the host could show, and get re-posted every few seconds
++                if (summary.isEmpty() && body.isEmpty()) {
++                    if (existingId != INotifications.ID_NONE) {
++                        forgetNotification(key);
++                        mWaydroidNotifications.closeNotification(existingId);
++                    }
++                    return;
++                }
++
++                // The host re-shows a replaced notification even if its bubble has
++                // expired, so only forward an update that changes what it shows
++                String content = summary + "\0" + body;
++                if (existingId != INotifications.ID_NONE &&
++                        content.equals(mNotificationContentMap.get(key))) {
++                    Map<String, PendingIntent> actions = mNotificationActionsMap.get(existingId);
++                    if (actions != null && notification.contentIntent != null) {
++                        actions.put("default", notification.contentIntent);
++                    }
++                    return;
++                }
++
+                 String appName = _getAppName(packageName);
+-                String summary = notification.extras.getString(Notification.EXTRA_TITLE, "");
+-                String body = notification.extras.getString(Notification.EXTRA_TEXT, "");
+ 
+                 List<INotifications.Action> hostActions = new LinkedList<INotifications.Action>();
+                 Map<String, PendingIntent> actionMap = new HashMap<String, PendingIntent>();
+@@ -547,14 +591,23 @@ public class WayDroidService extends LineageSystemService {
+ 
+                 INotifications.ImageData image = getImageData(notification);
+ 
+-                String category = ""; // TODO: try to map Android category to FDO category
++                boolean lowImportance = false;
++                Ranking ranking = new Ranking();
++                RankingMap rankingMap = getCurrentRanking();
++                if (rankingMap != null && rankingMap.getRanking(key, ranking)) {
++                    lowImportance = ranking.getImportance() <= NotificationManager.IMPORTANCE_LOW;
++                }
++                // Android would not pop these up either: low importance, or an update
++                // that asked to alert only once. The host keeps them out of the bubble.
++                boolean silent = lowImportance || (existingId != INotifications.ID_NONE &&
++                        (notification.flags & Notification.FLAG_ONLY_ALERT_ONCE) != 0);
++
++                String category = silent ? INotifications.CATEGORY_SILENT : ""; // TODO: try to map Android category to FDO category
+                 boolean suppressSound = true; // TODO: consider playing the sound on the desktop and silencing android instead
+                 int expireTimeout = INotifications.TIMEOUT_DEFAULT;
+                 boolean isResident = true;
+                 boolean isTransient = false;
+-                byte urgency = INotifications.Urgency.NORMAL; // TODO: try to map Android importance to FDO urgency
+-
+-                int existingId = mNotificationIdMap.getOrDefault(key, INotifications.ID_NONE);
++                byte urgency = lowImportance ? INotifications.Urgency.LOW : INotifications.Urgency.NORMAL;
+ 
+                 int newId = mWaydroidNotifications.notify(existingId, appName, packageName, summary, body,
+                                               hostActions, image, category, suppressSound, expireTimeout,
+@@ -563,17 +616,18 @@ public class WayDroidService extends LineageSystemService {
+                     return;
+                 }
+ 
++                if (newId != existingId && existingId != INotifications.ID_NONE) {
++                    mNotificationActionsMap.remove(existingId);
++                }
+                 mNotificationIdMap.put(key, newId);
+                 mNotificationActionsMap.put(newId, actionMap);
++                mNotificationContentMap.put(key, content);
+             }
+ 
+             @Override
+             public void onNotificationRemoved(StatusBarNotification sbn) {
+-                String key = sbn.getKey();
+-                Integer id = mNotificationIdMap.get(key);
+-                mNotificationIdMap.remove(key);
++                Integer id = forgetNotification(sbn.getKey());
+                 if (id != null) {
+-                    mNotificationActionsMap.remove(id);
+                     mWaydroidNotifications.closeNotification(id);
+                 }
+             }
+@@ -605,9 +659,48 @@ public class WayDroidService extends LineageSystemService {
+ 
+                 // TODO: Activate window through hwcomposer
+             }
++
++            @Override
++            public void onNotificationDismissed(int notificationId) {
++                mNotificationHandler.post(() -> {
++                    String key = null;
++                    for (Map.Entry<String, Integer> entry : mNotificationIdMap.entrySet()) {
++                        if (entry.getValue() == notificationId) {
++                            key = entry.getKey();
++                            break;
++                        }
++                    }
++                    if (key == null)
++                        return;
++
++                    forgetNotification(key);
++                    // NotificationManager ignores this for ongoing notifications
++                    mSystemNotificationListener.cancelNotification(key);
++                });
++            }
+         });
+     }
+ 
++    private Integer forgetNotification(String key) {
++        Integer id = mNotificationIdMap.remove(key);
++        mNotificationContentMap.remove(key);
++        if (id != null) {
++            mNotificationActionsMap.remove(id);
++        }
++        return id;
++    }
++
++    // Apps often set these as spans, which Bundle.getString() does not return
++    private static String getNotificationText(Bundle extras, String... keys) {
++        for (String key : keys) {
++            CharSequence text = extras.getCharSequence(key);
++            if (!TextUtils.isEmpty(text)) {
++                return text.toString();
++            }
++        }
++        return "";
++    }
++
+     /* Per-app window mode keys off waydroid.active_apps, but only host-side
+      * launches write it. Android-side navigation (in-app intents, notifications,
+      * task switches) leaves it stale, and cards/input then target the wrong app.
+diff --git a/sdk/src/java/lineageos/waydroid/INotifications.aidl b/sdk/src/java/lineageos/waydroid/INotifications.aidl
+index 9de3046b..0db1558b 100644
+--- a/sdk/src/java/lineageos/waydroid/INotifications.aidl
++++ b/sdk/src/java/lineageos/waydroid/INotifications.aidl
+@@ -21,6 +21,8 @@ interface INotifications {
+ 
+     interface INotificationCallback {
+         void onActionInvoked(int notification_id, String action, String xdg_activation_token);
++        // The user dismissed the notification on the host
++        void onNotificationDismissed(int notification_id);
+     }
+ 
+     parcelable Action {
+@@ -45,4 +47,7 @@ interface INotifications {
+ 
+     const int ID_NONE = 0;
+     const int TIMEOUT_DEFAULT = -1;
++
++    // Category of an update the host should not pop up again
++    const String CATEGORY_SILENT = "x-waydroid.silent";
+ }

@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 6 Nov 2026 20:50:52 +0200
+Subject: [PATCH] WayDroidService: keep the package monitor alive
+
+PackageMonitor is only held weakly once registered, so the local one could be collected and package changes stopped reaching the host.
+
+Change-Id: I36853c1f3490330d2cf2effc8e833c4fda5aa715
+---
+ .../org/lineageos/platform/internal/WayDroidService.java    | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 8c8a9abf..4198a270 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -112,6 +112,8 @@ public class WayDroidService extends LineageSystemService {
+     private Context mContext;
+     private PackageManager mPm = null;
+     private UserMonitor mUM = null;
++    // PackageMonitor only holds itself weakly via its PackageMonitorCallback
++    private PackageMonitor mPackageMonitor = null;
+     private Hardware mWaydroidHardware = null;
+     private Notifications mWaydroidNotifications = null;
+     private NotificationManager mNotificationManager = null;
+@@ -409,7 +411,7 @@ public class WayDroidService extends LineageSystemService {
+     }
+ 
+     private void registerPackageMonitor() {
+-        PackageMonitor monitor = new PackageMonitor() {
++        mPackageMonitor = new PackageMonitor() {
+             @Override
+             public void onPackageAdded(String packageName, int uid) {
+                 if (mUM != null) {
+@@ -437,7 +439,7 @@ public class WayDroidService extends LineageSystemService {
+             }
+         };
+ 
+-        monitor.register(mContext, BackgroundThread.getHandler().getLooper(), UserHandle.ALL, true);
++        mPackageMonitor.register(mContext, BackgroundThread.getHandler().getLooper(), UserHandle.ALL, true);
+     }
+ 
+     private static long idCounter = 0;

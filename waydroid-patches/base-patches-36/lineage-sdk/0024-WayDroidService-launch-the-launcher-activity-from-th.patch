@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 6 Nov 2026 20:50:52 +0200
+Subject: [PATCH] WayDroidService: launch the launcher activity from the host
+
+getLaunchIntentForPackage prefers a CATEGORY_INFO activity, which is not the one the host shows as the app.
+
+Change-Id: I2d8fae93ffe715aca42c8e7d587ce586381b9749
+---
+ .../platform/internal/WayDroidService.java       | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 4198a270..524a2caa 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -305,6 +305,22 @@ public class WayDroidService extends LineageSystemService {
+             launchIntent = mPm.getLeanbackLaunchIntentForPackage(packageName);
+         }
+ 
++        if (launchIntent == null) {
++            // getLaunchIntentForPackage prefers CATEGORY_INFO, which the host
++            // does not treat as a launcher app, so ask for the launcher first
++            Intent intent = new Intent(Intent.ACTION_MAIN);
++            intent.addCategory(Intent.CATEGORY_LAUNCHER);
++            intent.setPackage(packageName);
++            List<ResolveInfo> ris = mPm.queryIntentActivities(intent, 0);
++            if (ris != null && !ris.isEmpty()) {
++                launchIntent = new Intent(Intent.ACTION_MAIN);
++                launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
++                launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++                launchIntent.setClassName(ris.get(0).activityInfo.packageName,
++                        ris.get(0).activityInfo.name);
++            }
++        }
++
+         if (launchIntent == null) {
+             launchIntent = mPm.getLaunchIntentForPackage(packageName);
+         }
