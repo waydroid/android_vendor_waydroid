@@ -13,7 +13,7 @@ Change-Id: Icbcee53898bd451e9533a00a5a0dc989b96c637e
  2 files changed, 84 insertions(+)
 
 diff --git a/services/inputflinger/InputManager.cpp b/services/inputflinger/InputManager.cpp
-index c6d8d883..559c14b0 100644
+index c6d8d883c6..559c14b0a6 100644
 --- a/services/inputflinger/InputManager.cpp
 +++ b/services/inputflinger/InputManager.cpp
 @@ -18,12 +18,14 @@
@@ -112,7 +112,7 @@ index c6d8d883..559c14b0 100644
 +
  } // namespace android
 diff --git a/services/inputflinger/InputManager.h b/services/inputflinger/InputManager.h
-index 44cf8c42..ef76aebc 100644
+index 44cf8c42f4..ef76aebcbe 100644
 --- a/services/inputflinger/InputManager.h
 +++ b/services/inputflinger/InputManager.h
 @@ -28,6 +28,7 @@

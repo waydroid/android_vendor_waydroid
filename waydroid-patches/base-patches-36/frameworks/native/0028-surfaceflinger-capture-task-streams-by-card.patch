@@ -13,7 +13,7 @@ Change-Id: I0bd9fad01f40eba3f455613a4a8aa6c6e675cda7
  2 files changed, 77 insertions(+), 28 deletions(-)
 
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
-index 2bc1f8f1..09019e8c 100644
+index 2bc1f8f159..09019e8cdb 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.cpp
 +++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
 @@ -85,42 +85,77 @@ bool WaydroidTaskStreams::enabledByProp() {
@@ -143,7 +143,7 @@ index 2bc1f8f1..09019e8c 100644
      auto ret = mHal->updateTaskList(ids, [&](Error e, const hidl_vec<uint32_t>& wanted) {
          error = e;
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
-index 2b129f50..395139b5 100644
+index 2b129f5059..395139b53c 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.h
 +++ b/services/surfaceflinger/WaydroidTaskStreams.h
 @@ -59,6 +59,7 @@ private:

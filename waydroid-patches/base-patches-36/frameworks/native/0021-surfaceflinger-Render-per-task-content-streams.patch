@@ -25,7 +25,7 @@ Change-Id: I8a35d3d739b2fb9c8d20868a3069da8f0a9ba44e
  create mode 100644 services/surfaceflinger/WaydroidTaskStreams.h
 
 diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
-index 0ac7827..1952338 100644
+index 0ac782759f..1952338f11 100644
 --- a/services/surfaceflinger/Android.bp
 +++ b/services/surfaceflinger/Android.bp
 @@ -283,6 +283,7 @@ filegroup {
@@ -37,7 +37,7 @@ index 0ac7827..1952338 100644
      ],
  }
 diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
-index 0ab1a9b..ca63a46 100644
+index 0ab1a9b812..ca63a46000 100644
 --- a/services/surfaceflinger/SurfaceFlinger.cpp
 +++ b/services/surfaceflinger/SurfaceFlinger.cpp
 @@ -158,6 +158,7 @@
@@ -71,7 +71,7 @@ index 0ab1a9b..ca63a46 100644
  
      // Timer callbacks may fire, so do this last.
 diff --git a/services/surfaceflinger/SurfaceFlinger.h b/services/surfaceflinger/SurfaceFlinger.h
-index e148e41..ddd7dbd 100644
+index e148e41399..ddd7dbd57f 100644
 --- a/services/surfaceflinger/SurfaceFlinger.h
 +++ b/services/surfaceflinger/SurfaceFlinger.h
 @@ -138,6 +138,7 @@ class Surface;
@@ -100,7 +100,7 @@ index e148e41..ddd7dbd 100644
      ui::DisplayPrimaries mInternalDisplayPrimaries;
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
 new file mode 100644
-index 0000000..b2d3f36
+index 0000000000..b2d3f36038
 --- /dev/null
 +++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
 @@ -0,0 +1,253 @@
@@ -359,7 +359,7 @@ index 0000000..b2d3f36
 +} // namespace android
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
 new file mode 100644
-index 0000000..a04549c
+index 0000000000..a04549cdf6
 --- /dev/null
 +++ b/services/surfaceflinger/WaydroidTaskStreams.h
 @@ -0,0 +1,86 @@

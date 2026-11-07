@@ -18,10 +18,10 @@ AIDL path.
  1 file changed, 72 insertions(+), 6 deletions(-)
 
 diff --git a/libs/binder/BackendUnifiedServiceManager.cpp b/libs/binder/BackendUnifiedServiceManager.cpp
-index 701f98c52c..65b95cc225 100644
+index 9c8f11033a..ff51e9a716 100644
 --- a/libs/binder/BackendUnifiedServiceManager.cpp
 +++ b/libs/binder/BackendUnifiedServiceManager.cpp
-@@ -115,6 +115,76 @@ bool isHostAidlService(const std::string& name) {
+@@ -121,6 +121,76 @@ bool isHostAidlService(const std::string& name) {
      return false;
  }
  
@@ -98,7 +98,7 @@ index 701f98c52c..65b95cc225 100644
  static const char* kUnsupportedOpNoServiceManager =
          "Unsupported operation without a kernel binder servicemanager process";
  
-@@ -304,12 +374,8 @@ Status BackendUnifiedServiceManager::queryHostService(const std::string& name,
+@@ -310,12 +380,8 @@ Status BackendUnifiedServiceManager::queryHostService(const std::string& name,
      // BpBinders and that path asserts local-only (BBinder) and would FATAL.
  
      sp<IBinder> out;

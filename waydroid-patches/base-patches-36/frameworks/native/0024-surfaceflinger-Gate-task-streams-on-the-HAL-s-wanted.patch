@@ -20,7 +20,7 @@ Change-Id: I55a58d0b1a8b8580ffe1a4d0d8a0c2b8fe1f0fed
  5 files changed, 96 insertions(+), 10 deletions(-)
 
 diff --git a/services/surfaceflinger/CompositionEngine/include/compositionengine/impl/Output.h b/services/surfaceflinger/CompositionEngine/include/compositionengine/impl/Output.h
-index f319936..9df3a28 100644
+index f319936a03..9df3a28e1d 100644
 --- a/services/surfaceflinger/CompositionEngine/include/compositionengine/impl/Output.h
 +++ b/services/surfaceflinger/CompositionEngine/include/compositionengine/impl/Output.h
 @@ -211,6 +211,12 @@ private:
@@ -37,7 +37,7 @@ index f319936..9df3a28 100644
  // final class using the types actually required by the implementation. This is
  // not possible to do in the base class as those types may not even be visible
 diff --git a/services/surfaceflinger/CompositionEngine/src/Display.cpp b/services/surfaceflinger/CompositionEngine/src/Display.cpp
-index 39421d7..07ce4f3 100644
+index 39421d776b..07ce4f31f2 100644
 --- a/services/surfaceflinger/CompositionEngine/src/Display.cpp
 +++ b/services/surfaceflinger/CompositionEngine/src/Display.cpp
 @@ -513,6 +513,12 @@ void Display::finishFrame(GpuCompositionResult&& result) {
@@ -54,7 +54,7 @@ index 39421d7..07ce4f3 100644
  }
  
 diff --git a/services/surfaceflinger/CompositionEngine/src/Output.cpp b/services/surfaceflinger/CompositionEngine/src/Output.cpp
-index 7e6126d..9a1f945 100644
+index 7e6126d008..9a1f945378 100644
 --- a/services/surfaceflinger/CompositionEngine/src/Output.cpp
 +++ b/services/surfaceflinger/CompositionEngine/src/Output.cpp
 @@ -1816,6 +1816,10 @@ const aidl::android::hardware::graphics::composer3::OverlayProperties* Output::g
@@ -81,7 +81,7 @@ index 7e6126d..9a1f945 100644
          ALOGV("canPredictCompositionStrategy previous changes not available");
          return false;
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
-index dacc00f..2bc1f8f 100644
+index dacc00f8c5..2bc1f8f159 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.cpp
 +++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
 @@ -209,8 +209,22 @@ bool WaydroidTaskStreams::renderTasks(const std::vector<TaskCapture>& tasks) {
@@ -182,7 +182,7 @@ index dacc00f..2bc1f8f 100644
  
      const sp<GraphicBuffer>& buffer = stream.slots[slot].texture->getBuffer();
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
-index 7677bcd..2b129f5 100644
+index 7677bcde99..2b129f5059 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.h
 +++ b/services/surfaceflinger/WaydroidTaskStreams.h
 @@ -89,11 +89,19 @@ private:

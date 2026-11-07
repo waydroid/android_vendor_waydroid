@@ -14,7 +14,7 @@ Change-Id: I3c4388fde01dec5b6388abbeab48870b60efac83
  2 files changed, 27 insertions(+), 23 deletions(-)
 
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
-index 319aa2db..25edaa0d 100644
+index 319aa2db1f..25edaa0d0d 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.cpp
 +++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
 @@ -249,6 +249,7 @@ void WaydroidTaskStreams::onCompositionPresented(const frontend::LayerHierarchy&
@@ -92,7 +92,7 @@ index 319aa2db..25edaa0d 100644
      stream.geometrySig = sig;
      stream.haveGeometrySig = true;
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
-index a5187dad..4a5cbbf2 100644
+index a5187dadab..4a5cbbf20e 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.h
 +++ b/services/surfaceflinger/WaydroidTaskStreams.h
 @@ -59,13 +59,15 @@ public:

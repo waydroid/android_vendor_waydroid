@@ -24,7 +24,7 @@ Change-Id: Id9bf77aa849b5cd4c9f8f3823da89416a8e3af40
  1 file changed, 11 insertions(+), 1 deletion(-)
 
 diff --git a/cmds/servicemanager/ServiceManager.cpp b/cmds/servicemanager/ServiceManager.cpp
-index 57a0817..ad1fe1a 100644
+index 57a0817c19..ad1fe1a5f3 100644
 --- a/cmds/servicemanager/ServiceManager.cpp
 +++ b/cmds/servicemanager/ServiceManager.cpp
 @@ -509,13 +509,23 @@ bool isValidServiceName(const std::string& name) {

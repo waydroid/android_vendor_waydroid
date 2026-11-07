@@ -10,16 +10,16 @@ Halium host's servicemanager. Controlled by /system/etc/hostaidls.conf.
 Co-Authored-By: Steffen Deusch <steffen@deusch.me>
 Change-Id: I8bb1f1f79f11ffd990afbd8a74b01af6ace19f89
 ---
- libs/binder/BackendUnifiedServiceManager.cpp | 125 +++++++++++++++++++
+ libs/binder/BackendUnifiedServiceManager.cpp | 131 +++++++++++++++++++
  libs/binder/BackendUnifiedServiceManager.h   |   9 ++
- libs/binder/Binder.cpp                       |   7 ++
- libs/binder/BpBinder.cpp                     |  83 +++++++-----
+ libs/binder/Binder.cpp                       |   7 +
+ libs/binder/BpBinder.cpp                     |  83 ++++++++----
  libs/binder/Debug.cpp                        |   3 +-
  libs/binder/IInterface.cpp                   |  13 ++
  libs/binder/IPCThreadState.cpp               |  66 +++++++---
  libs/binder/IServiceManager.cpp              |  24 +++-
- libs/binder/Parcel.cpp                       |  48 ++++---
- libs/binder/ProcessState.cpp                 | 117 ++++++++++++-----
+ libs/binder/Parcel.cpp                       |  48 +++++--
+ libs/binder/ProcessState.cpp                 | 117 +++++++++++++----
  libs/binder/RpcState.cpp                     |   7 +-
  libs/binder/include/binder/BpBinder.h        |  13 ++
  libs/binder/include/binder/IBinder.h         |   4 +
@@ -27,10 +27,10 @@ Change-Id: I8bb1f1f79f11ffd990afbd8a74b01af6ace19f89
  libs/binder/include/binder/IPCThreadState.h  |   8 +-
  libs/binder/include/binder/Parcel.h          |  16 ++-
  libs/binder/include/binder/ProcessState.h    |  12 +-
- 17 files changed, 454 insertions(+), 104 deletions(-)
+ 17 files changed, 460 insertions(+), 104 deletions(-)
 
 diff --git a/libs/binder/BackendUnifiedServiceManager.cpp b/libs/binder/BackendUnifiedServiceManager.cpp
-index 7fbb00b102..701f98c52c 100644
+index 7fbb00b102..9c8f11033a 100644
 --- a/libs/binder/BackendUnifiedServiceManager.cpp
 +++ b/libs/binder/BackendUnifiedServiceManager.cpp
 @@ -20,11 +20,18 @@
@@ -52,7 +52,7 @@ index 7fbb00b102..701f98c52c 100644
  #if defined(__BIONIC__) && !defined(__ANDROID_VNDK__)
  #include <android-base/properties.h>
  #endif
-@@ -57,6 +64,57 @@ using AidlServiceManager = android::os::IServiceManager;
+@@ -57,6 +64,63 @@ using AidlServiceManager = android::os::IServiceManager;
  using android::os::IAccessor;
  using binder::Status;
  
@@ -97,8 +97,14 @@ index 7fbb00b102..701f98c52c 100644
 +    std::call_once(gHostAidlsOnce, loadHostAidlsLocked);
 +    if (gHostAidls.count(name) > 0) return true;
 +    // Also match if any whitelisted entry is a prefix of the service name
-+    // ending with /
++    // ending with /, or ends with * and the rest is a prefix of it
 +    for (const auto& entry : gHostAidls) {
++        if (entry.back() == '*') {
++            if (name.compare(0, entry.size() - 1, entry, 0, entry.size() - 1) == 0) {
++                return true;
++            }
++            continue;
++        }
 +        if (name.size() > entry.size() && name[entry.size()] == '/' &&
 +            name.compare(0, entry.size(), entry) == 0) {
 +            return true;
@@ -110,7 +116,7 @@ index 7fbb00b102..701f98c52c 100644
  static const char* kUnsupportedOpNoServiceManager =
          "Unsupported operation without a kernel binder servicemanager process";
  
-@@ -212,6 +270,11 @@ bool BackendUnifiedServiceManager::returnIfCached(const std::string& serviceName
+@@ -212,6 +276,11 @@ bool BackendUnifiedServiceManager::returnIfCached(const std::string& serviceName
      if (!kUseCache) {
          return false;
      }
@@ -122,7 +128,7 @@ index 7fbb00b102..701f98c52c 100644
      sp<IBinder> item = mCacheForGetService->getItem(serviceName);
      // TODO(b/363177618): Enable caching for binders which are always null.
      if (item != nullptr && item->isBinderAlive()) {
-@@ -221,6 +284,46 @@ bool BackendUnifiedServiceManager::returnIfCached(const std::string& serviceName
+@@ -221,6 +290,46 @@ bool BackendUnifiedServiceManager::returnIfCached(const std::string& serviceName
      return false;
  }
  
@@ -169,7 +175,7 @@ index 7fbb00b102..701f98c52c 100644
  BackendUnifiedServiceManager::BackendUnifiedServiceManager(const sp<AidlServiceManager>& impl)
        : mTheRealServiceManager(impl) {
      mCacheForGetService = std::make_shared<BinderCacheWithInvalidation>();
-@@ -278,6 +381,21 @@ Status BackendUnifiedServiceManager::checkService2(const ::std::string& name, os
+@@ -278,6 +387,21 @@ Status BackendUnifiedServiceManager::checkService2(const ::std::string& name, os
      if (status.isOk()) {
          status = toBinderService(name, service, _out);
          if (status.isOk()) {
@@ -191,7 +197,7 @@ index 7fbb00b102..701f98c52c 100644
              return updateCache(name, service);
          }
      }
-@@ -423,6 +541,13 @@ Status BackendUnifiedServiceManager::isDeclared(const ::std::string& name, bool*
+@@ -423,6 +547,13 @@ Status BackendUnifiedServiceManager::isDeclared(const ::std::string& name, bool*
          });
      }
  

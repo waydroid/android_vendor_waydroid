@@ -12,7 +12,7 @@ Change-Id: Iec42acdf521a21889f2ee146cb247ddacecfafa2
  1 file changed, 24 insertions(+)
 
 diff --git a/libs/binder/BackendUnifiedServiceManager.cpp b/libs/binder/BackendUnifiedServiceManager.cpp
-index 1535a723..407d71df 100644
+index 81df2bf54d..3bef29b2c8 100644
 --- a/libs/binder/BackendUnifiedServiceManager.cpp
 +++ b/libs/binder/BackendUnifiedServiceManager.cpp
 @@ -26,6 +26,7 @@
@@ -23,7 +23,7 @@ index 1535a723..407d71df 100644
  
  #include <fstream>
  #include <mutex>
-@@ -185,6 +186,26 @@ static Status hostCheckServiceAidl(const sp<IBinder>& ctx, const std::string& na
+@@ -191,6 +192,26 @@ static Status hostCheckServiceAidl(const sp<IBinder>& ctx, const std::string& na
      return hostSm->checkService(name, out);
  }
  
@@ -50,7 +50,7 @@ index 1535a723..407d71df 100644
  static const char* kUnsupportedOpNoServiceManager =
          "Unsupported operation without a kernel binder servicemanager process";
  
-@@ -431,6 +452,9 @@ Status BackendUnifiedServiceManager::queryHostService(const std::string& name,
+@@ -437,6 +458,9 @@ Status BackendUnifiedServiceManager::queryHostService(const std::string& name,
                status.toString8().c_str());
          return status;
      }

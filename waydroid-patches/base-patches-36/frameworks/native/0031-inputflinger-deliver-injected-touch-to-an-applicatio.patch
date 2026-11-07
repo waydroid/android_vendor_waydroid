@@ -18,7 +18,7 @@ Change-Id: I61ce8d050b2d337492de41f3008a8878f5e69895
  4 files changed, 139 insertions(+), 34 deletions(-)
 
 diff --git a/services/inputflinger/dispatcher/InjectionState.cpp b/services/inputflinger/dispatcher/InjectionState.cpp
-index f693dcf8..ff1590f9 100644
+index f693dcf8e4..ff1590f944 100644
 --- a/services/inputflinger/dispatcher/InjectionState.cpp
 +++ b/services/inputflinger/dispatcher/InjectionState.cpp
 @@ -20,8 +20,10 @@
@@ -34,7 +34,7 @@ index f693dcf8..ff1590f9 100644
          injectionResult(android::os::InputEventInjectionResult::PENDING),
          pendingForegroundDispatches(0) {}
 diff --git a/services/inputflinger/dispatcher/InjectionState.h b/services/inputflinger/dispatcher/InjectionState.h
-index 8225dec8..49740f3c 100644
+index 8225dec87a..49740f3c09 100644
 --- a/services/inputflinger/dispatcher/InjectionState.h
 +++ b/services/inputflinger/dispatcher/InjectionState.h
 @@ -25,11 +25,13 @@ namespace inputdispatcher {
@@ -53,7 +53,7 @@ index 8225dec8..49740f3c 100644
  
  } // namespace inputdispatcher
 diff --git a/services/inputflinger/dispatcher/InputDispatcher.cpp b/services/inputflinger/dispatcher/InputDispatcher.cpp
-index b8d9807d..386bd0c8 100644
+index b8d9807d7b..386bd0c8a1 100644
 --- a/services/inputflinger/dispatcher/InputDispatcher.cpp
 +++ b/services/inputflinger/dispatcher/InputDispatcher.cpp
 @@ -599,19 +599,44 @@ bool isWindowOwnedBy(const sp<WindowInfoHandle>& windowHandle, gui::Pid pid, gui
@@ -321,7 +321,7 @@ index b8d9807d..386bd0c8 100644
  
      // Drop touch events if requested by input feature
 diff --git a/services/inputflinger/dispatcher/InputDispatcher.h b/services/inputflinger/dispatcher/InputDispatcher.h
-index 189e1b5f..07d58247 100644
+index 189e1b5fff..07d58247f6 100644
 --- a/services/inputflinger/dispatcher/InputDispatcher.h
 +++ b/services/inputflinger/dispatcher/InputDispatcher.h
 @@ -115,6 +115,11 @@ public:

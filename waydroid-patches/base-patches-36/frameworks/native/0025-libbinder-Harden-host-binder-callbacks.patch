@@ -14,10 +14,10 @@ Change-Id: I8f488a5c689a136ad7383d9cf0a57653e325513a
  6 files changed, 91 insertions(+), 17 deletions(-)
 
 diff --git a/libs/binder/BackendUnifiedServiceManager.cpp b/libs/binder/BackendUnifiedServiceManager.cpp
-index 65b95cc..1535a72 100644
+index ff51e9a716..81df2bf54d 100644
 --- a/libs/binder/BackendUnifiedServiceManager.cpp
 +++ b/libs/binder/BackendUnifiedServiceManager.cpp
-@@ -354,19 +354,69 @@ bool BackendUnifiedServiceManager::returnIfCached(const std::string& serviceName
+@@ -360,19 +360,69 @@ bool BackendUnifiedServiceManager::returnIfCached(const std::string& serviceName
      return false;
  }
  
@@ -94,7 +94,7 @@ index 65b95cc..1535a72 100644
          return Status::ok();
      }
      // Stability is already set by getContextObject()'s markCompilationUnit().
-@@ -418,6 +468,10 @@ Status BackendUnifiedServiceManager::getService2(const ::std::string& name, os::
+@@ -424,6 +474,10 @@ Status BackendUnifiedServiceManager::getService2(const ::std::string& name, os::
      if (status.isOk()) {
          status = toBinderService(name, service, _out);
          if (status.isOk()) {
@@ -105,7 +105,7 @@ index 65b95cc..1535a72 100644
              return updateCache(name, service);
          }
      }
-@@ -578,6 +632,9 @@ Status BackendUnifiedServiceManager::listServices(int32_t dumpPriority,
+@@ -584,6 +638,9 @@ Status BackendUnifiedServiceManager::listServices(int32_t dumpPriority,
  }
  Status BackendUnifiedServiceManager::registerForNotifications(
          const ::std::string& name, const sp<os::IServiceCallback>& callback) {
@@ -115,7 +115,7 @@ index 65b95cc..1535a72 100644
      if (mTheRealServiceManager) {
          return mTheRealServiceManager->registerForNotifications(name, callback);
      }
-@@ -586,6 +643,9 @@ Status BackendUnifiedServiceManager::registerForNotifications(
+@@ -592,6 +649,9 @@ Status BackendUnifiedServiceManager::registerForNotifications(
  }
  Status BackendUnifiedServiceManager::unregisterForNotifications(
          const ::std::string& name, const sp<os::IServiceCallback>& callback) {
@@ -126,7 +126,7 @@ index 65b95cc..1535a72 100644
          return mTheRealServiceManager->unregisterForNotifications(name, callback);
      }
 diff --git a/libs/binder/BpBinder.cpp b/libs/binder/BpBinder.cpp
-index 7a7a9a0..65ed968 100644
+index 7a7a9a02af..65ed968c0a 100644
 --- a/libs/binder/BpBinder.cpp
 +++ b/libs/binder/BpBinder.cpp
 @@ -635,10 +635,10 @@ void BpBinder::onFrozenStateChangeListenerRemoved() {
@@ -145,7 +145,7 @@ index 7a7a9a0..65ed968 100644
      LOG_ALWAYS_FATAL_IF(!kEnableKernelIpc, "Binder kernel driver disabled at build time");
      LOG_ALWAYS_FATAL_IF(ProcessState::self(isHostBinderHandle())
 diff --git a/libs/binder/IPCThreadState.cpp b/libs/binder/IPCThreadState.cpp
-index e7ddcb4..bc40c33 100644
+index e7ddcb4ad1..bc40c3397d 100644
 --- a/libs/binder/IPCThreadState.cpp
 +++ b/libs/binder/IPCThreadState.cpp
 @@ -1167,7 +1167,8 @@ IPCThreadState::IPCThreadState(bool isHost)
@@ -169,7 +169,7 @@ index e7ddcb4..bc40c33 100644
              IF_LOG_TRANSACTIONS() {
                  std::ostringstream logStream;
 diff --git a/libs/binder/IServiceManager.cpp b/libs/binder/IServiceManager.cpp
-index e5255cd..a85389c 100644
+index e5255cdb4f..a85389c6a7 100644
 --- a/libs/binder/IServiceManager.cpp
 +++ b/libs/binder/IServiceManager.cpp
 @@ -660,9 +660,9 @@ Vector<String16> CppBackendShim::listServices(int dumpsysPriority) {
@@ -186,7 +186,7 @@ index e5255cd..a85389c 100644
          const std::string hostName = String8(name16).c_str();
          if (isHostAidlService(hostName)) {
 diff --git a/libs/binder/Parcel.cpp b/libs/binder/Parcel.cpp
-index 8265400..e72e992 100644
+index 82654000ee..e72e9925e7 100644
 --- a/libs/binder/Parcel.cpp
 +++ b/libs/binder/Parcel.cpp
 @@ -166,6 +166,8 @@ static void acquire_object(const sp<ProcessState>& proc, const flat_binder_objec
@@ -221,7 +221,7 @@ index 8265400..e72e992 100644
              }
          }
 diff --git a/libs/binder/include/binder/IBinder.h b/libs/binder/include/binder/IBinder.h
-index b0dede9..fd354f9 100644
+index b0dede94db..fd354f92ad 100644
 --- a/libs/binder/include/binder/IBinder.h
 +++ b/libs/binder/include/binder/IBinder.h
 @@ -344,6 +344,10 @@ public:

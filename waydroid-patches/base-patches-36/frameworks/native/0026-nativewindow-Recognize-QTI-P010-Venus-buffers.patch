@@ -9,7 +9,7 @@ Change-Id: Idb6e787349adde0e61dbdde2b31a868e033317e6
  1 file changed, 4 insertions(+)
 
 diff --git a/libs/nativewindow/AHardwareBuffer.cpp b/libs/nativewindow/AHardwareBuffer.cpp
-index a03b3a1..0aa4391 100644
+index a03b3a1ec0..0aa43913c9 100644
 --- a/libs/nativewindow/AHardwareBuffer.cpp
 +++ b/libs/nativewindow/AHardwareBuffer.cpp
 @@ -761,6 +761,10 @@ bool AHardwareBuffer_formatIsYuv(uint32_t format) {

@@ -21,7 +21,7 @@ Change-Id: Iee192d4d3bfc7dc33f4f3b81229bcd7df54aafe7
  create mode 100644 services/surfaceflinger/WaydroidHostReads.h
 
 diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.cpp
-index 6f0ca87c..5633c39d 100644
+index 6f0ca87c36..5633c39da4 100644
 --- a/services/surfaceflinger/Layer.cpp
 +++ b/services/surfaceflinger/Layer.cpp
 @@ -70,6 +70,7 @@
@@ -44,7 +44,7 @@ index 6f0ca87c..5633c39d 100644
              mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mOwnerUid);
  
 diff --git a/services/surfaceflinger/TransactionCallbackInvoker.cpp b/services/surfaceflinger/TransactionCallbackInvoker.cpp
-index 62327073..b8f20622 100644
+index 62327073f1..b8f206228e 100644
 --- a/services/surfaceflinger/TransactionCallbackInvoker.cpp
 +++ b/services/surfaceflinger/TransactionCallbackInvoker.cpp
 @@ -23,6 +23,7 @@
@@ -69,7 +69,7 @@ index 62327073..b8f20622 100644
  
 diff --git a/services/surfaceflinger/WaydroidHostReads.h b/services/surfaceflinger/WaydroidHostReads.h
 new file mode 100644
-index 00000000..9f970f0d
+index 0000000000..9f970f0d06
 --- /dev/null
 +++ b/services/surfaceflinger/WaydroidHostReads.h
 @@ -0,0 +1,32 @@
@@ -106,7 +106,7 @@ index 00000000..9f970f0d
 +
 +} // namespace android
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
-index 09019e8c..319aa2db 100644
+index 09019e8cdb..319aa2db1f 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.cpp
 +++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
 @@ -22,8 +22,18 @@
@@ -824,7 +824,7 @@ index 09019e8c..319aa2db 100644
      using ::vendor::waydroid::display::V1_3::IWaydroidDisplay;
  
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
-index 395139b5..a5187dad 100644
+index 395139b53c..a5187dadab 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.h
 +++ b/services/surfaceflinger/WaydroidTaskStreams.h
 @@ -23,6 +23,10 @@

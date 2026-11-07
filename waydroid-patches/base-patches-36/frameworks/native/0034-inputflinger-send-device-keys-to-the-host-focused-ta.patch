@@ -16,7 +16,7 @@ Change-Id: I4971c49d2b850d95f1c744323a6339967c2c6435
  3 files changed, 31 insertions(+), 1 deletion(-)
 
 diff --git a/services/inputflinger/InputManager.cpp b/services/inputflinger/InputManager.cpp
-index 559c14b0..816c9cfd 100644
+index 559c14b0a6..816c9cfd51 100644
 --- a/services/inputflinger/InputManager.cpp
 +++ b/services/inputflinger/InputManager.cpp
 @@ -306,15 +306,26 @@ binder::Status InputManager::setFocusedWindow(const gui::FocusRequest& request)
@@ -48,7 +48,7 @@ index 559c14b0..816c9cfd 100644
  }
  
 diff --git a/services/inputflinger/dispatcher/InputDispatcher.cpp b/services/inputflinger/dispatcher/InputDispatcher.cpp
-index 386bd0c8..b5e6b225 100644
+index 386bd0c8a1..b5e6b22599 100644
 --- a/services/inputflinger/dispatcher/InputDispatcher.cpp
 +++ b/services/inputflinger/dispatcher/InputDispatcher.cpp
 @@ -2364,6 +2364,15 @@ InputDispatcher::findFocusedWindowTargetLocked(nsecs_t currentTime, const EventE
@@ -80,7 +80,7 @@ index 386bd0c8..b5e6b225 100644
          const InputEvent* event, std::optional<gui::Uid> targetUid,
          InputEventInjectionSync syncMode, std::chrono::milliseconds timeout, uint32_t policyFlags,
 diff --git a/services/inputflinger/dispatcher/InputDispatcher.h b/services/inputflinger/dispatcher/InputDispatcher.h
-index 07d58247..38237fbd 100644
+index 07d58247f6..38237fbdcd 100644
 --- a/services/inputflinger/dispatcher/InputDispatcher.h
 +++ b/services/inputflinger/dispatcher/InputDispatcher.h
 @@ -115,6 +115,10 @@ public:

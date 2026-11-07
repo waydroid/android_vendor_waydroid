@@ -17,7 +17,7 @@ Change-Id: I7496046d05500ff604dc72d5969dc71e1e3645ba
  4 files changed, 113 insertions(+), 18 deletions(-)
 
 diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
-index 1952338..e3aecec 100644
+index 1952338f11..e3aecec86d 100644
 --- a/services/surfaceflinger/Android.bp
 +++ b/services/surfaceflinger/Android.bp
 @@ -99,6 +99,7 @@ cc_defaults {
@@ -37,7 +37,7 @@ index 1952338..e3aecec 100644
      // TODO (marissaw): this library is not used by surfaceflinger. This is here so
      // the library compiled in a way that is accessible to system partition when running
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
-index b2d3f36..c113f25 100644
+index b2d3f36038..c113f2559d 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.cpp
 +++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
 @@ -151,6 +151,19 @@ void WaydroidTaskStreams::renderTasks(const std::vector<TaskCapture>& tasks) {
@@ -189,7 +189,7 @@ index b2d3f36..c113f25 100644
      void* data = nullptr;
      if (buffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, &data) != OK || data == nullptr) {
 diff --git a/services/surfaceflinger/WaydroidTaskStreams.h b/services/surfaceflinger/WaydroidTaskStreams.h
-index a04549c..b7ae40c 100644
+index a04549cdf6..b7ae40cbf9 100644
 --- a/services/surfaceflinger/WaydroidTaskStreams.h
 +++ b/services/surfaceflinger/WaydroidTaskStreams.h
 @@ -18,7 +18,10 @@
@@ -242,7 +242,7 @@ index a04549c..b7ae40c 100644
      std::mutex mMutex;
      std::condition_variable mCondition;
 diff --git a/services/surfaceflinger/tests/unittests/Android.bp b/services/surfaceflinger/tests/unittests/Android.bp
-index b4f4199..855e531 100644
+index b4f4199824..855e5314d5 100644
 --- a/services/surfaceflinger/tests/unittests/Android.bp
 +++ b/services/surfaceflinger/tests/unittests/Android.bp
 @@ -166,6 +166,7 @@ cc_defaults {
