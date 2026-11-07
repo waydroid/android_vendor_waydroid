@@ -1,0 +1,53 @@
+From 760bdb589cbe258adcf114a0741b7349395bba03 Mon Sep 17 00:00:00 2001
+From: Aditya Sethi <72063181+TechyAditya@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 12:21:53 +0530
+Subject: [PATCH] wm: Allow finishing a task by the back button on other
+ displays
+
+The full-ui check keeps Back from finishing or hiding a task in
+multi-window mode, where every app window is a task on the default
+display. A task on another display, such as an app on its own virtual
+display, has no such window to lose, but Back on its root activity did
+nothing at all. Keep the check on the default display only.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+---
+ .../com/android/server/wm/ActivityClientController.java   | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/wm/ActivityClientController.java b/services/core/java/com/android/server/wm/ActivityClientController.java
+index f6fb0ec..4c12262 100644
+--- a/services/core/java/com/android/server/wm/ActivityClientController.java
++++ b/services/core/java/com/android/server/wm/ActivityClientController.java
+@@ -1438,6 +1438,7 @@ class ActivityClientController extends IActivityClientController.Stub {
+             final boolean launchedFromHome;
+             final boolean isLastRunningActivity;
+             final boolean isTaskRoot;
++            final boolean onDefaultDisplay;
+             synchronized (mGlobalLock) {
+                 final ActivityRecord r = ActivityRecord.isInRootTaskLocked(token);
+                 if (r == null) return;
+@@ -1446,6 +1447,7 @@ class ActivityClientController extends IActivityClientController.Stub {
+                 final ActivityRecord root = task.getRootActivity(false /*ignoreRelinquishIdentity*/,
+                         true /*setToBottomIfNone*/);
+                 isTaskRoot = r == root;
++                onDefaultDisplay = r.getDisplayId() == DEFAULT_DISPLAY;
+                 if (isTaskRoot) {
+                     if (mService.mWindowOrganizerController.mTaskOrganizerController
+                         .handleInterceptBackPressedOnTaskRoot(r.getRootTask())) {
+@@ -1467,8 +1469,10 @@ class ActivityClientController extends IActivityClientController.Stub {
+                 launchedFromHome = root.isLaunchSourceType(ActivityRecord.LAUNCH_SOURCE_TYPE_HOME);
+             }
+ 
+-            if  (isTaskRoot && !SystemProperties.get("waydroid.active_apps", "none").equals("Waydroid")) {
+-                // Do not allow finishing a task by the back button except in full-ui mode
++            if  (isTaskRoot && onDefaultDisplay
++                    && !SystemProperties.get("waydroid.active_apps", "none").equals("Waydroid")) {
++                // Do not allow finishing a task by the back button except in full-ui mode.
++                // An app on another display, such as its own virtual display, keeps AOSP's behavior.
+                 return;
+             }
+ 
+-- 
+2.56.0
+
