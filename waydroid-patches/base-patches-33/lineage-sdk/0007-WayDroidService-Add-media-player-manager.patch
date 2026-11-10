@@ -1,0 +1,525 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aditya Sethi <72063181+TechyAditya@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 03:37:56 +0530
+Subject: [PATCH] WayDroidService: Add media player manager
+
+Send the active media sessions to the host's waydroidmediaplayers
+service, which shows them in the desktop's media controls with their
+title, artist, album, cover and position, and run the play, pause,
+stop, next, previous, seek and raise commands it sends back.
+
+While the host shows a session, its media notification is no longer
+forwarded to the host's notification list: like SystemUI, which shows a
+media notification as a media control, the desktop shows it as a
+player. A host without the service gets media notifications as before.
+
+Closes: https://github.com/waydroid/waydroid/issues/868
+Co-authored-by: Cursor <cursoragent@cursor.com>
+---
+ .../internal/WayDroidMediaSessions.java       | 311 ++++++++++++++++++
+ .../platform/internal/WayDroidService.java    |  61 +++-
+ .../app/LineageContextConstants.java          |   7 +
+ .../lineageos/waydroid/IMediaPlayers.aidl     |  39 +++
+ 4 files changed, 411 insertions(+), 7 deletions(-)
+ create mode 100644 lineage/lib/main/java/org/lineageos/platform/internal/WayDroidMediaSessions.java
+ create mode 100644 sdk/src/java/lineageos/waydroid/IMediaPlayers.aidl
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidMediaSessions.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidMediaSessions.java
+new file mode 100644
+index 0000000..1ca318d
+--- /dev/null
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidMediaSessions.java
+@@ -0,0 +1,311 @@
++/*
++ * Copyright (C) 2026 The WayDroid Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.lineageos.platform.internal;
++
++import android.content.ComponentName;
++import android.content.Context;
++import android.graphics.Bitmap;
++import android.media.MediaMetadata;
++import android.media.session.MediaController;
++import android.media.session.MediaSession;
++import android.media.session.MediaSessionManager;
++import android.media.session.PlaybackState;
++import android.os.Handler;
++import android.os.RemoteException;
++import android.os.SystemClock;
++import android.util.Log;
++
++import com.android.internal.os.BackgroundThread;
++
++import lineageos.waydroid.IMediaPlayers;
++
++import java.io.ByteArrayOutputStream;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.concurrent.ConcurrentHashMap;
++
++/**
++ * Sends Android's active media sessions to the host, which shows each one as a player in the
++ * desktop's media controls, and runs the host's commands on them.
++ *
++ * @hide
++ */
++class WayDroidMediaSessions {
++    private static final String TAG = "WayDroidMediaSessions";
++    private static final int ART_MAX_SIZE = 512;
++    private static final int ART_QUALITY = 90;
++    // A change often comes as several callbacks; one update covers them.
++    private static final long UPDATE_DELAY_MS = 50;
++
++    interface Listener {
++        void onRaise(String packageName);
++
++        String getAppName(String packageName);
++    }
++
++    private final Context mContext;
++    private final IMediaPlayers mHost;
++    private final Listener mListener;
++    // Everything but isShown() runs on this handler.
++    private final Handler mHandler = BackgroundThread.getHandler();
++    private final Map<MediaSession.Token, Session> mSessions = new HashMap<>();
++    private final Set<MediaSession.Token> mShown = ConcurrentHashMap.newKeySet();
++    private int mNextId = 1;
++
++    private final class Session extends MediaController.Callback {
++        final String id = String.valueOf(mNextId++);
++        final MediaController controller;
++        boolean updatePending;
++        Bitmap artBitmap;
++        byte[] art;
++
++        Session(MediaController controller) {
++            this.controller = controller;
++        }
++
++        @Override
++        public void onMetadataChanged(MediaMetadata metadata) {
++            scheduleUpdate(this);
++        }
++
++        @Override
++        public void onPlaybackStateChanged(PlaybackState state) {
++            scheduleUpdate(this);
++        }
++
++        @Override
++        public void onSessionDestroyed() {
++            refresh();
++        }
++    }
++
++    WayDroidMediaSessions(Context context, IMediaPlayers host, Listener listener) {
++        mContext = context;
++        mHost = host;
++        mListener = listener;
++    }
++
++    void start() {
++        MediaSessionManager manager = mContext.getSystemService(MediaSessionManager.class);
++        // A null listener component needs MEDIA_CONTENT_CONTROL, which the system server has.
++        manager.addOnActiveSessionsChangedListener(new MediaSessionManager.OnActiveSessionsChangedListener() {
++            @Override
++            public void onActiveSessionsChanged(List<MediaController> controllers) {
++                refresh();
++            }
++        }, (ComponentName) null, mHandler);
++
++        // Off the boot thread, which must not wait on the host
++        mHandler.post(new Runnable() {
++            @Override
++            public void run() {
++                try {
++                    mHost.registerListener(new IMediaPlayers.IMediaPlayersCallback.Stub() {
++                        @Override
++                        public void onCommand(final String id, final String command, final long positionMs) {
++                            mHandler.post(new Runnable() {
++                                @Override
++                                public void run() {
++                                    runCommand(id, command, positionMs);
++                                }
++                            });
++                        }
++                    });
++                } catch (RemoteException e) {
++                    Log.e(TAG, "Unable to register with the host", e);
++                }
++                refresh();
++            }
++        });
++    }
++
++    /** Whether the host shows the session with this token. Any thread. */
++    boolean isShown(MediaSession.Token token) {
++        return token != null && mShown.contains(token);
++    }
++
++    private void refresh() {
++        MediaSessionManager manager = mContext.getSystemService(MediaSessionManager.class);
++        List<MediaController> controllers = manager.getActiveSessions(null);
++        Map<MediaSession.Token, Session> gone = new HashMap<>(mSessions);
++        for (MediaController c : controllers) {
++            MediaSession.Token token = c.getSessionToken();
++            if (gone.remove(token) != null) {
++                continue;
++            }
++            Session s = new Session(c);
++            mSessions.put(token, s);
++            mShown.add(token);
++            c.registerCallback(s, mHandler);
++            scheduleUpdate(s);
++        }
++        for (Map.Entry<MediaSession.Token, Session> e : gone.entrySet()) {
++            Session s = e.getValue();
++            s.controller.unregisterCallback(s);
++            mSessions.remove(e.getKey());
++            mShown.remove(e.getKey());
++            try {
++                mHost.remove(s.id);
++            } catch (RemoteException ex) {
++                Log.e(TAG, ex.getLocalizedMessage(), ex);
++            }
++        }
++    }
++
++    private void scheduleUpdate(final Session s) {
++        if (s.updatePending) {
++            return;
++        }
++        s.updatePending = true;
++        mHandler.postDelayed(new Runnable() {
++            @Override
++            public void run() {
++                s.updatePending = false;
++                if (mSessions.get(s.controller.getSessionToken()) != s) {
++                    return;
++                }
++                try {
++                    mHost.update(describe(s));
++                } catch (RemoteException | RuntimeException e) {
++                    Log.w(TAG, "Sending " + s.controller.getPackageName() + " failed", e);
++                }
++            }
++        }, UPDATE_DELAY_MS);
++    }
++
++    private IMediaPlayers.Player describe(Session s) {
++        MediaController c = s.controller;
++        IMediaPlayers.Player p = new IMediaPlayers.Player();
++        p.id = s.id;
++        p.package_name = c.getPackageName();
++        p.app_name = mListener.getAppName(p.package_name);
++        p.title = "";
++        p.artist = "";
++        p.album = "";
++
++        MediaMetadata m = c.getMetadata();
++        if (m != null) {
++            p.title = text(m, MediaMetadata.METADATA_KEY_TITLE, MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
++            p.artist = text(m, MediaMetadata.METADATA_KEY_ARTIST, MediaMetadata.METADATA_KEY_ALBUM_ARTIST,
++                    MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
++            p.album = text(m, MediaMetadata.METADATA_KEY_ALBUM);
++            p.duration_ms = Math.max(0, m.getLong(MediaMetadata.METADATA_KEY_DURATION));
++            p.art = art(s, m);
++        }
++
++        PlaybackState state = c.getPlaybackState();
++        p.status = IMediaPlayers.Status.STOPPED;
++        if (state != null) {
++            switch (state.getState()) {
++                case PlaybackState.STATE_PLAYING:
++                case PlaybackState.STATE_BUFFERING:
++                case PlaybackState.STATE_CONNECTING:
++                case PlaybackState.STATE_FAST_FORWARDING:
++                case PlaybackState.STATE_REWINDING:
++                case PlaybackState.STATE_SKIPPING_TO_NEXT:
++                case PlaybackState.STATE_SKIPPING_TO_PREVIOUS:
++                case PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM:
++                    p.status = IMediaPlayers.Status.PLAYING;
++                    break;
++                case PlaybackState.STATE_PAUSED:
++                    p.status = IMediaPlayers.Status.PAUSED;
++                    break;
++                default:
++                    break;
++            }
++            long position = state.getPosition();
++            if (state.getState() == PlaybackState.STATE_PLAYING) {
++                p.speed = state.getPlaybackSpeed();
++                position += (long) ((SystemClock.elapsedRealtime() - state.getLastPositionUpdateTime()) * p.speed);
++            }
++            p.position_ms = Math.max(0, position);
++            p.actions = state.getActions();
++        }
++        return p;
++    }
++
++    private static String text(MediaMetadata m, String... keys) {
++        for (String key : keys) {
++            CharSequence v = m.getText(key);
++            if (v != null && v.length() > 0) {
++                return v.toString();
++            }
++        }
++        return "";
++    }
++
++    /** The track's picture as a JPEG, encoded again only when the picture changes. */
++    private static byte[] art(Session s, MediaMetadata m) {
++        Bitmap bitmap = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
++        if (bitmap == null) {
++            bitmap = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
++        }
++        if (bitmap == null) {
++            bitmap = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
++        }
++        // Each getMetadata() unparcels a new bitmap, so compare the pixels
++        if (bitmap == null ? s.artBitmap == null : s.artBitmap != null && bitmap.sameAs(s.artBitmap)) {
++            return s.art;
++        }
++        s.artBitmap = bitmap;
++        s.art = null;
++        if (bitmap == null) {
++            return null;
++        }
++        float scale = Math.min(1f, (float) ART_MAX_SIZE / Math.max(bitmap.getWidth(), bitmap.getHeight()));
++        Bitmap scaled = scale < 1f
++                ? Bitmap.createScaledBitmap(bitmap, Math.round(bitmap.getWidth() * scale),
++                        Math.round(bitmap.getHeight() * scale), true)
++                : bitmap;
++        ByteArrayOutputStream out = new ByteArrayOutputStream();
++        if (scaled.compress(Bitmap.CompressFormat.JPEG, ART_QUALITY, out)) {
++            s.art = out.toByteArray();
++        }
++        if (scaled != bitmap) {
++            scaled.recycle();
++        }
++        return s.art;
++    }
++
++    private void runCommand(String id, String command, long positionMs) {
++        Session s = null;
++        for (Session candidate : mSessions.values()) {
++            if (candidate.id.equals(id)) {
++                s = candidate;
++                break;
++            }
++        }
++        if (s == null) {
++            return;
++        }
++        MediaController.TransportControls t = s.controller.getTransportControls();
++        switch (command) {
++            case "play": t.play(); break;
++            case "pause": t.pause(); break;
++            case "stop": t.stop(); break;
++            case "next": t.skipToNext(); break;
++            case "previous": t.skipToPrevious(); break;
++            case "seek": t.seekTo(Math.max(0, positionMs)); break;
++            case "raise": mListener.onRaise(s.controller.getPackageName()); break;
++            default:
++                Log.w(TAG, "Unknown command " + command);
++                break;
++        }
++    }
++}
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 827bf7e..b0db833 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -30,8 +30,10 @@ import android.content.pm.PackageInstaller;
+ import android.content.pm.PackageManager;
+ import android.content.pm.PackageManager.NameNotFoundException;
+ import android.content.pm.ResolveInfo;
++import android.media.session.MediaSession;
+ import android.os.IBinder;
+ import android.os.RemoteException;
++import android.os.ServiceManager;
+ import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.provider.Settings;
+@@ -57,6 +59,7 @@ import lineageos.waydroid.IPlatform;
+ import lineageos.waydroid.Platform;
+ import lineageos.waydroid.IUserMonitor;
+ import lineageos.waydroid.UserMonitor;
++import lineageos.waydroid.IMediaPlayers;
+ import lineageos.waydroid.INotifications;
+ import lineageos.waydroid.Notifications;
+ 
+@@ -95,6 +98,9 @@ public class WayDroidService extends LineageSystemService {
+     // Map (host notification id, host action id) -> PendingIntent
+     private Map<Integer, Map<String, PendingIntent>> mNotificationActionsMap = new HashMap<Integer, Map<String, PendingIntent>>();
+ 
++    private IMediaPlayers mWaydroidMediaPlayers = null;
++    private WayDroidMediaSessions mMediaSessions = null;
++
+     public WayDroidService(Context context) {
+         super(context);
+         mContext = context;
+@@ -135,6 +141,18 @@ public class WayDroidService extends LineageSystemService {
+         }
+     }
+ 
++    @Override
++    public void onBootPhase(int phase) {
++        if (phase != PHASE_SYSTEM_SERVICES_READY || mContext == null)
++            return;
++        // The host adds its service after it starts Android, so look it up here rather than in onStart
++        mWaydroidMediaPlayers = IMediaPlayers.Stub.asInterface(
++                ServiceManager.getService(LineageContextConstants.WAYDROID_MEDIA_PLAYERS_SERVICE));
++        if (mWaydroidMediaPlayers != null) {
++            registerMediaSessions();
++        }
++    }
++
+     @Override
+     public void onUserUnlocked(@NonNull TargetUser user) {
+         List<ApplicationInfo> apps = mPm.getInstalledApplications(0);
+@@ -304,6 +322,14 @@ public class WayDroidService extends LineageSystemService {
+                     return;
+                 }
+ 
++                // The desktop shows a media notification as a player in its media controls
++                MediaSession.Token token = notification.extras.getParcelable(
++                        Notification.EXTRA_MEDIA_SESSION, MediaSession.Token.class);
++                if (mMediaSessions != null && mMediaSessions.isShown(token)) {
++                    closeHostNotification(key);
++                    return;
++                }
++
+                 String appName = _getAppName(packageName);
+                 String summary = notification.extras.getString(Notification.EXTRA_TITLE, "");
+                 String body = notification.extras.getString(Notification.EXTRA_TEXT, "");
+@@ -359,13 +385,7 @@ public class WayDroidService extends LineageSystemService {
+ 
+             @Override
+             public void onNotificationRemoved(StatusBarNotification sbn) {
+-                String key = sbn.getKey();
+-                Integer id = mNotificationIdMap.get(key);
+-                mNotificationIdMap.remove(key);
+-                if (id != null) {
+-                    mNotificationActionsMap.remove(id);
+-                    mWaydroidNotifications.closeNotification(id);
+-                }
++                closeHostNotification(sbn.getKey());
+             }
+         };
+ 
+@@ -398,6 +418,33 @@ public class WayDroidService extends LineageSystemService {
+         });
+     }
+ 
++    private void closeHostNotification(String key) {
++        Integer id = mNotificationIdMap.get(key);
++        mNotificationIdMap.remove(key);
++        if (id != null) {
++            mNotificationActionsMap.remove(id);
++            mWaydroidNotifications.closeNotification(id);
++        }
++    }
++
++    private void registerMediaSessions() {
++        mMediaSessions = new WayDroidMediaSessions(mContext, mWaydroidMediaPlayers,
++                new WayDroidMediaSessions.Listener() {
++            @Override
++            public void onRaise(String packageName) {
++                Intent launchIntent = getAppLaunchIntent(packageName);
++                if (launchIntent != null)
++                    mContext.startActivity(launchIntent);
++            }
++
++            @Override
++            public String getAppName(String packageName) {
++                return _getAppName(packageName);
++            }
++        });
++        mMediaSessions.start();
++    }
++
+     private void registerShutdownHandler() {
+         IntentFilter filter = new IntentFilter();
+         BroadcastReceiver receiver = new BroadcastReceiver() {
+diff --git a/sdk/src/java/lineageos/app/LineageContextConstants.java b/sdk/src/java/lineageos/app/LineageContextConstants.java
+index 9b47ea2..b237fed 100644
+--- a/sdk/src/java/lineageos/app/LineageContextConstants.java
++++ b/sdk/src/java/lineageos/app/LineageContextConstants.java
+@@ -113,6 +113,13 @@ public final class LineageContextConstants {
+      */
+     public static final String WAYDROID_NOTIFICATIONS_SERVICE = "waydroidnotifications";
+ 
++    /**
++     * Shows media sessions in the desktop's media controls
++     *
++     * @hide
++     */
++    public static final String WAYDROID_MEDIA_PLAYERS_SERVICE = "waydroidmediaplayers";
++
+     /**
+      * Update power menu (GlobalActions)
+      *
+diff --git a/sdk/src/java/lineageos/waydroid/IMediaPlayers.aidl b/sdk/src/java/lineageos/waydroid/IMediaPlayers.aidl
+new file mode 100644
+index 0000000..e70c959
+--- /dev/null
++++ b/sdk/src/java/lineageos/waydroid/IMediaPlayers.aidl
+@@ -0,0 +1,39 @@
++package lineageos.waydroid;
++
++interface IMediaPlayers {
++    void registerListener(in IMediaPlayersCallback listener);
++
++    oneway void update(in Player player);
++
++    oneway void remove(in String id);
++
++    interface IMediaPlayersCallback {
++        // command: play, pause, stop, next, previous, seek (to position_ms), raise
++        oneway void onCommand(String id, String command, long position_ms);
++    }
++
++    @Backing(type="byte")
++    enum Status {
++        STOPPED = 0,
++        PLAYING = 1,
++        PAUSED = 2,
++    }
++
++    parcelable Player {
++        String id;
++        String package_name;
++        String app_name;
++        String title;
++        String artist;
++        String album;
++        long duration_ms;
++        Status status = Status.STOPPED;
++        // the position when the player was sent, which advances at speed
++        long position_ms;
++        float speed;
++        // PlaybackState actions
++        long actions;
++        // JPEG, at most 512 pixels on a side
++        @nullable byte[] art;
++    }
++}
+-- 
+2.56.0
+
