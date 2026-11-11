@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Wed, 11 Nov 2026 11:28:45 +0530
+Subject: [PATCH] WayDroidService: Forward styled notification text
+
+Apps often set a notification's title and text as styled text, a
+SpannableString. Bundle.getString() returns its default for a value that
+isn't a String, so the host got an empty title and body and showed
+"Untitled notification", as for YouTube's notifications. Read both as
+CharSequence and send their text.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+---
+ .../org/lineageos/platform/internal/WayDroidService.java   | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 827bf7e..695f45d 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -305,8 +305,11 @@ public class WayDroidService extends LineageSystemService {
+                 }
+ 
+                 String appName = _getAppName(packageName);
+-                String summary = notification.extras.getString(Notification.EXTRA_TITLE, "");
+-                String body = notification.extras.getString(Notification.EXTRA_TEXT, "");
++                // Apps often set styled text, a CharSequence for which getString() returns its default
++                CharSequence title = notification.extras.getCharSequence(Notification.EXTRA_TITLE);
++                CharSequence text = notification.extras.getCharSequence(Notification.EXTRA_TEXT);
++                String summary = title == null ? "" : title.toString();
++                String body = text == null ? "" : text.toString();
+ 
+                 List<INotifications.Action> hostActions = new LinkedList<INotifications.Action>();
+                 Map<String, PendingIntent> actionMap = new HashMap<String, PendingIntent>();
+-- 
+2.56.0
+
