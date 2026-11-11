@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Wed, 11 Nov 2026 11:43:47 +0530
+Subject: [PATCH] WayDroidService: Skip group summary notifications
+
+When an app has several notifications, Android groups them under a
+summary notification, which it adds itself (ranker_group) or the app
+posts. The host's notification list doesn't group, so the summary showed
+as one more notification, "Untitled notification" when Android added
+it. Don't forward group summaries, as KDE Connect doesn't; each
+notification in the group is still forwarded.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+---
+ .../org/lineageos/platform/internal/WayDroidService.java    | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+index 827bf7e..d46d093 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/WayDroidService.java
+@@ -300,6 +300,12 @@ public class WayDroidService extends LineageSystemService {
+                 String packageName = sbn.getPackageName();
+                 Notification notification = sbn.getNotification();
+ 
++                // A group summary has little text of its own, and the desktop lists the
++                // notifications in the group one by one
++                if (notification.isGroupSummary()) {
++                    return;
++                }
++
+                 if (notification.isForegroundService()) {
+                     return;
+                 }
+-- 
+2.56.0
+
