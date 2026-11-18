@@ -1,0 +1,96 @@
+From 8ca3f1e1392090185e33a0957c202478d02ba0de Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 13 Oct 2023 17:07:56 +0330
+Subject: [PATCH] base: Include waydroid framework
+
+Change-Id: Ia364219e450a2ddf05bf71ae8efe76b977a747c5
+---
+ core/res/Android.bp                                | 1 +
+ packages/SystemUI/Android.bp                       | 1 +
+ services/Android.bp                                | 2 ++
+ services/core/Android.bp                           | 1 +
+ services/java/com/android/server/SystemServer.java | 6 ++++++
+ 5 files changed, 11 insertions(+)
+
+diff --git a/core/res/Android.bp b/core/res/Android.bp
+index 179eff809c96..61fd614c0667 100644
+--- a/core/res/Android.bp
++++ b/core/res/Android.bp
+@@ -138,6 +138,7 @@ android_app {
+
+     resource_zips: [
+         ":remote-color-resources-arsc-zip",
++        ":framework-waydroid-res",
+     ],
+
+     // Create package-export.apk, which other packages can use to get
+diff --git a/packages/SystemUI/Android.bp b/packages/SystemUI/Android.bp
+index b4027197344d..852b1c704528 100644
+--- a/packages/SystemUI/Android.bp
++++ b/packages/SystemUI/Android.bp
+@@ -178,6 +178,7 @@ android_library {
+         "LowLightDreamLib",
+         "motion_tool_lib",
+         "vendor.lineage.powershare-V1.0-java",
++        "framework-waydroid.static",
+     ],
+     manifest: "AndroidManifest.xml",
+     additional_manifests: ["LineageManifest.xml"],
+diff --git a/services/Android.bp b/services/Android.bp
+index fb008af02128..f6eea314f297 100644
+--- a/services/Android.bp
++++ b/services/Android.bp
+@@ -111,6 +111,7 @@ filegroup {
+         ":services.voiceinteraction-sources",
+         ":services.wallpapereffectsgeneration-sources",
+         ":services.wifi-sources",
++        ":services.waydroid-sources",
+     ],
+     visibility: ["//visibility:private"],
+ }
+@@ -167,6 +168,7 @@ java_library {
+         "services.wifi",
+         "service-blobstore",
+         "service-jobscheduler",
++        "services.waydroid",
+         "android.hidl.base-V1.0-java",
+     ],
+
+diff --git a/services/core/Android.bp b/services/core/Android.bp
+index e3c38e204100..352926dacf71 100644
+--- a/services/core/Android.bp
++++ b/services/core/Android.bp
+@@ -175,6 +175,7 @@ java_library_static {
+         "overlayable_policy_aidl-java",
+         "com.android.sysprop.watchdog",
+         "vendor.waydroid.window-V1.2-java",
++        "framework-waydroid.static",
+     ],
+     javac_shard_size: 50,
+ }
+diff --git a/services/java/com/android/server/SystemServer.java b/services/java/com/android/server/SystemServer.java
+index aa6918451fc1..965f954faad4 100644
+--- a/services/java/com/android/server/SystemServer.java
++++ b/services/java/com/android/server/SystemServer.java
+@@ -234,6 +234,8 @@ import java.util.TreeSet;
+ import java.util.concurrent.CountDownLatch;
+ import java.util.concurrent.Future;
+
++import id.waydro.server.WaySystemServer;
++
+ /**
+  * Entry point to {@code system_server}.
+  */
+@@ -2664,6 +2666,10 @@ public final class SystemServer implements Dumpable {
+             reportWtf("Making " + externalServer + " ready", e);
+         }
+
++        t.traceBegin("startWaydroidServices");
++        WaySystemServer.startServices(context, mSystemServiceManager);
++        t.traceEnd();
++
+         // It is now time to start up the app processes...
+
+         t.traceBegin("MakeLockSettingsServiceReady");
+--
+2.49.0

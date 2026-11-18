@@ -17,7 +17,7 @@ index 20157dd60b63..eddbec2401a4 100644
  import java.util.List;
  import java.util.function.Consumer;
  
-+import lineageos.waydroid.Clipboard;
++import id.waydro.waydroid.Clipboard;
 +
  /**
   * Implementation of the clipboard for copy and paste.
