@@ -1,0 +1,120 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 20 Nov 2026 11:14:55 +0200
+Subject: [PATCH] locksettings: unlock a secured user at boot without the lock
+ screen
+
+With no FBE and the lock screen disabled by default, save the synthetic
+password once the credential is verified and use it when the user starts.
+
+Escrow tokens cannot do this: their data is destroyed on unmanaged devices.
+
+Change-Id: Ia3aa30fe11e7af820be27b3759d28f2412bab6d4
+---
+ .../locksettings/LockSettingsService.java     | 64 ++++++++++++++++++-
+ 1 file changed, 63 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/locksettings/LockSettingsService.java b/services/core/java/com/android/server/locksettings/LockSettingsService.java
+index 59e43c22a201..0f727fc02dc2 100644
+--- a/services/core/java/com/android/server/locksettings/LockSettingsService.java
++++ b/services/core/java/com/android/server/locksettings/LockSettingsService.java
+@@ -176,6 +176,7 @@ import java.security.cert.CertificateException;
+ import java.text.SimpleDateFormat;
+ import java.time.Duration;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.Date;
+ import java.util.Enumeration;
+ import java.util.List;
+@@ -236,6 +237,7 @@ import javax.crypto.NoSuchPaddingException;
+  */
+ public class LockSettingsService extends ILockSettings.Stub {
+     private static final String TAG = "LockSettingsService";
++    private static final String HOST_UNLOCK_SP_NAME = "waydroid_sp";
+ 
+     private static final String SEPARATE_PROFILE_CHALLENGE_KEY = "lockscreen.profilechallenge";
+     private static final String PREV_LSKF_BASED_PROTECTOR_ID_KEY = "prev-sp-handle";
+@@ -2285,8 +2287,17 @@ public class LockSettingsService extends ILockSettings.Stub {
+                 return;
+             }
+             if (isUserSecure(userId)) {
+-                Slogf.d(TAG, "Not unlocking CE storage for user %d yet because user is secured",
++                SyntheticPassword sp = loadHostUnlockSp(userId);
++                if (sp == null) {
++                    Slogf.d(TAG, "Not unlocking CE storage for user %d yet because user is "
++                            + "secured", userId);
++                    return;
++                }
++                Slogf.i(TAG, "Unlocking secured user %d with the saved synthetic password",
+                         userId);
++                onSyntheticPasswordUnlocked(userId, sp);
++                unlockKeystore(userId, sp);
++                unlockCeStorage(userId, sp);
+                 return;
+             }
+             Slogf.i(TAG, "Unwrapping synthetic password for unsecured user %d", userId);
+@@ -3174,6 +3185,8 @@ public class LockSettingsService extends ILockSettings.Stub {
+ 
+         activateEscrowTokens(sp, userId);
+ 
++        saveHostUnlockSp(sp, userId);
++
+         if (isCredentialShareableWithParent(userId)) {
+             if (getSeparateProfileChallengeEnabledInternal(userId)) {
+                 setDeviceUnlockedForUser(userId);
+@@ -3192,6 +3205,55 @@ public class LockSettingsService extends ILockSettings.Stub {
+         onSyntheticPasswordUnlocked(userId, sp);
+     }
+ 
++    /**
++     * Waydroid: the host locks the device and there is no FBE, so a guest credential only
++     * guards keystore and user verification. The SP is saved once the credential is verified,
++     * so a secured user still unlocks at boot without a lock screen to type it into.
++     */
++    private boolean isHostUnlockEnabled() {
++        return !StorageManager.isFileEncrypted() && mContext.getResources().getBoolean(
++                com.android.internal.R.bool.config_disableLockscreenByDefault);
++    }
++
++    private void saveHostUnlockSp(SyntheticPassword sp, int userId) {
++        if (!isHostUnlockEnabled()) {
++            return;
++        }
++        byte[] raw = sp.getSyntheticPassword();
++        byte[] data = new byte[raw.length + 1];
++        data[0] = sp.getVersion();
++        System.arraycopy(raw, 0, data, 1, raw.length);
++        byte[] saved = mStorage.readSyntheticPasswordState(userId,
++                SyntheticPasswordManager.NULL_PROTECTOR_ID, HOST_UNLOCK_SP_NAME);
++        if (!Arrays.equals(saved, data)) {
++            mStorage.writeSyntheticPasswordState(userId,
++                    SyntheticPasswordManager.NULL_PROTECTOR_ID, HOST_UNLOCK_SP_NAME, data);
++            mStorage.syncSyntheticPasswordState(userId);
++        }
++        ArrayUtils.zeroize(data);
++        ArrayUtils.zeroize(saved);
++    }
++
++    private @Nullable SyntheticPassword loadHostUnlockSp(int userId) {
++        if (!isHostUnlockEnabled()) {
++            return null;
++        }
++        byte[] data = mStorage.readSyntheticPasswordState(userId,
++                SyntheticPasswordManager.NULL_PROTECTOR_ID, HOST_UNLOCK_SP_NAME);
++        if (data == null || data.length < 2) {
++            return null;
++        }
++        SyntheticPassword sp = new SyntheticPassword(data[0]);
++        sp.recreateDirectly(Arrays.copyOfRange(data, 1, data.length));
++        ArrayUtils.zeroize(data);
++        // A stale SP cannot decrypt the metrics; never unlock with it.
++        if (loadPasswordMetrics(sp, userId) == null) {
++            Slogf.w(TAG, "Saved synthetic password for user %d is stale", userId);
++            return null;
++        }
++        return sp;
++    }
++
+     private void setDeviceUnlockedForUser(int userId) {
+         final TrustManager trustManager = mContext.getSystemService(TrustManager.class);
+         trustManager.setDeviceLockedForUser(userId, false);

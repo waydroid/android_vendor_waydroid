@@ -1,0 +1,86 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 20 Nov 2026 11:14:55 +0200
+Subject: [PATCH] SystemUI: keep the keyguard away when it is disabled by
+ default
+
+Waydroid needs a real PIN for passkeys, but the host locks the device.
+Treat the lock screen as off even when a credential is set.
+
+Report the keyguard state again after boot. Otherwise trust keeps the
+device locked until the next sleep.
+
+Change-Id: Id84ed984c8669a65cac6429d776f1f7826b4246e
+---
+ .../keyguard/KeyguardViewMediator.java        | 23 +++++++++++++++----
+ 1 file changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java b/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
+index 62c41395da57..a7975ce7c7d5 100644
+--- a/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
++++ b/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
+@@ -1733,7 +1733,7 @@ public class KeyguardViewMediator implements CoreStartable,
+         // is disabled.
+         if (isKeyguardServiceEnabled()) {
+             setShowingLocked(!shouldWaitForProvisioning()
+-                    && !mLockPatternUtils.isLockScreenDisabled(
++                    && !isLockScreenOff(
+                             mSelectedUserInteractor.getSelectedUserId()),
+                     true /* forceCallbacks */, "setupLocked - keyguard service enabled");
+         } else {
+@@ -1894,7 +1894,7 @@ public class KeyguardViewMediator implements CoreStartable,
+                             && !lockImmediately)) {
+                 doKeyguardLaterLocked(timeout);
+                 mLockLater = true;
+-            } else if (!mLockPatternUtils.isLockScreenDisabled(currentUser)) {
++            } else if (!isLockScreenOff(currentUser)) {
+                 setPendingLock(true);
+             }
+ 
+@@ -2166,7 +2166,7 @@ public class KeyguardViewMediator implements CoreStartable,
+     }
+ 
+     private void maybeSendUserPresentBroadcast() {
+-        if (mSystemReady && mLockPatternUtils.isLockScreenDisabled(
++        if (mSystemReady && isLockScreenOff(
+                 mSelectedUserInteractor.getSelectedUserId())) {
+             // Lock screen is disabled because the user has set the preference to "None".
+             // In this case, send out ACTION_USER_PRESENT here instead of in
+@@ -2591,7 +2591,7 @@ public class KeyguardViewMediator implements CoreStartable,
+         }
+ 
+         boolean forceShow = options != null && options.getBoolean(OPTION_FORCE_SHOW, false);
+-        if (mLockPatternUtils.isLockScreenDisabled(mSelectedUserInteractor.getSelectedUserId())
++        if (isLockScreenOff(mSelectedUserInteractor.getSelectedUserId())
+                 && !lockedOrMissing && !forceShow) {
+             if (DEBUG) Log.d(TAG, "doKeyguard: not showing because lockscreen is off");
+             notifyLockNowCallback();
+@@ -2734,6 +2734,16 @@ public class KeyguardViewMediator implements CoreStartable,
+         mNotificationShadeDepthController.get().setBlursDisabledForAppLaunch(disabled);
+     }
+ 
++    /**
++     * Waydroid: the host locks the device. A guest credential only backs keystore and
++     * user verification (passkeys), so with the lock screen disabled by default it
++     * must not bring up the keyguard.
++     */
++    private boolean isLockScreenOff(int userId) {
++        return mLockPatternUtils.isLockScreenDisabled(userId) || mContext.getResources()
++                .getBoolean(com.android.internal.R.bool.config_disableLockscreenByDefault);
++    }
++
+     public boolean isSecure() {
+         return isSecure(mSelectedUserInteractor.getSelectedUserId());
+     }
+@@ -4018,6 +4028,11 @@ public class KeyguardViewMediator implements CoreStartable,
+             if (mBootSendUserPresent) {
+                 sendUserPresentBroadcast();
+             }
++            if (!mShowing && isSecure()) {
++                // The boot-time report can beat WM's view of the hidden keyguard, leaving
++                // trust with deviceLocked=1 until the next sleep. Report it once more.
++                mUiBgExecutor.execute(mTrustManager::reportKeyguardShowingChanged);
++            }
+ 
+             mHandler.post(() -> {
+                 try {
