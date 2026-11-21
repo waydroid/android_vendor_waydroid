@@ -1,0 +1,79 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Sat, 21 Nov 2026 15:20:10 +0200
+Subject: [PATCH] init: Let waydroid.prop override host ro.boot props
+
+/proc/bootconfig and /proc/cmdline describe the host's boot, and init
+imports them before any prop file, so ro.boot.* set in waydroid.prop
+never took effect.
+
+Set ro.boot.* from waydroid.prop first. Host keys that it does not set
+still come through. When it sets the verified boot state, also skip the
+host's verifiedbooterror and verifyerrorpart, which would contradict it.
+
+Change-Id: I71bfe1a07120ee66b34ad6cf83108bfe228fc10f
+---
+ init/property_service.cpp | 37 ++++++++++++++++++++++++++++++++++---
+ 1 file changed, 34 insertions(+), 3 deletions(-)
+
+diff --git a/init/property_service.cpp b/init/property_service.cpp
+index 597a9a9d9..3c8fd18f5 100644
+--- a/init/property_service.cpp
++++ b/init/property_service.cpp
+@@ -1399,14 +1399,43 @@ static void ProcessKernelCmdline() {
+ }
+ 
+ 
+-static void ProcessBootconfig() {
++static void ProcessBootconfig(bool skip_host_verity) {
+     android::fs_mgr::ImportBootconfig([&](const std::string& key, const std::string& value) {
+         if (StartsWith(key, ANDROIDBOOT_PREFIX)) {
+-            InitPropertySet("ro.boot." + key.substr(ANDROIDBOOT_PREFIX.size()), value);
++            std::string prop = "ro.boot." + key.substr(ANDROIDBOOT_PREFIX.size());
++            if (skip_host_verity &&
++                (prop == "ro.boot.verifiedbooterror" || prop == "ro.boot.verifyerrorpart")) {
++                return;
++            }
++            InitPropertySet(prop, value);
+         }
+     });
+ }
+ 
++// waydroid: bootconfig and cmdline describe the host's boot. Set ro.boot.* from
++// waydroid.prop first so it wins; other host keys still come through.
++// Returns true if it sets the verified boot state.
++static bool ProcessWaydroidBootProps() {
++    std::string data;
++    if (!ReadFileToString("/vendor/waydroid.prop", &data)) return false;
++
++    bool has_vbstate = false;
++    for (const auto& line : Split(data, "\n")) {
++        std::string trimmed = Trim(line);
++        if (trimmed.empty() || trimmed[0] == '#') continue;
++
++        auto eq = trimmed.find('=');
++        if (eq == std::string::npos) continue;
++
++        std::string key = Trim(trimmed.substr(0, eq));
++        if (!StartsWith(key, "ro.boot.")) continue;
++
++        InitPropertySet(key, Trim(trimmed.substr(eq + 1)));
++        has_vbstate |= key == "ro.boot.verifiedbootstate";
++    }
++    return has_vbstate;
++}
++
+ void PropertyInit() {
+     selinux_callback cb;
+     cb.func_audit = PropertyAuditCallback;
+@@ -1426,7 +1455,9 @@ void PropertyInit() {
+     // If arguments are passed both on the command line and in DT,
+     // properties set in DT always have priority over the command-line ones.
+     ProcessKernelDt();
+-    ProcessBootconfig();
++    // The host's verity errors would contradict a boot state set by waydroid.prop.
++    bool own_vbstate = ProcessWaydroidBootProps();
++    ProcessBootconfig(own_vbstate);
+     ProcessKernelCmdline();
+ 
+     vendor_process_bootenv();
