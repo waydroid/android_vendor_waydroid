@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: TheKit <thekit@disroot.org>
+Date: Fri, 27 Nov 2026 12:57:03 +0200
+Subject: [PATCH] surfaceflinger: drop task streams of removed tasks
+
+Releases only come back on a post for the same task, and the HAL drops
+its stream when the task is removed. So every closed app kept two busy
+full-screen buffers until 12 streams piled up.
+
+Change-Id: Ic2b638a79fa38aa6abacb20a4cc2dc05ec1c3505
+---
+ .../surfaceflinger/WaydroidTaskStreams.cpp    | 26 ++++++++++++-------
+ 1 file changed, 17 insertions(+), 9 deletions(-)
+
+diff --git a/services/surfaceflinger/WaydroidTaskStreams.cpp b/services/surfaceflinger/WaydroidTaskStreams.cpp
+index f8be73f8..758e66d6 100644
+--- a/services/surfaceflinger/WaydroidTaskStreams.cpp
++++ b/services/surfaceflinger/WaydroidTaskStreams.cpp
+@@ -54,8 +54,11 @@ namespace {
+ constexpr int kLogEveryFrames = 300;
+ constexpr char kDumpProp[] = "waydroid.task_streams.dump";
+ constexpr char kDumpDir[] = "/data/task_streams";
+-// SF cannot tell a backgrounded task from a removed one (both just leave the
+-// visible hierarchy), so streams are kept and only evicted beyond this cap.
++// The hierarchy walk includes hidden layers, so a card missing from it has
++// no tasks left. Its busy slots would never be released: the HAL drops the
++// stream with the task. Drop ours after a short grace for reparenting.
++constexpr uint64_t kAbsentDropFrames = 30;
++// Backstop only.
+ constexpr size_t kMaxStreams = 12;
+ // All slots stuck busy this long means the HAL lost its slot state
+ // (reconnect); reset our flags and let posts re-settle.
+@@ -448,17 +451,21 @@ bool WaydroidTaskStreams::renderTasks(const std::vector<TaskCapture>& tasks) {
+ 
+     mFrame++;
+ 
+-    // A task absent from this frame is usually backgrounded, not gone. Its
+-    // stream must survive: the compositor still displays one slot's buffer,
+-    // and freeing that GraphicBuffer lets gralloc recycle the dmabuf under
+-    // the card (wrong-app content). Free only slots the compositor released.
+-    for (auto& [taskId, stream] : mStreams) {
+-        const bool visible = std::any_of(tasks.begin(), tasks.end(),
++    for (auto it = mStreams.begin(); it != mStreams.end();) {
++        auto& [taskId, stream] = *it;
++        const bool present = std::any_of(tasks.begin(), tasks.end(),
+                                          [taskId = taskId](const auto& t) {
+                                              return t.taskId == taskId;
+                                          });
+-        if (visible) {
++        if (present) {
+             stream.lastSeenFrame = mFrame;
++            ++it;
++            continue;
++        }
++        if (mFrame - stream.lastSeenFrame >= kAbsentDropFrames) {
++            ALOGI("task %d: gone for %" PRIu64 " frames, dropping its stream", taskId,
++                  mFrame - stream.lastSeenFrame);
++            it = mStreams.erase(it);
+             continue;
+         }
+         stream.havePostedSig = false;
+@@ -467,6 +474,7 @@ bool WaydroidTaskStreams::renderTasks(const std::vector<TaskCapture>& tasks) {
+                 slot.texture = nullptr;
+             }
+         }
++        ++it;
+     }
+ 
+     // Bound the map: evict the longest-absent stream (its card is most
